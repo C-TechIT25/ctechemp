@@ -1405,8 +1405,7 @@ const TimesheetPage = () => {
                   </TextField>
                 </Grid>
 
-                <Grid item xs={12} sm={6}maxWidth={'25
-                  0px'}>
+                <Grid item xs={12} sm={6}maxWidth={'250px'}>
                   <TextField
                     select
                     fullWidth
