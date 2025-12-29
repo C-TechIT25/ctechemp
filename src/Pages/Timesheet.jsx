@@ -449,7 +449,7 @@ export default function Timesheet() {
 
           {/* Stats Cards */}
           <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
               <StatCard color="#2E7D32">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -467,7 +467,7 @@ export default function Timesheet() {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
               <StatCard color="#2196F3">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -485,7 +485,7 @@ export default function Timesheet() {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
               <StatCard color="#4CAF50">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -503,7 +503,7 @@ export default function Timesheet() {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
               <StatCard color={pendingApprovals > 0 ? "#FF9800" : "#2E7D32"}>
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -1066,8 +1066,8 @@ export default function Timesheet() {
                 color: 'white',
                 py: 2
               }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <PersonIcon sx={{ mr: 1 }} />
+                <Box sx={{ display: 'flex', alignItems: 'center',color:'#2E7D32',fontWeight:'bold' }}>
+                  <PersonIcon sx={{ mr: 1,color:'#2E7D32' }} />
                   Timesheet Details
                 </Box>
               </DialogTitle>

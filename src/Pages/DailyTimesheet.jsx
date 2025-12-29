@@ -705,7 +705,7 @@ const TimesheetPage = () => {
 
           {/* STATS CARDS */}
           <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
               <StatCard color={greenTheme.gradient}>
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -723,7 +723,7 @@ const TimesheetPage = () => {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
               <StatCard color="#2196F3">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -741,7 +741,7 @@ const TimesheetPage = () => {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
               <StatCard color="#4CAF50">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -759,7 +759,7 @@ const TimesheetPage = () => {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
               <StatCard color={stats.pendingApprovals > 0 ? "#FF9800" : "#2E7D32"}>
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -1356,7 +1356,7 @@ const TimesheetPage = () => {
           <form onSubmit={handleSubmit}>
             <DialogContent sx={{ mt: 3 }}>
               <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={6}minWidth={'200px'}>
                   <DatePicker
                     label="Date *"
                     value={formData.date}
@@ -1378,7 +1378,7 @@ const TimesheetPage = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={6}maxWidth={'250px'}>
                   <TextField
                     select
                     fullWidth
@@ -1405,7 +1405,8 @@ const TimesheetPage = () => {
                   </TextField>
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12} sm={6}maxWidth={'25
+                  0px'}>
                   <TextField
                     select
                     fullWidth
@@ -1433,7 +1434,7 @@ const TimesheetPage = () => {
                 </Grid>
 
                 {formData.activity_category === 'Permission' && (
-                  <Grid item xs={12} sm={6}>
+                  <Grid item xs={12} sm={6}minWidth={'250px'}>
                     <TextField
                       fullWidth
                       required
@@ -1462,33 +1463,14 @@ const TimesheetPage = () => {
                   </Grid>
                 )}
 
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={4}
-                    label="Work Description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    placeholder="Describe your tasks, achievements, and any challenges faced during the day..."
-                    size="small"
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: "8px",
-                        bgcolor: "rgba(46, 125, 50, 0.05)",
-                        border: "1px solid rgba(46, 125, 50, 0.1)"
-                      }
-                    }}
-                  />
-                </Grid>
+                
 
                 {(formData.activity_category === 'Productive Effort' || 
                   formData.activity_category === 'Idle - System Issue' || 
                   formData.activity_category === 'Idle - Power Issue') && (
                   <>
-                    <Grid item xs={12}>
-                      <Divider sx={{ my: 2 }}>
+<Grid sx={{display:'flex',gap:5}}>                    <Grid item xs={12}>
+                      <Divider sx={{ my: 0}}>
                         <Chip 
                           label="Time Tracking" 
                           icon={<TimerIcon />}
@@ -1581,8 +1563,11 @@ const TimesheetPage = () => {
                         }}
                       />
                     </Grid>
+                    </Grid>
+
                   </>
                 )}
+
 
                 {(formData.activity_category === 'Full Day Leave' || 
                   formData.activity_category === 'Sunday / Holiday') && (
@@ -1602,6 +1587,26 @@ const TimesheetPage = () => {
                     </Alert>
                   </Grid>
                 )}
+                <Grid item xs={12}minWidth={'800px'}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={4}
+                    label="Work Description"
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    placeholder="Describe your tasks, achievements, and any challenges faced during the day..."
+                    size="small"
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: "8px",
+                        bgcolor: "rgba(46, 125, 50, 0.05)",
+                        border: "1px solid rgba(46, 125, 50, 0.1)"
+                      }
+                    }}
+                  />
+                </Grid>
               </Grid>
 
               <Typography

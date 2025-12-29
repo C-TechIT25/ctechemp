@@ -137,7 +137,7 @@ export default function Header({ onMenuClick }) {
               gap: 1,
             }}
           >
-            Enterprise Dashboard
+            C-Tech Employee Work Management
           </Typography>
 
           {/* Middle: Date / Time / Day - Hide on small screens */}
@@ -227,7 +227,7 @@ export default function Header({ onMenuClick }) {
         PaperProps={{
           sx: {
             mt: 1.5,
-            width: 200,
+            width: 400,
             borderRadius: "12px",
             background: "linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)",
             boxShadow: "0 8px 32px rgba(46, 125, 50, 0.15)",

@@ -1,4 +1,3 @@
-// src/Pages/Login.jsx
 import React, { useState } from "react";
 import { 
   TextField, 
@@ -12,7 +11,10 @@ import {
   Alert,
   Link,
   Container,
-  Fade
+  Fade,
+  Grid,
+  useMediaQuery,
+  useTheme
 } from "@mui/material";
 import { 
   Visibility, 
@@ -23,43 +25,52 @@ import {
   Dashboard,
   Security,
   Person,
-  CorporateFare
+  CorporateFare,
+  Login as LoginIcon,
+  VerifiedUser,
+  WorkspacePremium
 } from "@mui/icons-material";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../Config";
+import { auth, db } from "../Config";
+import { doc, getDoc } from "firebase/firestore";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { styled } from "@mui/material/styles";
 
-// Theme colors
-const PRIMARY_GRADIENT = 'linear-gradient(135deg, #7a2514, rgba(93, 118, 151, 0.95))';
-const PRIMARY_COLOR = '#7a2514';
-const BACKGROUND_COLOR = 'rgba(255, 255, 255, 1)';
-const BORDER_COLOR = 'rgba(92, 91, 91, 0.21)';
-const TEXT_PRIMARY = '#7a2514';
+// Green Gradient Theme - Matching other components
+const PRIMARY_GRADIENT = 'linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)';
+const PRIMARY_LIGHT_GRADIENT = 'linear-gradient(135deg, #388E3C 0%, #66BB6A 100%)';
+const PRIMARY_COLOR = '#2E7D32';
+const SECONDARY_COLOR = '#4CAF50';
+const BACKGROUND_COLOR = 'rgba(255, 255, 255, 0.95)';
+const BORDER_COLOR = 'rgba(46, 125, 50, 0.15)';
+const TEXT_PRIMARY = '#2E7D32';
 const TEXT_SECONDARY = 'rgba(0, 0, 0, 0.6)';
 const SUCCESS_COLOR = '#4CAF50';
 const ERROR_COLOR = '#F44336';
+const INFO_COLOR = '#2196F3';
 
 // Styled Components
 const LoginButton = styled(Button)(({ theme }) => ({
   background: PRIMARY_GRADIENT,
   color: '#ffffff',
-  border: '1px solid rgba(255, 255, 255, 0.55)',
   borderRadius: '12px',
   textTransform: 'none',
   fontWeight: 600,
   letterSpacing: '0.3px',
-  padding: '12px 24px',
+  padding: '14px 28px',
   fontSize: '16px',
-  transition: 'all 0.2s ease-out',
+  transition: 'all 0.3s ease-out',
   '&:hover': {
-    background: 'linear-gradient(135deg, #7a2514, rgba(93, 118, 151, 1))',
-    boxShadow: '0 8px 32px rgba(9, 116, 165, 0.3)',
+    background: PRIMARY_LIGHT_GRADIENT,
+    boxShadow: '0 8px 32px rgba(46, 125, 50, 0.3)',
     transform: 'translateY(-2px)',
   },
+  '&:active': {
+    transform: 'translateY(0)',
+  },
   '&:disabled': {
-    background: 'rgba(0, 0, 0, 0.12)',
-    color: 'rgba(0, 0, 0, 0.26)',
+    background: 'rgba(46, 125, 50, 0.2)',
+    color: 'rgba(46, 125, 50, 0.5)',
     transform: 'none',
     boxShadow: 'none',
   },
@@ -68,15 +79,20 @@ const LoginButton = styled(Button)(({ theme }) => ({
 const LoginCard = styled(Paper)(({ theme }) => ({
   borderRadius: '24px',
   background: BACKGROUND_COLOR,
+  backdropFilter: 'blur(10px)',
   border: `1px solid ${BORDER_COLOR}`,
-  boxShadow: '0 20px 60px rgba(0, 0, 0, 0.1)',
-  padding: theme.spacing(6),
+  boxShadow: '0 20px 60px rgba(46, 125, 50, 0.08)',
+  padding: theme.spacing(5),
   width: '100%',
-  maxWidth: '420px',
+  maxWidth: '480px',
   transition: 'all 0.3s ease-out',
   '&:hover': {
-    boxShadow: '0 25px 80px rgba(0, 0, 0, 0.15)',
+    boxShadow: '0 25px 80px rgba(46, 125, 50, 0.15)',
     borderColor: PRIMARY_COLOR,
+  },
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(3),
+    borderRadius: '20px',
   },
 }));
 
@@ -89,18 +105,27 @@ const BrandLogo = styled(Box)(({ theme }) => ({
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: '64px',
-  height: '64px',
+  width: '72px',
+  height: '72px',
   background: PRIMARY_GRADIENT,
-  borderRadius: '16px',
-  marginBottom: theme.spacing(2),
- 
+  borderRadius: '18px',
+  marginBottom: theme.spacing(3),
+  boxShadow: '0 8px 24px rgba(46, 125, 50, 0.2)',
+  transition: 'transform 0.3s ease-out',
+  '&:hover': {
+    transform: 'rotate(10deg)',
+  },
+  [theme.breakpoints.down('sm')]: {
+    width: '64px',
+    height: '64px',
+  },
 }));
 
 const StyledTextField = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
     borderRadius: '12px',
     transition: 'all 0.2s ease-out',
+    backgroundColor: 'rgba(46, 125, 50, 0.03)',
     '&:hover': {
       '& .MuiOutlinedInput-notchedOutline': {
         borderColor: PRIMARY_COLOR,
@@ -115,9 +140,32 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
   },
   '& .MuiInputLabel-root': {
     color: TEXT_SECONDARY,
+    fontWeight: 500,
     '&.Mui-focused': {
       color: TEXT_PRIMARY,
+      fontWeight: 600,
     },
+  },
+  '& .MuiOutlinedInput-input': {
+    padding: '14px 16px',
+  },
+  '& .MuiInputAdornment-root': {
+    marginRight: theme.spacing(1),
+  },
+}));
+
+const FeatureCard = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(2),
+  padding: theme.spacing(2),
+  backgroundColor: 'rgba(46, 125, 50, 0.05)',
+  borderRadius: '12px',
+  marginBottom: theme.spacing(2),
+  transition: 'all 0.2s ease-out',
+  '&:hover': {
+    backgroundColor: 'rgba(46, 125, 50, 0.1)',
+    transform: 'translateX(4px)',
   },
 }));
 
@@ -128,6 +176,22 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // Function to get user role from Firestore
+  const getUserRole = async (uid) => {
+    try {
+      const userDoc = await getDoc(doc(db, "users", uid));
+      if (userDoc.exists()) {
+        return userDoc.data().role || "Employee"; // Default to Employee if role not found
+      }
+      return "Employee"; // Default role
+    } catch (error) {
+      console.error("Error fetching user role:", error);
+      return "Employee"; // Default role on error
+    }
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -135,9 +199,23 @@ export default function Login() {
     setError("");
     
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // 1. Authenticate with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // 2. Get user role from Firestore
+      const userRole = await getUserRole(user.uid);
+      
       setLoading(false);
-      navigate("/dashboard");
+      
+      // 3. Redirect based on role (NO DASHBOARD)
+      if (userRole === "Admin") {
+        navigate("/admin/users"); // Admin goes directly to User Management
+      } else {
+        // Employee, TeamLead, or any other role
+        navigate("/employee/daily-timesheet"); // Employee goes directly to Daily Timesheet
+      }
+      
     } catch (err) {
       setLoading(false);
       setError(
@@ -167,6 +245,8 @@ export default function Login() {
       background: 'linear-gradient(135deg, rgba(249, 250, 251, 1) 0%, rgba(243, 244, 246, 1) 100%)',
       position: 'relative',
       overflow: 'hidden',
+      py: { xs: 2, sm: 3, md: 4 },
+      px: { xs: 2, sm: 3 },
       '&::before': {
         content: '""',
         position: 'absolute',
@@ -174,159 +254,339 @@ export default function Login() {
         left: 0,
         right: 0,
         height: '4px',
+        background: PRIMARY_GRADIENT,
       },
     }}>
       {/* Background decorative elements */}
       <Box sx={{
         position: 'absolute',
         top: '10%',
-        left: '10%',
-        width: '300px',
-        height: '300px',
+        left: '5%',
+        width: { xs: '150px', sm: '200px', md: '300px' },
+        height: { xs: '150px', sm: '200px', md: '300px' },
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(9, 116, 165, 0.05) 0%, rgba(9, 116, 165, 0) 70%)',
+        background: 'radial-gradient(circle, rgba(46, 125, 50, 0.05) 0%, rgba(46, 125, 50, 0) 70%)',
         zIndex: 0,
       }} />
       <Box sx={{
         position: 'absolute',
         bottom: '10%',
-        right: '10%',
-        width: '200px',
-        height: '200px',
+        right: '5%',
+        width: { xs: '120px', sm: '180px', md: '250px' },
+        height: { xs: '120px', sm: '180px', md: '250px' },
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(93, 118, 151, 0.05) 0%, rgba(93, 118, 151, 0) 70%)',
+        background: 'radial-gradient(circle, rgba(76, 175, 80, 0.05) 0%, rgba(76, 175, 80, 0) 70%)',
         zIndex: 0,
       }} />
       
-      <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1,ml:90 }}>
+      {/* Geometric shapes */}
+      <Box sx={{
+        position: 'absolute',
+        top: '20%',
+        right: '15%',
+        width: '80px',
+        height: '80px',
+        borderRadius: '20px',
+        background: 'rgba(46, 125, 50, 0.1)',
+        transform: 'rotate(45deg)',
+        zIndex: 0,
+        display: { xs: 'none', md: 'block' },
+      }} />
+      <Box sx={{
+        position: 'absolute',
+        bottom: '20%',
+        left: '15%',
+        width: '60px',
+        height: '60px',
+        borderRadius: '50%',
+        background: 'rgba(76, 175, 80, 0.1)',
+        zIndex: 0,
+        display: { xs: 'none', md: 'block' },
+      }} />
+
+      <Container 
+        maxWidth="lg" 
+        sx={{ 
+          position: 'relative', 
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <Fade in={true} timeout={800}>
-          <LoginCard elevation={0}>
-            <BrandHeader>
-              <BrandLogo>
-                <Dashboard sx={{ fontSize: 32, color: 'white' }} />
-              </BrandLogo>
-              <Typography variant="h4" sx={{ 
-                fontWeight: 700, 
-                color: TEXT_PRIMARY,
-                mb: 1,
-                letterSpacing: '-0.5px'
+          <Grid 
+            container 
+            spacing={{ xs: 3, md: 6 }}
+            alignItems="center"
+            justifyContent="center"
+          >
+            {/* Left Column - Brand & Features */}
+            <Grid item xs={12} md={6}>
+              <Box sx={{ 
+                textAlign: { xs: 'center', md: 'left' },
+                maxWidth: { xs: '100%', md: '480px' },
+                mx: 'auto',
+                px: { xs: 2, sm: 0 }
               }}>
-                Welcome Back
-              </Typography>
-              <Typography variant="body1" sx={{ 
-                color: TEXT_SECONDARY,
-                fontWeight: 500
-              }}>
-                Sign in to your account to continue
-              </Typography>
-            </BrandHeader>
-
-            {error && (
-              <Alert 
-                severity="error" 
-                sx={{ 
-                  mb: 3,
-                  borderRadius: '12px',
-                  alignItems: 'center',
-                  '& .MuiAlert-icon': {
-                    color: ERROR_COLOR,
-                  }
-                }}
-                onClose={() => setError("")}
-              >
-                {error}
-              </Alert>
-            )}
-
-            <form onSubmit={handleLogin}>
-              <Box sx={{ mb: 3 }}>
-                <StyledTextField
-                  fullWidth
-                  label="Email Address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  required
-                  type="email"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <EmailOutlined sx={{ color: TEXT_PRIMARY }} />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{ mb: 2 }}
-                  disabled={loading}
-                />
-                
-                <StyledTextField
-                  fullWidth
-                  label="Password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  required
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LockOutlined sx={{ color: TEXT_PRIMARY }} />
-                      </InputAdornment>
-                    ),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label="toggle password visibility"
-                          onClick={handleClickShowPassword}
-                          onMouseDown={handleMouseDownPassword}
-                          edge="end"
-                          size="small"
-                          sx={{ color: TEXT_PRIMARY }}
-                        >
-                          {showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                  disabled={loading}
-                />
-                
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  mt: 1.5 
-                }}>
-                  
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Security fontSize="small" sx={{ color: SUCCESS_COLOR }} />
-                    <Typography variant="caption" sx={{ color: TEXT_SECONDARY }}>
-                      Secure login
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, justifyContent: { xs: 'center', md: 'flex-start' } }}>
+                  <BrandLogo>
+                    <WorkspacePremium sx={{ fontSize: { xs: 28, sm: 32 }, color: 'white' }} />
+                  </BrandLogo>
+                  <Box>
+                    <Typography variant="h5" sx={{ 
+                      fontWeight: 800, 
+                      color: TEXT_PRIMARY,
+                      background: PRIMARY_GRADIENT,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                      fontSize:'30px'
+                    }}>
+                      C-TECH ENGINEERING
+                    </Typography>
+                    <Typography variant="body2" sx={{ 
+                      color: TEXT_SECONDARY,
+                      fontWeight: 500,
+                      letterSpacing: '0.5px'
+                    }}>
+                      Employee Daily Work Management
                     </Typography>
                   </Box>
                 </Box>
+
+                <Typography variant="h5" sx={{ 
+                  fontWeight: 700, 
+                  color: TEXT_PRIMARY,
+                  mb: 2,
+                  fontSize: { xs: '1rem', sm: '1.5rem', md: '2rem' }
+                }}>
+                  Welcome Back
+                </Typography>
+                
+                <Typography variant="body1" sx={{ 
+                  color: TEXT_SECONDARY,
+                  fontWeight: 500,
+                  mb: 4,
+                  fontSize: { xs: '1rem', sm: '1.1rem' },
+                  lineHeight: 1.6
+                }}>
+                  Sign in to access your dashboard and manage timesheets, employees, and projects efficiently.
+                </Typography>
+
+                {/* Feature Cards */}
+                <Box sx={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
+                  gap: 2,
+                  mb: 4 
+                }}>
+                  <FeatureCard>
+                    <VerifiedUser sx={{ color: SECONDARY_COLOR }} />
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={600} color={TEXT_PRIMARY}>
+                        Secure Access
+                      </Typography>
+                      <Typography variant="caption" color={TEXT_SECONDARY}>
+                        Enterprise-grade security
+                      </Typography>
+                    </Box>
+                  </FeatureCard>
+                  
+                  <FeatureCard>
+                    <Dashboard sx={{ color: SECONDARY_COLOR }} />
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={600} color={TEXT_PRIMARY}>
+                        Real-time Dashboard
+                      </Typography>
+                      <Typography variant="caption" color={TEXT_SECONDARY}>
+                        Live analytics & insights
+                      </Typography>
+                    </Box>
+                  </FeatureCard>
+                  
+                  <FeatureCard>
+                    <Person sx={{ color: SECONDARY_COLOR }} />
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={600} color={TEXT_PRIMARY}>
+                        Team Management
+                      </Typography>
+                      <Typography variant="caption" color={TEXT_SECONDARY}>
+                        Manage employees & roles
+                      </Typography>
+                    </Box>
+                  </FeatureCard>
+                  
+                  <FeatureCard>
+                    <CorporateFare sx={{ color: SECONDARY_COLOR }} />
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight={600} color={TEXT_PRIMARY}>
+                        Timesheet Tracking
+                      </Typography>
+                      <Typography variant="caption" color={TEXT_SECONDARY}>
+                        Automated hour tracking
+                      </Typography>
+                    </Box>
+                  </FeatureCard>
+                </Box>
               </Box>
+            </Grid>
 
-              <LoginButton
-                fullWidth
-                type="submit"
-                disabled={loading || !email || !password}
-                endIcon={!loading && <ArrowForward />}
-              >
-                {loading ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <CircularProgress size={20} color="inherit" />
-                    Signing in...
+            {/* Right Column - Login Form */}
+            <Grid item xs={12} md={6}>
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '100%'
+              }}>
+                <LoginCard elevation={0}>
+                  <Box sx={{ textAlign: 'center', mb: 3 }}>
+                    <Typography variant="h5" sx={{ 
+                      fontWeight: 700, 
+                      color: TEXT_PRIMARY,
+                      mb: 1
+                    }}>
+                      Sign In
+                    </Typography>
+                    <Typography variant="body2" sx={{ 
+                      color: TEXT_SECONDARY,
+                      fontWeight: 500
+                    }}>
+                      Enter your credentials to continue
+                    </Typography>
                   </Box>
-                ) : (
-                  'Sign in to Dashboard'
-                )}
-              </LoginButton>
-            </form>
 
-          </LoginCard>
+                  {error && (
+                    <Alert 
+                      severity="error" 
+                      sx={{ 
+                        mb: 3,
+                        borderRadius: '12px',
+                        alignItems: 'center',
+                        border: `1px solid ${ERROR_COLOR}20`,
+                        backgroundColor: `${ERROR_COLOR}10`,
+                        '& .MuiAlert-icon': {
+                          color: ERROR_COLOR,
+                        }
+                      }}
+                      onClose={() => setError("")}
+                    >
+                      <Typography variant="body2" fontWeight={500}>
+                        {error}
+                      </Typography>
+                    </Alert>
+                  )}
+
+                  <form onSubmit={handleLogin}>
+                    <Box sx={{ mb: 3 }}>
+                      <StyledTextField
+                        fullWidth
+                        label="Email Address"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Enter your email"
+                        required
+                        type="email"
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <EmailOutlined sx={{ color: TEXT_PRIMARY }} />
+                            </InputAdornment>
+                          ),
+                        }}
+                        sx={{ mb: 2.5 }}
+                        disabled={loading}
+                        size={isMobile ? "small" : "medium"}
+                      />
+                      
+                      <StyledTextField
+                        fullWidth
+                        label="Password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        required
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <LockOutlined sx={{ color: TEXT_PRIMARY }} />
+                            </InputAdornment>
+                          ),
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                aria-label="toggle password visibility"
+                                onClick={handleClickShowPassword}
+                                onMouseDown={handleMouseDownPassword}
+                                edge="end"
+                                size={isMobile ? "small" : "medium"}
+                                sx={{ color: TEXT_PRIMARY }}
+                              >
+                                {showPassword ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                        disabled={loading}
+                        size={isMobile ? "small" : "medium"}
+                      />
+                    </Box>
+
+                    <LoginButton
+                      fullWidth
+                      type="submit"
+                      disabled={loading || !email || !password}
+                      startIcon={!loading && <LoginIcon />}
+                      size={isMobile ? "medium" : "large"}
+                    >
+                      {loading ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CircularProgress size={20} color="inherit" />
+                          Signing in...
+                        </Box>
+                      ) : (
+                        'Sign In'
+                      )}
+                    </LoginButton>
+
+                    <Box sx={{ 
+                      mt: 3, 
+                      pt: 3, 
+                      borderTop: `1px solid ${BORDER_COLOR}`,
+                      textAlign: 'center'
+                    }}>
+                      <Typography variant="body2" sx={{ color: TEXT_SECONDARY, mb: 1 }}>
+                        Need help accessing your account?
+                      </Typography>
+                      <Link
+                        component={RouterLink}
+                        to="/contact-support"
+                        variant="caption"
+                        sx={{ 
+                          color: PRIMARY_COLOR,
+                          textDecoration: 'none',
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 1,
+                          '&:hover': {
+                            textDecoration: 'underline',
+                          }
+                        }}
+                      >
+                        Contact Support
+                        <ArrowForward fontSize="small" />
+                      </Link>
+                    </Box>
+                  </form>
+                </LoginCard>
+              </Box>
+            </Grid>
+          </Grid>
         </Fade>
-
       </Container>
     </Box>
   );

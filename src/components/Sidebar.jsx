@@ -28,8 +28,7 @@ const StyledDrawer = styled(Drawer, {
     backgroundColor: "#1a1f36",
     color: "#a0aec0",
     borderRight: "1px solid rgba(255,255,255,0.1)",
-                    background: "linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)",
-
+    background: "linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)",
     [theme.breakpoints.up('sm')]: {
       position: 'fixed',
     },
@@ -95,32 +94,29 @@ export default function Sidebar({ mobileOpen, onClose }) {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const adminMenu = [
- 
     {
       label: "User Management",
-      path: "/dashboard/admin/users",
+      path: "/admin/users",
       icon: "👥",
     },
     {
       label: "Timesheet",
-      path: "/dashboard/admin/timesheet",
+      path: "/admin/timesheet",
       icon: "⏱️",
     },
   ];
 
   const employeeMenu = [
-
     {
       label: "Daily Timesheet",
-      path: "/dashboard/employee/daily-timesheet",
+      path: "/employee/daily-timesheet",
       icon: "⏱️",
     },
     {
       label: "Todo List",
-      path: "/dashboard/employee/todo",
+      path: "/employee/todo",
       icon: "✅",
     },
-
   ];
 
   const menu = role === "Admin" ? adminMenu : employeeMenu;
@@ -154,7 +150,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
             width: 40,
             height: 40,
             borderRadius: 2,
-                background: "linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)",
+            background: "linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)",
             mr: 2,
             fontSize: "1.2rem",
           }}
