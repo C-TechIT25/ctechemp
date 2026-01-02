@@ -116,9 +116,9 @@ import {
   PlayArrow,
   MeetingRoom
 } from '@mui/icons-material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { DatePicker } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -156,7 +156,7 @@ const StyledCard = styled(Card)(({ theme }) => ({
 }));
 
 const GradientTypography = styled(Typography)(({ theme }) => ({
-  background: "linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)",
+  background: "linear-gradient(135deg, #2196F3 0%, #045394ff 100%)",
   WebkitBackgroundClip: "text",
   WebkitTextFillColor: "transparent",
   backgroundClip: "text",
@@ -164,14 +164,14 @@ const GradientTypography = styled(Typography)(({ theme }) => ({
 }));
 
 const GradientButton = styled(Button)(({ theme }) => ({
-  background: "linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)",
+  background: "linear-gradient(135deg, #2196F3 0%, #045394ff 100%)",
   color: "white",
   border: "none",
   borderRadius: "10px",
   padding: "10px 24px",
   fontWeight: 600,
   "&:hover": {
-    background: "linear-gradient(135deg, #388E3C 0%, #66BB6A 100%)",
+  background: "linear-gradient(135deg, #2196F3 0%, #045394ff 100%)",
     transform: "translateY(-2px)",
     boxShadow: "0 6px 12px rgba(46, 125, 50, 0.25)",
   },
@@ -195,11 +195,11 @@ const StyledCalendar = styled(Box)(({ theme }) => ({
     overflow: 'hidden',
   },
   '& .rbc-header': {
-    background: alpha(theme.palette.success.main, 0.08),
+    background: alpha('#2196F3', 0.08),
     color: theme.palette.text.primary,
     fontWeight: 'bold',
     padding: '12px 6px',
-    borderBottom: `2px solid ${theme.palette.success.main}`,
+    borderBottom: `2px solid #2196F3`,
   },
   '& .rbc-today': {
     background: alpha(theme.palette.warning.main, 0.1),
@@ -216,24 +216,24 @@ const StyledCalendar = styled(Box)(({ theme }) => ({
     minHeight: '24px',
   },
   '& .rbc-selected': {
-    background: alpha(theme.palette.success.main, 0.2),
+    background: alpha('#2196F3', 0.2),
   },
   '& .rbc-toolbar': {
     marginBottom: theme.spacing(3),
     '& button': {
-      borderColor: alpha(theme.palette.success.main, 0.3),
-      color: theme.palette.success.main,
+      borderColor: alpha('#2196F3', 0.3),
+      color: '#2196F3',
       textTransform: 'none',
       fontWeight: 500,
       borderRadius: '8px',
       '&:hover': {
-        background: alpha(theme.palette.success.main, 0.1),
-        borderColor: theme.palette.success.main,
+        background: alpha('#2196F3', 0.1),
+        borderColor: '#2196F3',
       },
       '&.rbc-active': {
-        background: theme.palette.success.main,
+        background: '#2196F3',
         color: 'white',
-        borderColor: theme.palette.success.main,
+        borderColor: '#2196F3',
         '&:hover': {
           background: theme.palette.success.dark,
         }
@@ -257,7 +257,7 @@ const StyledCalendar = styled(Box)(({ theme }) => ({
   '& .rbc-day-bg': {
     border: '1px solid rgba(0, 0, 0, 0.05)',
     '&:hover': {
-      backgroundColor: alpha(theme.palette.success.main, 0.02),
+      backgroundColor: alpha('#2196F3', 0.02),
     }
   }
 }));
@@ -741,10 +741,10 @@ const Todo = () => {
         <IconButton 
           onClick={() => onNavigate('PREV')}
           sx={{
-            bgcolor: alpha(theme.palette.success.main, 0.1),
-            color: theme.palette.success.main,
+            bgcolor: alpha('#2196F3', 0.1),
+            color: '#2196F3',
             '&:hover': {
-              bgcolor: theme.palette.success.main,
+              bgcolor: '#2196F3',
               color: 'white'
             }
           }}
@@ -759,10 +759,10 @@ const Todo = () => {
         <IconButton 
           onClick={() => onNavigate('NEXT')}
           sx={{
-            bgcolor: alpha(theme.palette.success.main, 0.1),
-            color: theme.palette.success.main,
+            bgcolor: alpha('#2196F3', 0.1),
+            color: '#2196F3',
             '&:hover': {
-              bgcolor: theme.palette.success.main,
+              bgcolor: '#2196F3',
               color: 'white'
             }
           }}
@@ -780,11 +780,11 @@ const Todo = () => {
           onClick={() => onView('month')}
           size={isMobile ? "small" : "medium"}
           sx={{
-            bgcolor: calendarView === 'month' ? theme.palette.success.main : 'transparent',
-            borderColor: calendarView === 'month' ? 'transparent' : theme.palette.success.main,
-            color: calendarView === 'month' ? 'white' : theme.palette.success.main,
+            bgcolor: calendarView === 'month' ? '#2196F3' : 'transparent',
+            borderColor: calendarView === 'month' ? 'transparent' : '#2196F3',
+            color: calendarView === 'month' ? 'white' : '#2196F3',
             '&:hover': {
-              bgcolor: calendarView === 'month' ? theme.palette.success.dark : alpha(theme.palette.success.main, 0.1)
+              bgcolor: calendarView === 'month' ? theme.palette.success.dark : alpha('#2196F3', 0.1)
             }
           }}
         >
@@ -951,54 +951,54 @@ const Todo = () => {
           <TableHead>
             <TableRow>
               <TableCell sx={{ 
-                bgcolor: alpha(theme.palette.success.main, 0.08),
+                bgcolor: alpha('#2196F3', 0.08),
                 fontWeight: 'bold',
                 py: 2,
-                borderBottom: `2px solid ${theme.palette.success.main}`,
+                borderBottom: `2px solid ${'#2196F3'}`,
                 width: '40%'
               }}>
                 <Box display="flex" alignItems="center">
-                  <TaskIcon sx={{ mr: 1, fontSize: 20, color: theme.palette.success.main }} />
+                  <TaskIcon sx={{ mr: 1, fontSize: 20, color: '#2196F3' }} />
                   Task Details
                 </Box>
               </TableCell>
               <TableCell sx={{ 
-                bgcolor: alpha(theme.palette.success.main, 0.08),
+                bgcolor: alpha('#2196F3', 0.08),
                 fontWeight: 'bold',
                 py: 2,
-                borderBottom: `2px solid ${theme.palette.success.main}`
+                borderBottom: `2px solid ${'#2196F3'}`
               }}>
                 Status
               </TableCell>
               <TableCell sx={{ 
-                bgcolor: alpha(theme.palette.success.main, 0.08),
+                bgcolor: alpha('#2196F3', 0.08),
                 fontWeight: 'bold',
                 py: 2,
-                borderBottom: `2px solid ${theme.palette.success.main}`
+                borderBottom: `2px solid ${'#2196F3'}`
               }}>
                 Priority
               </TableCell>
               <TableCell sx={{ 
-                bgcolor: alpha(theme.palette.success.main, 0.08),
+                bgcolor: alpha('#2196F3', 0.08),
                 fontWeight: 'bold',
                 py: 2,
-                borderBottom: `2px solid ${theme.palette.success.main}`
+                borderBottom: `2px solid ${'#2196F3'}`
               }}>
                 Due Date
               </TableCell>
               <TableCell sx={{ 
-                bgcolor: alpha(theme.palette.success.main, 0.08),
+                bgcolor: alpha('#2196F3', 0.08),
                 fontWeight: 'bold',
                 py: 2,
-                borderBottom: `2px solid ${theme.palette.success.main}`
+                borderBottom: `2px solid ${'#2196F3'}`
               }}>
                 Category
               </TableCell>
               <TableCell sx={{ 
-                bgcolor: alpha(theme.palette.success.main, 0.08),
+                bgcolor: alpha('#2196F3', 0.08),
                 fontWeight: 'bold',
                 py: 2,
-                borderBottom: `2px solid ${theme.palette.success.main}`
+                borderBottom: `2px solid ${'#2196F3'}`
               }}>
                 Actions
               </TableCell>
@@ -1016,7 +1016,7 @@ const Todo = () => {
                         mb: 2 
                       }} 
                     />
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                    <Typography variant="h6" color="#2196F3" gutterBottom>
                       {loading ? 'Loading todos...' : 'No todos found'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -1034,7 +1034,7 @@ const Todo = () => {
                     hover
                     sx={{
                       '&:hover': {
-                        bgcolor: alpha(theme.palette.success.main, 0.04)
+                        bgcolor: alpha('#2196F3', 0.04)
                       },
                       '&:nth-of-type(even)': {
                         bgcolor: alpha(theme.palette.action.hover, 0.02)
@@ -1212,14 +1212,14 @@ const Todo = () => {
               size={60} 
               thickness={4}
               sx={{ 
-                color: theme.palette.success.main,
+                color: "#2196F3",
                 mb: 2 
               }}
             />
             <Typography 
               variant="h6" 
               color="success.main"
-              sx={{ fontWeight: 500 }}
+              sx={{ fontWeight: 500,color:"#2196F3" }}
             >
               Loading Todos...
             </Typography>
@@ -1247,7 +1247,7 @@ const Todo = () => {
               gutterBottom
               sx={{ fontWeight: 700, display: "flex", alignItems: "center" }}
             >
-              <TaskIcon sx={{ mr: 2, color: "rgba(46, 125, 50, 0.7)" }} />
+              <TaskIcon sx={{ mr: 2, color: "#2196F3" }} />
               <GradientTypography variant="h4">
                 Todo Management
               </GradientTypography>
@@ -1274,7 +1274,7 @@ const Todo = () => {
                   <Box>
                     <Typography
                       variant="h3"
-                      sx={{ color: "#2E7D32", fontWeight: 700 }}
+                      sx={{ color: "#2196F3", fontWeight: 700 }}
                     >
                       {stats.total}
                     </Typography>
@@ -1282,7 +1282,7 @@ const Todo = () => {
                       Total Tasks
                     </Typography>
                   </Box>
-                  <DashboardIcon sx={{ fontSize: 40, color: "#2E7D32" }} />
+                  <DashboardIcon sx={{ fontSize: 40, color: "#2196F3" }} />
                 </Box>
                 <Typography variant="caption" color="text.secondary">
                   Employee ID: {empId || 'Loading...'}
@@ -1423,8 +1423,8 @@ const Todo = () => {
             p: { xs: 2, sm: 3 },
             mb: 4, 
             borderRadius: 3,
-            bgcolor: alpha(theme.palette.success.main, 0.05),
-            border: `1px solid ${alpha(theme.palette.success.main, 0.1)}`
+            bgcolor: alpha('#2196F3', 0.05),
+            border: `1px solid ${alpha('#2196F3', 0.1)}`
           }}
         >
           <Typography variant="h6" gutterBottom fontWeight="bold" color="success.main">
@@ -1434,7 +1434,7 @@ const Todo = () => {
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
               <Box display="flex" alignItems="center" mb={1}>
-                <CheckCircleIcon sx={{ color: theme.palette.success.main, mr: 1, fontSize: 18 }} />
+                <CheckCircleIcon sx={{ color: '#2196F3', mr: 1, fontSize: 18 }} />
                 <Typography variant="body2">Completed</Typography>
                 <Typography variant="body2" fontWeight="bold" sx={{ ml: 'auto' }}>
                   {stats.completed} ({stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%)
@@ -1607,7 +1607,7 @@ const Todo = () => {
               alignItems="center"
               sx={{ 
                 p: 2,
-                bgcolor: alpha(theme.palette.success.main, 0.05)
+                bgcolor: alpha('#2196F3', 0.05)
               }}
             >
               <Typography variant="h6" fontWeight="bold" color="success.main">
@@ -1622,11 +1622,11 @@ const Todo = () => {
                   size={isMobile ? "small" : "medium"}
                   sx={{
                     minWidth: isMobile ? 120 : 140,
-                    bgcolor: viewMode === 'table' ? theme.palette.success.main : 'transparent',
-                    borderColor: viewMode === 'table' ? 'transparent' : theme.palette.success.main,
-                    color: viewMode === 'table' ? 'white' : theme.palette.success.main,
+                    bgcolor: viewMode === 'table' ? '#2196F3' : 'transparent',
+                    borderColor: viewMode === 'table' ? 'transparent' : '#2196F3',
+                    color: viewMode === 'table' ? 'white' : '#2196F3',
                     '&:hover': {
-                      bgcolor: viewMode === 'table' ? theme.palette.success.dark : alpha(theme.palette.success.main, 0.1)
+                      bgcolor: viewMode === 'table' ? theme.palette.success.dark : alpha('#2196F3', 0.1)
                     }
                   }}
                 >

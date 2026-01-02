@@ -36,14 +36,17 @@ import { doc, getDoc } from "firebase/firestore";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { styled } from "@mui/material/styles";
 
+// Import your PNG logo
+import LogoImage from "../assets/Ctechsheet.png"; // Update this path to your actual logo file location
+
 // Green Gradient Theme - Matching other components
-const PRIMARY_GRADIENT = 'linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)';
-const PRIMARY_LIGHT_GRADIENT = 'linear-gradient(135deg, #388E3C 0%, #66BB6A 100%)';
-const PRIMARY_COLOR = '#2E7D32';
-const SECONDARY_COLOR = '#4CAF50';
+const PRIMARY_GRADIENT = 'linear-gradient(135deg, #2196F3 0%, #08599bff 100%)';
+const PRIMARY_LIGHT_GRADIENT = 'linear-gradient(135deg, #2196F3 0%, #07508bff 100%)';
+const PRIMARY_COLOR = '#2196F3';
+const SECONDARY_COLOR = '#2196F3';
 const BACKGROUND_COLOR = 'rgba(255, 255, 255, 0.95)';
 const BORDER_COLOR = 'rgba(46, 125, 50, 0.15)';
-const TEXT_PRIMARY = '#2E7D32';
+const TEXT_PRIMARY = '#2196F3';
 const TEXT_SECONDARY = 'rgba(0, 0, 0, 0.6)';
 const SUCCESS_COLOR = '#4CAF50';
 const ERROR_COLOR = '#F44336';
@@ -62,7 +65,7 @@ const LoginButton = styled(Button)(({ theme }) => ({
   transition: 'all 0.3s ease-out',
   '&:hover': {
     background: PRIMARY_LIGHT_GRADIENT,
-    boxShadow: '0 8px 32px rgba(46, 125, 50, 0.3)',
+    boxShadow: '0 8px 32px rgba(46, 113, 125, 0.3)',
     transform: 'translateY(-2px)',
   },
   '&:active': {
@@ -70,7 +73,7 @@ const LoginButton = styled(Button)(({ theme }) => ({
   },
   '&:disabled': {
     background: 'rgba(46, 125, 50, 0.2)',
-    color: 'rgba(46, 125, 50, 0.5)',
+    color: 'rgba(46, 89, 125, 0.5)',
     transform: 'none',
     boxShadow: 'none',
   },
@@ -81,7 +84,7 @@ const LoginCard = styled(Paper)(({ theme }) => ({
   background: BACKGROUND_COLOR,
   backdropFilter: 'blur(10px)',
   border: `1px solid ${BORDER_COLOR}`,
-  boxShadow: '0 20px 60px rgba(46, 125, 50, 0.08)',
+  boxShadow: '0 20px 60px rgba(46, 125, 121, 0.08)',
   padding: theme.spacing(5),
   width: '100%',
   maxWidth: '480px',
@@ -101,23 +104,30 @@ const BrandHeader = styled(Box)(({ theme }) => ({
   marginBottom: theme.spacing(4),
 }));
 
+// Updated BrandLogo to use PNG image
 const BrandLogo = styled(Box)(({ theme }) => ({
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: '72px',
-  height: '72px',
-  background: PRIMARY_GRADIENT,
-  borderRadius: '18px',
+  width: '100px', // Increased width for logo
+  height: '100px', // Increased height for logo
+  background: 'transparent', // Removed gradient background
+  borderRadius: '12px', // Slightly rounded corners
   marginBottom: theme.spacing(3),
-  boxShadow: '0 8px 24px rgba(46, 125, 50, 0.2)',
+  boxShadow: 'none', // Removed shadow
   transition: 'transform 0.3s ease-out',
   '&:hover': {
-    transform: 'rotate(10deg)',
+    transform: 'scale(1.05)', // Scale effect instead of rotation
   },
   [theme.breakpoints.down('sm')]: {
-    width: '64px',
-    height: '64px',
+    width: '80px', // Smaller on mobile
+    height: '80px',
+  },
+  '& img': {
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain', // Ensures the image fits within the box
+    borderRadius: '12px', // Match the container's border radius
   },
 }));
 
@@ -125,7 +135,7 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
   '& .MuiOutlinedInput-root': {
     borderRadius: '12px',
     transition: 'all 0.2s ease-out',
-    backgroundColor: 'rgba(46, 125, 50, 0.03)',
+    backgroundColor: 'rgba(46, 125, 118, 0.03)',
     '&:hover': {
       '& .MuiOutlinedInput-notchedOutline': {
         borderColor: PRIMARY_COLOR,
@@ -159,12 +169,12 @@ const FeatureCard = styled(Box)(({ theme }) => ({
   alignItems: 'center',
   gap: theme.spacing(2),
   padding: theme.spacing(2),
-  backgroundColor: 'rgba(46, 125, 50, 0.05)',
+  backgroundColor: 'rgba(46, 109, 125, 0.05)',
   borderRadius: '12px',
   marginBottom: theme.spacing(2),
   transition: 'all 0.2s ease-out',
   '&:hover': {
-    backgroundColor: 'rgba(46, 125, 50, 0.1)',
+    backgroundColor: 'rgba(46, 125, 114, 0.1)',
     transform: 'translateX(4px)',
   },
 }));
@@ -265,7 +275,7 @@ export default function Login() {
         width: { xs: '150px', sm: '200px', md: '300px' },
         height: { xs: '150px', sm: '200px', md: '300px' },
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(46, 125, 50, 0.05) 0%, rgba(46, 125, 50, 0) 70%)',
+        background: 'radial-gradient(circle, rgba(46, 116, 125, 0.05) 0%, rgba(46, 125, 118, 0) 70%)',
         zIndex: 0,
       }} />
       <Box sx={{
@@ -275,7 +285,7 @@ export default function Login() {
         width: { xs: '120px', sm: '180px', md: '250px' },
         height: { xs: '120px', sm: '180px', md: '250px' },
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(76, 175, 80, 0.05) 0%, rgba(76, 175, 80, 0) 70%)',
+        background: 'radial-gradient(circle, rgba(76, 155, 175, 0.05) 0%, rgba(76, 175, 175, 0) 70%)',
         zIndex: 0,
       }} />
       
@@ -287,7 +297,7 @@ export default function Login() {
         width: '80px',
         height: '80px',
         borderRadius: '20px',
-        background: 'rgba(46, 125, 50, 0.1)',
+        background: 'rgba(46, 122, 125, 0.1)',
         transform: 'rotate(45deg)',
         zIndex: 0,
         display: { xs: 'none', md: 'block' },
@@ -299,7 +309,7 @@ export default function Login() {
         width: '60px',
         height: '60px',
         borderRadius: '50%',
-        background: 'rgba(76, 175, 80, 0.1)',
+        background: 'rgba(76, 168, 175, 0.1)',
         zIndex: 0,
         display: { xs: 'none', md: 'block' },
       }} />
@@ -331,7 +341,19 @@ export default function Login() {
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, justifyContent: { xs: 'center', md: 'flex-start' } }}>
                   <BrandLogo>
-                    <WorkspacePremium sx={{ fontSize: { xs: 28, sm: 32 }, color: 'white' }} />
+                    {/* Replace the WorkspacePremium icon with your PNG logo */}
+                    <img 
+                      src={LogoImage} 
+                      alt="C-Tech Engineering Logo" 
+                      onError={(e) => {
+                        console.error('Failed to load logo image');
+                        e.target.style.display = 'none';
+                        // Fallback to icon if image fails to load
+                        const fallback = document.createElement('div');
+                        fallback.innerHTML = '<svg><WorkspacePremium/></svg>';
+                        e.target.parentNode.appendChild(fallback);
+                      }}
+                    />
                   </BrandLogo>
                   <Box>
                     <Typography variant="h5" sx={{ 
@@ -341,7 +363,7 @@ export default function Login() {
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
                       backgroundClip: 'text',
-                      fontSize:'30px'
+                      fontSize:{ xs: '1.5rem', sm: '1.5rem', md: '1.8rem'}
                     }}>
                       C-TECH ENGINEERING
                     </Typography>
@@ -551,36 +573,7 @@ export default function Login() {
                       )}
                     </LoginButton>
 
-                    <Box sx={{ 
-                      mt: 3, 
-                      pt: 3, 
-                      borderTop: `1px solid ${BORDER_COLOR}`,
-                      textAlign: 'center'
-                    }}>
-                      <Typography variant="body2" sx={{ color: TEXT_SECONDARY, mb: 1 }}>
-                        Need help accessing your account?
-                      </Typography>
-                      <Link
-                        component={RouterLink}
-                        to="/contact-support"
-                        variant="caption"
-                        sx={{ 
-                          color: PRIMARY_COLOR,
-                          textDecoration: 'none',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 1,
-                          '&:hover': {
-                            textDecoration: 'underline',
-                          }
-                        }}
-                      >
-                        Contact Support
-                        <ArrowForward fontSize="small" />
-                      </Link>
-                    </Box>
+                 
                   </form>
                 </LoginCard>
               </Box>

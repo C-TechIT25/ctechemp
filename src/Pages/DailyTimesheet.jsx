@@ -7,6 +7,7 @@ import {
   TextField,
   Button,
   Box,
+  Menu,
   MenuItem,
   Alert,
   CircularProgress,
@@ -37,7 +38,20 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Badge
+  Badge,
+  Drawer,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  ListItemAvatar,
+  ListItemButton,
+  Switch,
+  FormControlLabel,
+  Tabs,
+  Tab,
+  Alert as MuiAlert,
+  Snackbar
 } from '@mui/material';
 import { 
   Add as AddIcon, 
@@ -61,12 +75,22 @@ import {
   Info as InfoIcon,
   Login as LoginIcon,
   Logout as LogoutIcon,
-  LunchDining as LunchDiningIcon
+  LunchDining as LunchDiningIcon,
+  Notifications as NotificationsIcon,
+  MarkEmailRead as MarkEmailReadIcon,
+  DeleteOutline as DeleteOutlineIcon,
+  Settings as SettingsIcon,
+  Email as EmailIcon,
+  NotificationsActive as NotificationsActiveIcon,
+  NotificationImportant as NotificationImportantIcon,
+  Close as CloseIcon,
+  Warning as WarningIcon,
+  CheckCircleOutline as CheckCircleOutlineIcon
 } from '@mui/icons-material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { DatePicker } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isToday, differenceInHours } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../Config';
@@ -78,12 +102,12 @@ import 'react-toastify/dist/ReactToastify.css';
 const greenTheme = {
   primary: "#2E7D32",
   secondary: "#4CAF50",
-  lightGreen: "#66BB6A",
+  lightGreen: "#66BB2196F36A",
   warning: "#FF9800",
   error: "#F44336",
   info: "#2196F3",
-  gradient: "linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)",
-  lightGradient: "linear-gradient(135deg, #388E3C 0%, #66BB6A 100%)"
+  gradient: "linear-gradient(135deg, #2196F3 0%, #115186ff 100%)",
+  lightGradient: "linear-gradient(135deg, #2196F3 0%, #2196F3 100%)"
 };
 
 // Styled Components
@@ -170,11 +194,10 @@ const StatusChip = styled(Chip)(({ theme, status }) => {
 const ActivityChip = styled(Chip)(({ theme, category }) => {
   const getColor = (category) => {
     const catLower = category?.toLowerCase();
-    if (catLower?.includes("productive")) return "#2E7D32";
+    if (catLower?.includes("productive")) return "#2196F3";
     if (catLower?.includes("idle")) return "#FF9800";
     if (catLower?.includes("leave")) return "#F44336";
-    if (catLower?.includes("permission")) return "#2196F3";
-    if (catLower?.includes("sunday") || catLower?.includes("holiday")) return "#9C27B0";
+    if (catLower?.includes("holiday")) return "#9C27B0";
     return "#757575";
   };
   
@@ -194,8 +217,8 @@ const ActivityChip = styled(Chip)(({ theme, category }) => {
 const WorkModeChip = styled(Chip)(({ theme, mode }) => {
   const getColor = (mode) => {
     const modeLower = mode?.toLowerCase();
-    if (modeLower?.includes("office")) return "#1976D2";
-    if (modeLower?.includes("home")) return "#2E7D32";
+    if (modeLower?.includes("office")) return "#033a70ff";
+    if (modeLower?.includes("home")) return "#2196F3";
     if (modeLower?.includes("hybrid")) return "#ED6C02";
     if (modeLower?.includes("client")) return "#7B1FA2";
     if (modeLower?.includes("travel")) return "#F57C00";
@@ -215,6 +238,30 @@ const WorkModeChip = styled(Chip)(({ theme, mode }) => {
   };
 });
 
+const NotificationBadge = styled(Badge)(({ theme }) => ({
+  '& .MuiBadge-badge': {
+    right: -3,
+    top: 13,
+    border: `2px solid ${theme.palette.background.paper}`,
+    padding: '0 4px',
+    backgroundColor: '#F44336',
+    color: 'white',
+    fontWeight: 'bold',
+    animation: 'pulse 2s infinite',
+  },
+  '@keyframes pulse': {
+    '0%': {
+      boxShadow: '0 0 0 0 rgba(244, 67, 54, 0.7)',
+    },
+    '70%': {
+      boxShadow: '0 0 0 10px rgba(244, 67, 54, 0)',
+    },
+    '100%': {
+      boxShadow: '0 0 0 0 rgba(244, 67, 54, 0)',
+    },
+  }
+}));
+
 const TimesheetPage = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -232,16 +279,30 @@ const TimesheetPage = () => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [expandedRows, setExpandedRows] = useState([]);
+  
+  // Notification States
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
+  const [notificationMenuAnchorEl, setNotificationMenuAnchorEl] = useState(null);
+  const [notificationTab, setNotificationTab] = useState(0);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [todayTimesheetStatus, setTodayTimesheetStatus] = useState(null);
+  const [showTodayAlert, setShowTodayAlert] = useState(false);
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    email_notifications: true,
+    in_app_notifications: true,
+    daily_summary: true
+  });
 
   const { user } = useAuth();
 
-  // Activity categories
+  // Updated activity categories (removed separate permission category)
   const activityCategories = [
     'Productive Effort',
     'Idle - System Issue',
     'Idle - Power Issue',
     'Full Day Leave',
-    'Permission',
     'Sunday / Holiday'
   ];
 
@@ -306,6 +367,10 @@ const TimesheetPage = () => {
       if (response.ok) {
         const data = await response.json();
         setTimesheets(data);
+        
+        // Check today's timesheet status
+        checkTodayTimesheetStatus(data);
+        
         showToast(`Loaded ${data.length} timesheet entries`, "success");
       } else {
         const errorData = await response.json();
@@ -320,6 +385,289 @@ const TimesheetPage = () => {
     }
   };
 
+  // Check if today's timesheet is submitted
+  const checkTodayTimesheetStatus = (timesheetData) => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    
+    const todayTimesheet = timesheetData.find(ts => {
+      const timesheetDate = ts.date;
+      
+      if (timesheetDate === today) {
+        return true;
+      }
+      
+      try {
+        const parsedDate = new Date(timesheetDate);
+        const formattedDate = format(parsedDate, 'yyyy-MM-dd');
+        return formattedDate === today;
+      } catch (err) {
+        console.error('Error parsing date:', timesheetDate, err);
+        return false;
+      }
+    });
+    
+    if (todayTimesheet) {
+      setTodayTimesheetStatus({
+        exists: true,
+        data: todayTimesheet,
+        message: 'Timesheet submitted for today'
+      });
+      setShowTodayAlert(false);
+    } else {
+      const currentHour = new Date().getHours();
+      const isAfter6PM = currentHour >= 18;
+      
+      setTodayTimesheetStatus({
+        exists: false,
+        isAfter6PM,
+        message: isAfter6PM 
+          ? 'Timesheet missing for today (after 6 PM)' 
+          : 'Timesheet not yet submitted for today'
+      });
+      
+      setShowTodayAlert(isAfter6PM);
+    }
+  };
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    if (!user?.uid) return;
+    
+    setNotificationLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}notifications/user/${user.uid}?unread_only=true`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unread_count || 0);
+      } else {
+        console.error('Failed to fetch notifications');
+      }
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    } finally {
+      setNotificationLoading(false);
+    }
+  };
+
+  // Fetch all notifications (for drawer)
+  const fetchAllNotifications = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}notifications/user/${user.uid}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unread_count || 0);
+      }
+    } catch (err) {
+      console.error('Error fetching all notifications:', err);
+    }
+  };
+
+  // Mark notification as read
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}notifications/${notificationId}/read`,
+        { method: 'PUT' }
+      );
+      
+      if (response.ok) {
+        setNotifications(prev => 
+          prev.map(notif => 
+            notif.id === notificationId 
+              ? { ...notif, is_read: true } 
+              : notif
+          )
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error('Error marking notification as read:', err);
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllNotificationsAsRead = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`,
+        { method: 'PUT' }
+      );
+      
+      if (response.ok) {
+        setNotifications(prev => 
+          prev.map(notif => ({ ...notif, is_read: true }))
+        );
+        setUnreadCount(0);
+        showToast('All notifications marked as read', 'success');
+      }
+    } catch (err) {
+      console.error('Error marking all notifications as read:', err);
+      showToast('Failed to mark notifications as read', 'error');
+    }
+  };
+
+  // Delete notification
+  const deleteNotification = async (notificationId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}notifications/${notificationId}`,
+        { method: 'DELETE' }
+      );
+      
+      if (response.ok) {
+        setNotifications(prev => 
+          prev.filter(notif => notif.id !== notificationId)
+        );
+        
+        const deletedNotif = notifications.find(n => n.id === notificationId);
+        if (deletedNotif && !deletedNotif.is_read) {
+          setUnreadCount(prev => Math.max(0, prev - 1));
+        }
+        
+        showToast('Notification deleted', 'success');
+      }
+    } catch (err) {
+      console.error('Error deleting notification:', err);
+      showToast('Failed to delete notification', 'error');
+    }
+  };
+
+  // Check for missing timesheet and create notification
+  const checkAndNotifyMissingTimesheet = async () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const currentHour = new Date().getHours();
+    
+    if (currentHour < 18) return;
+    
+    const todayTimesheet = timesheets.find(ts => ts.date === today);
+    
+    if (!todayTimesheet && empId) {
+      try {
+        const response = await fetch(`${API_BASE_URL}notifications`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            empId: empId,
+            message: `Timesheet missing for ${today}. Please submit your timesheet before end of day.`,
+            type: 'timesheet_missing',
+            metadata: {
+              date: today,
+              reminder_time: '18:00',
+              action_required: true
+            }
+          })
+        });
+        
+        if (response.ok) {
+          showToast('Reminder: Please submit today\'s timesheet', 'warning');
+          fetchNotifications();
+        }
+      } catch (err) {
+        console.error('Error creating timesheet notification:', err);
+      }
+    }
+  };
+
+  // Handle notification menu
+  const handleNotificationMenuOpen = (event) => {
+    setNotificationMenuAnchorEl(event.currentTarget);
+    fetchNotifications();
+  };
+
+  const handleNotificationMenuClose = () => {
+    setNotificationMenuAnchorEl(null);
+  };
+
+  // Open notification drawer
+  const openNotificationDrawer = () => {
+    setNotificationDrawerOpen(true);
+    fetchAllNotifications();
+  };
+
+  // Close notification drawer
+  const closeNotificationDrawer = () => {
+    setNotificationDrawerOpen(false);
+  };
+
+  // Handle notification tab change
+  const handleNotificationTabChange = (event, newValue) => {
+    setNotificationTab(newValue);
+  };
+
+  // Get filtered notifications based on tab
+  const getFilteredNotifications = () => {
+    if (notificationTab === 0) {
+      return notifications;
+    } else if (notificationTab === 1) {
+      return notifications.filter(n => !n.is_read);
+    } else {
+      return notifications.filter(n => n.type === 'timesheet_missing');
+    }
+  };
+
+  // Get notification icon based on type
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'timesheet_missing':
+        return <WarningIcon color="warning" />;
+      case 'approval_required':
+        return <NotificationImportantIcon color="error" />;
+      case 'system_alert':
+        return <InfoIcon color="info" />;
+      default:
+        return <NotificationsIcon color="action" />;
+    }
+  };
+
+  // Format notification time
+  const formatNotificationTime = (timestamp) => {
+    const now = new Date();
+    const notifTime = new Date(timestamp);
+    const diffHours = differenceInHours(now, notifTime);
+    
+    if (diffHours < 1) {
+      return 'Just now';
+    } else if (diffHours < 24) {
+      return `${diffHours} hours ago`;
+    } else {
+      return format(notifTime, 'MMM dd, HH:mm');
+    }
+  };
+
+  // Update notification preferences
+  const updateNotificationPreferences = async (key, value) => {
+    const updatedPrefs = { ...notificationPreferences, [key]: value };
+    setNotificationPreferences(updatedPrefs);
+    
+    try {
+      await fetch(`${API_BASE_URL}notifications/preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          preferences: updatedPrefs
+        })
+      });
+      showToast('Notification preferences updated', 'success');
+    } catch (err) {
+      console.error('Error updating preferences:', err);
+    }
+  };
+
+  // Initialize data
   useEffect(() => {
     fetchEmpId();
   }, [user?.uid]);
@@ -327,8 +675,28 @@ const TimesheetPage = () => {
   useEffect(() => {
     if (empId) {
       fetchTimesheets();
+      fetchNotifications();
+      
+      const interval = setInterval(() => {
+        checkAndNotifyMissingTimesheet();
+      }, 30 * 60 * 1000);
+      
+      return () => clearInterval(interval);
     }
   }, [empId]);
+
+  // Check every hour after 6 PM
+  useEffect(() => {
+    const checkHourly = () => {
+      const currentHour = new Date().getHours();
+      if (currentHour >= 18) {
+        checkAndNotifyMissingTimesheet();
+      }
+    };
+
+    const hourlyInterval = setInterval(checkHourly, 60 * 60 * 1000);
+    return () => clearInterval(hourlyInterval);
+  }, [empId, timesheets]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -342,6 +710,18 @@ const TimesheetPage = () => {
     lunch_out: '',
     permission_hours: ''
   });
+
+  // Check if activity requires time tracking
+  const requiresTimeTracking = (activity) => {
+    return activity === 'Productive Effort' || 
+           activity === 'Idle - System Issue' || 
+           activity === 'Idle - Power Issue';
+  };
+
+  // Check if activity requires minimal fields (Sunday/Holiday)
+  const isMinimalActivity = (activity) => {
+    return activity === 'Sunday / Holiday' || activity === 'Full Day Leave';
+  };
 
   const resetForm = () => {
     setFormData({
@@ -366,6 +746,23 @@ const TimesheetPage = () => {
     }));
   };
 
+  // Handle activity category change
+  const handleActivityChange = (e) => {
+    const activity = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      activity_category: activity,
+      // Reset fields for minimal activities
+      work_mode: isMinimalActivity(activity) ? '' : prev.work_mode,
+      description: isMinimalActivity(activity) ? '' : prev.description,
+      check_in: isMinimalActivity(activity) ? '' : prev.check_in,
+      check_out: isMinimalActivity(activity) ? '' : prev.check_out,
+      lunch_in: isMinimalActivity(activity) ? '' : prev.lunch_in,
+      lunch_out: isMinimalActivity(activity) ? '' : prev.lunch_out,
+      permission_hours: isMinimalActivity(activity) ? '' : prev.permission_hours
+    }));
+  };
+
   const handleOpenAddDialog = () => {
     setDialogMode('add');
     resetForm();
@@ -378,7 +775,7 @@ const TimesheetPage = () => {
     setFormData({
       date: new Date(timesheet.date),
       activity_category: timesheet.activity_category,
-      work_mode: timesheet.work_mode,
+      work_mode: timesheet.work_mode || '',
       description: timesheet.description || '',
       check_in: timesheet.check_in || '',
       check_out: timesheet.check_out || '',
@@ -397,24 +794,24 @@ const TimesheetPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.activity_category || !formData.work_mode) {
-      showToast('Please fill in required fields', 'error');
+    // Validate required fields based on activity
+    if (!formData.activity_category) {
+      showToast('Please select an activity category', 'error');
       return;
     }
 
-    // Validation for time fields based on activity category
-    if (formData.activity_category === 'Productive Effort' || 
-        formData.activity_category === 'Idle - System Issue' || 
-        formData.activity_category === 'Idle - Power Issue') {
+    // For activities that require work mode (not Sunday/Holiday)
+    if (!isMinimalActivity(formData.activity_category) && !formData.work_mode) {
+      showToast('Please select work mode', 'error');
+      return;
+    }
+
+    // Validation for time tracking activities
+    if (requiresTimeTracking(formData.activity_category)) {
       if (!formData.check_in) {
-        showToast('Check-in time is required for this activity category', 'error');
+        showToast('Check-in time is required', 'error');
         return;
       }
-    }
-
-    if (formData.activity_category === 'Permission' && !formData.permission_hours) {
-      showToast('Permission hours are required for Permission category', 'error');
-      return;
     }
 
     setSaving(true);
@@ -427,8 +824,8 @@ const TimesheetPage = () => {
         date: dateStr,
         day: day,
         activity_category: formData.activity_category,
-        work_mode: formData.work_mode,
-        description: formData.description,
+        work_mode: isMinimalActivity(formData.activity_category) ? 'Not Applicable' : formData.work_mode,
+        description: formData.description || '',
         check_in: formData.check_in || null,
         check_out: formData.check_out || null,
         lunch_in: formData.lunch_in || null,
@@ -458,6 +855,10 @@ const TimesheetPage = () => {
         );
         handleCloseDialog();
         fetchTimesheets();
+        
+        if (dateStr === format(new Date(), 'yyyy-MM-dd')) {
+          fetchNotifications();
+        }
       } else {
         const errorData = await response.json();
         showToast(errorData.error || 'Failed to save timesheet', 'error');
@@ -540,7 +941,7 @@ const TimesheetPage = () => {
   // Format time display
   const formatTime = (time) => {
     if (!time) return '--:--';
-    return time.substring(0, 5); // Remove seconds if present
+    return time.substring(0, 5);
   };
 
   // Calculate statistics
@@ -608,13 +1009,13 @@ const TimesheetPage = () => {
                 size={60} 
                 thickness={4}
                 sx={{ 
-                  color: greenTheme.primary,
-                  mb: 2 
+                  mb: 2,
+                  color:"#2196F3"
                 }}
               />
               <Typography 
                 variant="h6" 
-                color={greenTheme.primary}
+                color="#2196F3"
                 sx={{ fontWeight: 500 }}
               >
                 Loading Timesheets...
@@ -641,6 +1042,50 @@ const TimesheetPage = () => {
         theme="colored"
       />
       
+      {/* Today's Timesheet Alert */}
+      <Snackbar
+        open={showTodayAlert}
+        autoHideDuration={10000}
+        onClose={() => setShowTodayAlert(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <MuiAlert
+          elevation={6}
+          variant="filled"
+          severity="warning"
+          onClose={() => setShowTodayAlert(false)}
+          action={
+            <Button 
+              color="inherit" 
+              size="small"
+              onClick={() => {
+                handleOpenAddDialog();
+                setShowTodayAlert(false);
+              }}
+            >
+              Add Now
+            </Button>
+          }
+          sx={{ 
+            borderRadius: '12px',
+            alignItems: 'center',
+            fontSize: '0.9rem'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <WarningIcon sx={{ mr: 1 }} />
+            <Box>
+              <Typography variant="body1" fontWeight="bold">
+                Timesheet Missing for Today!
+              </Typography>
+              <Typography variant="body2">
+                It's past 6 PM and you haven't submitted today's timesheet.
+              </Typography>
+            </Box>
+          </Box>
+        </MuiAlert>
+      </Snackbar>
+      
       <Container 
         maxWidth="xl" 
         sx={{ 
@@ -659,9 +1104,151 @@ const TimesheetPage = () => {
               <Typography variant="body2" color="text.secondary">
                 Manage your daily work logs and track your hours
               </Typography>
+              
+              {/* Today's Status Badge */}
+              {todayTimesheetStatus && (
+                <Chip
+                  label={todayTimesheetStatus.message}
+                  color={todayTimesheetStatus.exists ? "success" : "warning"}
+                  variant="outlined"
+                  size="small"
+                  icon={todayTimesheetStatus.exists ? <CheckCircleOutlineIcon /> : <WarningIcon />}
+                  sx={{ mt: 1 }}
+                />
+              )}
             </Box>
             
-            <Box sx={{ display: "flex", gap: 1 }}>
+            <Box sx={{ display: "flex", gap: 1, alignItems: 'center' }}>
+              {/* Notification Bell */}
+              <Tooltip title={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}>
+                <IconButton 
+                  onClick={handleNotificationMenuOpen}
+                  sx={{ 
+                    position: 'relative',
+                    bgcolor: "rgba(46, 125, 50, 0.1)",
+                    border: "1px solid rgba(46, 125, 50, 0.2)",
+                    "&:hover": {
+                      bgcolor: "rgba(46, 125, 50, 0.2)"
+                    }
+                  }}
+                >
+                  <NotificationBadge badgeContent={unreadCount} color="error">
+                    <NotificationsIcon />
+                  </NotificationBadge>
+                </IconButton>
+              </Tooltip>
+              
+              {/* Notification Menu */}
+              <Menu
+                anchorEl={notificationMenuAnchorEl}
+                open={Boolean(notificationMenuAnchorEl)}
+                onClose={handleNotificationMenuClose}
+                PaperProps={{
+                  sx: {
+                    width: 350,
+                    maxHeight: 400,
+                    borderRadius: '12px',
+                    mt: 1,
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                  }
+                }}
+              >
+                <Box sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h6" color="#2E7D32" fontWeight="bold">
+                      Notifications
+                      {unreadCount > 0 && (
+                        <Chip 
+                          label={`${unreadCount} new`} 
+                          size="small" 
+                          color="error" 
+                          sx={{ ml: 1, fontSize: '0.7rem' }}
+                        />
+                      )}
+                    </Typography>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        openNotificationDrawer();
+                        handleNotificationMenuClose();
+                      }}
+                      sx={{ color: '#2E7D32' }}
+                    >
+                      View All
+                    </Button>
+                  </Box>
+                </Box>
+                
+                {notificationLoading ? (
+                  <Box sx={{ p: 3, textAlign: 'center' }}>
+                    <CircularProgress size={24} sx={{ color: '#2E7D32' }} />
+                  </Box>
+                ) : notifications.length > 0 ? (
+                  <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                    {notifications.slice(0, 5).map((notification) => (
+                      <MenuItem 
+                        key={notification.id}
+                        onClick={() => {
+                          markNotificationAsRead(notification.id);
+                          handleNotificationMenuClose();
+                        }}
+                        sx={{ 
+                          borderBottom: '1px solid rgba(0,0,0,0.05)',
+                          bgcolor: notification.is_read ? 'transparent' : 'rgba(46, 125, 50, 0.05)',
+                          '&:hover': {
+                            bgcolor: 'rgba(46, 125, 50, 0.1)'
+                          }
+                        }}
+                      >
+                        <ListItem disablePadding sx={{ width: '100%' }}>
+                          <ListItemIcon>
+                            {getNotificationIcon(notification.type)}
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={
+                              <Typography variant="body2" sx={{ fontWeight: notification.is_read ? 'normal' : 'bold' }}>
+                                {notification.message}
+                              </Typography>
+                            }
+                            secondary={formatNotificationTime(notification.created_at)}
+                            secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                          />
+                          {!notification.is_read && (
+                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#2E7D32', ml: 1 }} />
+                          )}
+                        </ListItem>
+                      </MenuItem>
+                    ))}
+                  </Box>
+                ) : (
+                  <Box sx={{ p: 3, textAlign: 'center' }}>
+                    <NotificationsIcon sx={{ fontSize: 48, color: 'rgba(0,0,0,0.2)', mb: 1 }} />
+                    <Typography color="text.secondary">No notifications</Typography>
+                  </Box>
+                )}
+                
+                <Box sx={{ p: 2, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    onClick={markAllNotificationsAsRead}
+                    disabled={unreadCount === 0}
+                    sx={{ 
+                      color: '#2E7D32',
+                      borderColor: 'rgba(46, 125, 50, 0.3)',
+                      '&:hover': {
+                        borderColor: '#2E7D32',
+                        bgcolor: 'rgba(46, 125, 50, 0.05)'
+                      }
+                    }}
+                  >
+                    <MarkEmailReadIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                    Mark All as Read
+                  </Button>
+                </Box>
+              </Menu>
+              
               <Tooltip title="Toggle filters">
                 <IconButton 
                   onClick={() => setShowFilters(!showFilters)}
@@ -680,7 +1267,10 @@ const TimesheetPage = () => {
               
               <Tooltip title="Refresh data">
                 <IconButton 
-                  onClick={fetchTimesheets} 
+                  onClick={() => {
+                    fetchTimesheets();
+                    fetchNotifications();
+                  }}
                   sx={{
                     bgcolor: "rgba(46, 125, 50, 0.1)",
                     border: "1px solid rgba(46, 125, 50, 0.2)",
@@ -760,18 +1350,20 @@ const TimesheetPage = () => {
             </Grid>
             
             <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
-              <StatCard color={stats.pendingApprovals > 0 ? "#FF9800" : "#2E7D32"}>
+              <StatCard color={unreadCount > 0 ? "#FF9800" : "#2E7D32"}>
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {stats.pendingApprovals}
-                    </Typography>
+                    <NotificationBadge badgeContent={unreadCount} color="error">
+                      <Typography variant="h4" fontWeight="bold">
+                        {unreadCount}
+                      </Typography>
+                    </NotificationBadge>
                     <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <TrendingUp  />
+                      <NotificationsIcon />
                     </Avatar>
                   </Box>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Pending Approval
+                    Unread Alerts
                   </Typography>
                 </CardContent>
               </StatCard>
@@ -802,15 +1394,15 @@ const TimesheetPage = () => {
           {/* FILTER SECTION */}
           <Collapse in={showFilters}>
             <StyledPaper sx={{ p: 3, mt: 3, bgcolor: "rgba(46, 125, 50, 0.02)" }}>
-              <Typography variant="subtitle1" fontWeight="bold" color="success.main" gutterBottom>
-                <FilterIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+              <Typography variant="subtitle1" fontWeight="bold" color="#2196F3" sx={{mb:2}} gutterBottom>
+                <FilterIcon sx={{ mr: 1, verticalAlign: 'middle',color:"#2196F3" }} />
                 Filter Timesheets
               </Typography>
               
               <Grid container spacing={2} alignItems="center">
                 <Grid item xs={12} md={3}>
                   <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: "success.main" }}>Activity Category</InputLabel>
+                    <InputLabel sx={{ color: "#2196F3" }}>Activity Category</InputLabel>
                     <Select
                       value={selectedActivity}
                       label="Activity Category"
@@ -834,7 +1426,7 @@ const TimesheetPage = () => {
                 
                 <Grid item xs={12} md={3}>
                   <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: "success.main" }}>Work Mode</InputLabel>
+                    <InputLabel sx={{ color: "#2196F3" }}>Work Mode</InputLabel>
                     <Select
                       value={selectedWorkMode}
                       label="Work Mode"
@@ -916,7 +1508,7 @@ const TimesheetPage = () => {
                       size="small"
                       sx={{ 
                         borderColor: "rgba(46, 125, 50, 0.3)",
-                        color: "success.main",
+                        color: "#2196F3",
                         borderRadius: "8px",
                         "&:hover": {
                           borderColor: "#2E7D32",
@@ -931,7 +1523,7 @@ const TimesheetPage = () => {
               </Grid>
               
               {(selectedActivity !== "all" || selectedWorkMode !== "all" || startDate || endDate) && (
-                <Typography variant="caption" color="success.main" sx={{ mt: 1, display: "block" }}>
+                <Typography variant="caption" color="#2196F3" sx={{ mt: 1, display: "block" }}>
                   Filtering by: 
                   {selectedActivity !== "all" && ` Activity = ${selectedActivity}`}
                   {selectedWorkMode !== "all" && `, Work Mode = ${selectedWorkMode}`}
@@ -951,7 +1543,7 @@ const TimesheetPage = () => {
                   width: 56,
                   height: 56,
                   bgcolor: "rgba(46, 125, 50, 0.1)",
-                  color: "#2E7D32",
+                  color: "#2196F3",
                   fontSize: "1.5rem",
                   fontWeight: "bold",
                   border: "2px solid rgba(46, 125, 50, 0.2)"
@@ -960,11 +1552,16 @@ const TimesheetPage = () => {
                 {user?.email?.charAt(0).toUpperCase() || "U"}
               </Avatar>
               <Box flex={1}>
-                <Typography variant="h6" fontWeight="bold" color="#2E7D32">
+                <Typography variant="h6" fontWeight="bold" color="#2196F3">
                   {user?.email}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Employee ID: {empId} • {timesheets.length} timesheet entries
+                  {todayTimesheetStatus && !todayTimesheetStatus.exists && (
+                    <span style={{ color: '#FF9800', marginLeft: '8px' }}>
+                      • Today's timesheet pending
+                    </span>
+                  )}
                 </Typography>
               </Box>
               <Chip
@@ -973,6 +1570,16 @@ const TimesheetPage = () => {
                 variant="outlined"
                 icon={<TimerIcon />}
               />
+              {unreadCount > 0 && (
+                <Chip
+                  label={`${unreadCount} alerts`}
+                  color="warning"
+                  variant="filled"
+                  icon={<NotificationsIcon />}
+                  onClick={openNotificationDrawer}
+                  clickable
+                />
+              )}
             </Box>
           </StyledPaper>
         )}
@@ -986,14 +1593,14 @@ const TimesheetPage = () => {
                   bgcolor: "rgba(46, 125, 50, 0.08)",
                   borderBottom: "2px solid #2E7D32"
                 }}>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold", width: 60 }}></TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Date/Day</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Activity</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Work Mode</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Description</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Hours</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Status</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold", width: 180 }}>Actions</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", width: 60 ,backgroundColor:"#2196F3"}}>S.No</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold" ,backgroundColor:"#2196F3"}}>Date/Day</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold" ,backgroundColor:"#2196F3"}}>Activity</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold",backgroundColor:"#2196F3" }}>Work Mode</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold",backgroundColor:"#2196F3" }}>Description</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold" ,backgroundColor:"#2196F3"}}>Hours</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold" ,backgroundColor:"#2196F3"}}>Status</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold",backgroundColor:"#2196F3", width: 180 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
 
@@ -1010,27 +1617,25 @@ const TimesheetPage = () => {
                         }}
                       >
                         <TableCell>
-                          <IconButton
-                            size="small"
-                            onClick={() => toggleRowExpansion(row.id)}
-                            sx={{ 
-                              color: "#2E7D32",
-                              "&:hover": {
-                                bgcolor: "rgba(46, 125, 50, 0.1)"
-                              }
-                            }}
-                          >
-                            {expandedRows.includes(row.id) ? <ArrowUpwardIcon /> : <InfoIcon />}
-                          </IconButton>
+                          {index+1}.
                         </TableCell>
                         
                         <TableCell>
                           <Box>
-                            <Typography variant="body2" fontWeight="medium" color="#2E7D32">
+                            <Typography variant="body2" fontWeight="medium" color="#2196F3">
                               {format(parseISO(row.date), 'dd/MM/yyyy')}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
                               {row.day}
+                              {row.date === format(new Date(), 'yyyy-MM-dd') && (
+                                <Chip 
+                                  label="Today" 
+                                  size="small" 
+                                  color="success" 
+                                  variant="outlined"
+                                  sx={{ ml: 1, fontSize: '0.6rem', height: 18 }}
+                                />
+                              )}
                             </Typography>
                           </Box>
                         </TableCell>
@@ -1106,7 +1711,7 @@ const TimesheetPage = () => {
                                 onClick={() => handleOpenEditDialog(row)}
                                 sx={{
                                   backgroundColor: "rgba(46, 125, 50, 0.1)",
-                                  color: "#2E7D32",
+                                  color: "#2196F3",
                                   "&:hover": {
                                     backgroundColor: "rgba(46, 125, 50, 0.2)",
                                   },
@@ -1163,13 +1768,13 @@ const TimesheetPage = () => {
                             <Box sx={{ p: 3, bgcolor: 'rgba(46, 125, 50, 0.02)' }}>
                               <Grid container spacing={3}>
                                 <Grid item xs={12} md={6}>
-                                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ color: '#2E7D32' }}>
+                                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ color: '#2196F3' }}>
                                     <AccessTimeIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                                     Time Tracking
                                   </Typography>
                                   <Grid container spacing={2}>
                                     {[
-                                      { icon: <LoginIcon />, label: "Check In", value: formatTime(row.check_in), color: "#2E7D32" },
+                                      { icon: <LoginIcon />, label: "Check In", value: formatTime(row.check_in), color: "#2196F3" },
                                       { icon: <LogoutIcon />, label: "Check Out", value: formatTime(row.check_out), color: "#D32F2F" },
                                       { icon: <LunchDiningIcon />, label: "Lunch In", value: formatTime(row.lunch_in), color: "#ED6C02" },
                                       { icon: <LunchDiningIcon />, label: "Lunch Out", value: formatTime(row.lunch_out), color: "#7B1FA2" }
@@ -1210,7 +1815,7 @@ const TimesheetPage = () => {
                                 </Grid>
                                 
                                 <Grid item xs={12} md={6}>
-                                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ color: '#2E7D32' }}>
+                                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ color: '#2196F3' }}>
                                     <InfoIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                                     Details
                                   </Typography>
@@ -1256,7 +1861,7 @@ const TimesheetPage = () => {
                                         <Typography variant="body2" color="text.secondary" gutterBottom>
                                           Total Hours
                                         </Typography>
-                                        <Typography variant="h6" fontWeight="bold" color="#2E7D32">
+                                        <Typography variant="h6" fontWeight="bold" color="#2196F3">
                                           {row.total_hours || "0.0"}h
                                         </Typography>
                                       </Paper>
@@ -1270,7 +1875,7 @@ const TimesheetPage = () => {
                                       borderRadius: 2,
                                       border: `1px solid rgba(46, 125, 50, 0.2)`
                                     }}>
-                                      <Typography variant="body2" fontWeight="bold" color="#2E7D32" gutterBottom>
+                                      <Typography variant="body2" fontWeight="bold" color="#2196F3" gutterBottom>
                                         <CommentIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                                         Supervisor Remark
                                       </Typography>
@@ -1298,6 +1903,16 @@ const TimesheetPage = () => {
                         <Typography variant="body2" color="text.secondary">
                           {searchTerm ? "Try adjusting your search or filters" : "Click 'Add Timesheet' to create your first entry"}
                         </Typography>
+                        {!todayTimesheetStatus?.exists && (
+                          <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={handleOpenAddDialog}
+                            sx={{ mt: 2, bgcolor: greenTheme.gradient }}
+                          >
+                            Add Today's Timesheet
+                          </Button>
+                        )}
                       </Box>
                     </TableCell>
                   </TableRow>
@@ -1316,18 +1931,243 @@ const TimesheetPage = () => {
               alignItems: "center",
               borderTop: "1px solid rgba(46, 125, 50, 0.1)"
             }}>
-              <Typography variant="body2" color="success.main" fontWeight="medium">
+              <Typography variant="body2" color="#2196F3" fontWeight="medium">
                 Showing {filteredTimesheets.length} of {timesheets.length} entries
                 {selectedActivity !== "all" && ` in ${selectedActivity}`}
                 {selectedWorkMode !== "all" && ` with ${selectedWorkMode}`}
               </Typography>
-              <Typography variant="body2" fontWeight="bold" color="success.main">
+              <Typography variant="body2" fontWeight="bold" color="#2196F3">
                 <TrendingUp sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Total hours: {filteredTimesheets.reduce((sum, row) => sum + (parseFloat(row.total_hours) || 0), 0).toFixed(1)}h
               </Typography>
             </Box>
           )}
         </StyledPaper>
+
+        {/* NOTIFICATION DRAWER */}
+        <Drawer
+          anchor="right"
+          open={notificationDrawerOpen}
+          onClose={closeNotificationDrawer}
+          PaperProps={{
+            sx: {
+              width: 450,
+              borderRadius: '16px 0 0 16px',
+              overflow: 'hidden',
+              boxShadow: '-8px 0 32px rgba(0,0,0,0.1)'
+            }
+          }}
+        >
+          <Box sx={{ 
+            background: greenTheme.gradient, 
+            color: 'white', 
+            p: 3,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <Box>
+              <Typography variant="h5" fontWeight="bold">
+                Notifications
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                {unreadCount} unread • {notifications.length} total
+              </Typography>
+            </Box>
+            <IconButton onClick={closeNotificationDrawer} sx={{ color: 'white' }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          
+          <Tabs 
+            value={notificationTab} 
+            onChange={handleNotificationTabChange}
+            sx={{ 
+              borderBottom: '1px solid rgba(0,0,0,0.1)',
+              '& .MuiTab-root': { 
+                textTransform: 'none',
+                fontWeight: 'medium'
+              }
+            }}
+          >
+            <Tab 
+              label="All" 
+              icon={<NotificationsIcon />} 
+              iconPosition="start"
+            />
+            <Tab 
+              label="Unread" 
+              icon={
+                <Badge badgeContent={unreadCount} color="error">
+                  <NotificationsActiveIcon />
+                </Badge>
+              } 
+              iconPosition="start"
+            />
+            <Tab 
+              label="Timesheet Alerts" 
+              icon={<WarningIcon />} 
+              iconPosition="start"
+            />
+          </Tabs>
+          
+          <Box sx={{ flex: 1, overflow: 'auto' }}>
+            {notificationLoading ? (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <CircularProgress sx={{ color: greenTheme.primary }} />
+              </Box>
+            ) : getFilteredNotifications().length > 0 ? (
+              <List sx={{ p: 0 }}>
+                {getFilteredNotifications().map((notification) => (
+                  <ListItem
+                    key={notification.id}
+                    sx={{
+                      borderBottom: '1px solid rgba(0,0,0,0.05)',
+                      bgcolor: notification.is_read ? 'transparent' : 'rgba(46, 125, 50, 0.05)',
+                      '&:hover': {
+                        bgcolor: 'rgba(46, 125, 50, 0.1)'
+                      }
+                    }}
+                    secondaryAction={
+                      <Stack direction="row" spacing={0.5}>
+                        {!notification.is_read && (
+                          <Tooltip title="Mark as read">
+                            <IconButton 
+                              size="small"
+                              onClick={() => markNotificationAsRead(notification.id)}
+                            >
+                              <MarkEmailReadIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Tooltip title="Delete">
+                          <IconButton 
+                            size="small"
+                            onClick={() => deleteNotification(notification.id)}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    }
+                  >
+                    <ListItemIcon>
+                      {getNotificationIcon(notification.type)}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography 
+                          variant="body1" 
+                          sx={{ 
+                            fontWeight: notification.is_read ? 'normal' : 'bold',
+                            color: notification.type === 'timesheet_missing' ? '#FF9800' : 'inherit'
+                          }}
+                        >
+                          {notification.message}
+                        </Typography>
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatNotificationTime(notification.created_at)}
+                          </Typography>
+                          {notification.metadata?.date && (
+                            <Chip 
+                              label={notification.metadata.date} 
+                              size="small" 
+                              variant="outlined"
+                              sx={{ ml: 1, fontSize: '0.6rem' }}
+                            />
+                          )}
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <NotificationsIcon sx={{ fontSize: 64, color: 'rgba(0,0,0,0.2)', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">
+                  No notifications
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {notificationTab === 1 
+                    ? "You've read all notifications" 
+                    : "No notifications in this category"}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+          
+          <Box sx={{ p: 2, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+            <Stack direction="row" spacing={1}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={markAllNotificationsAsRead}
+                disabled={unreadCount === 0}
+                sx={{ bgcolor: greenTheme.gradient }}
+              >
+                Mark All as Read
+              </Button>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<SettingsIcon />}
+                onClick={() => {
+                  showToast('Notification settings would open here', 'info');
+                }}
+                sx={{ 
+                  borderColor: 'rgba(46, 125, 50, 0.3)',
+                  color: greenTheme.primary
+                }}
+              >
+                Settings
+              </Button>
+            </Stack>
+            
+            {/* Notification Preferences */}
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(46, 125, 50, 0.05)', borderRadius: 2 }}>
+              <Typography variant="subtitle2" fontWeight="bold" color={greenTheme.primary} gutterBottom>
+                <SettingsIcon sx={{ mr: 1, fontSize: '1rem', verticalAlign: 'middle' }} />
+                Notification Preferences
+              </Typography>
+              <Stack spacing={1}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={notificationPreferences.in_app_notifications}
+                      onChange={(e) => updateNotificationPreferences('in_app_notifications', e.target.checked)}
+                      color="success"
+                    />
+                  }
+                  label="In-app notifications"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={notificationPreferences.email_notifications}
+                      onChange={(e) => updateNotificationPreferences('email_notifications', e.target.checked)}
+                      color="success"
+                    />
+                  }
+                  label="Email notifications"
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={notificationPreferences.daily_summary}
+                      onChange={(e) => updateNotificationPreferences('daily_summary', e.target.checked)}
+                      color="success"
+                    />
+                  }
+                  label="Daily summary"
+                />
+              </Stack>
+            </Box>
+          </Box>
+        </Drawer>
 
         {/* ADD/EDIT TIMESHEET DIALOG */}
         <Dialog 
@@ -1356,7 +2196,7 @@ const TimesheetPage = () => {
           <form onSubmit={handleSubmit}>
             <DialogContent sx={{ mt: 3 }}>
               <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}minWidth={'200px'}>
+                <Grid item xs={12} sm={6}minWidth={'250px'}>
                   <DatePicker
                     label="Date *"
                     value={formData.date}
@@ -1378,7 +2218,7 @@ const TimesheetPage = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}maxWidth={'250px'}>
+                <Grid item xs={12} sm={6}minWidth={'250px'}maxWidth={'250px'}>
                   <TextField
                     select
                     fullWidth
@@ -1386,7 +2226,7 @@ const TimesheetPage = () => {
                     label="Activity Category *"
                     name="activity_category"
                     value={formData.activity_category}
-                    onChange={handleInputChange}
+                    onChange={handleActivityChange}
                     size="small"
                     sx={{ 
                       '& .MuiOutlinedInput-root': {
@@ -1405,42 +2245,16 @@ const TimesheetPage = () => {
                   </TextField>
                 </Grid>
 
-                <Grid item xs={12} sm={6}maxWidth={'250px'}>
-                  <TextField
-                    select
-                    fullWidth
-                    required
-                    label="Work Mode *"
-                    name="work_mode"
-                    value={formData.work_mode}
-                    onChange={handleInputChange}
-                    size="small"
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: "8px",
-                        bgcolor: "rgba(46, 125, 50, 0.05)",
-                        border: "1px solid rgba(46, 125, 50, 0.1)"
-                      }
-                    }}
-                  >
-                    {workModes.map((mode) => (
-                      <MenuItem key={mode} value={mode}>
-                        <WorkModeChip label={mode} size="small" mode={mode} sx={{ mr: 1 }} />
-                        {mode}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-
-                {formData.activity_category === 'Permission' && (
-                  <Grid item xs={12} sm={6}minWidth={'250px'}>
+                {/* Work Mode - Only show for non-minimal activities */}
+                {!isMinimalActivity(formData.activity_category) && (
+                  <Grid item xs={12} sm={6}minWidth={'250px'}maxWidth={'250px'}>
                     <TextField
+                      select
                       fullWidth
                       required
-                      type="number"
-                      label="Permission Hours *"
-                      name="permission_hours"
-                      value={formData.permission_hours}
+                      label="Work Mode *"
+                      name="work_mode"
+                      value={formData.work_mode}
                       onChange={handleInputChange}
                       size="small"
                       sx={{ 
@@ -1450,26 +2264,23 @@ const TimesheetPage = () => {
                           border: "1px solid rgba(46, 125, 50, 0.1)"
                         }
                       }}
-                      InputProps={{
-                        inputProps: { min: 0, max: 8, step: 0.5 },
-                        endAdornment: (
-                          <Typography variant="body2" color="text.secondary">
-                            hours
-                          </Typography>
-                        )
-                      }}
-                    />
+                    >
+                      {workModes.map((mode) => (
+                        <MenuItem key={mode} value={mode}>
+                          <WorkModeChip label={mode} size="small" mode={mode} sx={{ mr: 1 }} />
+                          {mode}
+                        </MenuItem>
+                      ))}
+                    </TextField>
                   </Grid>
                 )}
 
-                
+             
 
-                {(formData.activity_category === 'Productive Effort' || 
-                  formData.activity_category === 'Idle - System Issue' || 
-                  formData.activity_category === 'Idle - Power Issue') && (
+                {/* Time Tracking Section - Only for time tracking activities */}
+                {requiresTimeTracking(formData.activity_category) && (
                   <>
-<Grid sx={{display:'flex',gap:5}}>                    <Grid item xs={12}>
-                      <Divider sx={{ my: 0}}>
+                    <Grid item xs={12}>
                         <Chip 
                           label="Time Tracking" 
                           icon={<TimerIcon />}
@@ -1479,10 +2290,9 @@ const TimesheetPage = () => {
                             fontWeight: 'medium'
                           }}
                         />
-                      </Divider>
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid item xs={12} sm={6} md={3}minWidth={'150px'}>
                       <TextField
                         fullWidth
                         required
@@ -1503,7 +2313,7 @@ const TimesheetPage = () => {
                       />
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid item xs={12} sm={6} md={3}minWidth={'150px'}>
                       <TextField
                         fullWidth
                         type="time"
@@ -1523,7 +2333,7 @@ const TimesheetPage = () => {
                       />
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid item xs={12} sm={6} md={3}minWidth={'150px'}>
                       <TextField
                         fullWidth
                         type="time"
@@ -1543,7 +2353,7 @@ const TimesheetPage = () => {
                       />
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid item xs={12} sm={6} md={3}minWidth={'150px'}>
                       <TextField
                         fullWidth
                         type="time"
@@ -1562,12 +2372,10 @@ const TimesheetPage = () => {
                         }}
                       />
                     </Grid>
-                    </Grid>
-
                   </>
                 )}
 
-
+                {/* Info Alert for non-time tracking activities */}
                 {(formData.activity_category === 'Full Day Leave' || 
                   formData.activity_category === 'Sunday / Holiday') && (
                   <Grid item xs={12}>
@@ -1581,31 +2389,64 @@ const TimesheetPage = () => {
                       }}
                     >
                       <Typography variant="body2" fontWeight="medium">
-                        No time tracking required for {formData.activity_category}
+                        No time tracking required for {formData.activity_category}. Just select the activity and submit.
                       </Typography>
                     </Alert>
                   </Grid>
                 )}
-                <Grid item xs={12}minWidth={'800px'}>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={4}
-                    label="Work Description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    placeholder="Describe your tasks, achievements, and any challenges faced during the day..."
-                    size="small"
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: "8px",
-                        bgcolor: "rgba(46, 125, 50, 0.05)",
-                        border: "1px solid rgba(46, 125, 50, 0.1)"
-                      }
-                    }}
-                  />
-                </Grid>
+   {/* Permission Hours - Only show for Productive Effort */}
+                {formData.activity_category === 'Productive Effort' && (
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="Permission Hours (optional)"
+                      name="permission_hours"
+                      value={formData.permission_hours}
+                      onChange={handleInputChange}
+                      size="small"
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: "8px",
+                          bgcolor: "rgba(46, 125, 50, 0.05)",
+                          border: "1px solid rgba(46, 125, 50, 0.1)"
+                        }
+                      }}
+                      InputProps={{
+                        inputProps: { min: 0, max: 8, step: 0.5 },
+                        endAdornment: (
+                          <Typography variant="body2" color="text.secondary">
+                            hours
+                          </Typography>
+                        )
+                      }}
+                      helperText="Permission hours will be subtracted from total work hours"
+                    />
+                  </Grid>
+                )}
+                {/* Description - Only show for non-minimal activities */}
+                {!isMinimalActivity(formData.activity_category) && (
+                  <Grid item xs={12}minWidth={'450px'}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={4}
+                      label="Work Description"
+                      name="description"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      placeholder="Describe your tasks, achievements, and any challenges faced during the day..."
+                      size="small"
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: "8px",
+                          bgcolor: "rgba(46, 125, 50, 0.05)",
+                          border: "1px solid rgba(46, 125, 50, 0.1)"
+                        }
+                      }}
+                    />
+                  </Grid>
+                )}
               </Grid>
 
               <Typography

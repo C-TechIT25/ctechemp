@@ -66,26 +66,27 @@ import {
   Info as InfoIcon,
   Comment as CommentIcon,
   TrendingUp,
+  CloudUpload as CloudUploadIcon,
+  PhotoCamera,
 } from "@mui/icons-material";
 import { auth, db } from "../Config";
 import { API_BASE_URL } from "../Config";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { format } from "date-fns";
 
 // Green Gradient Theme - Matching Timesheet
 const greenTheme = {
-  primary: "#2E7D32",
-  secondary: "#4CAF50",
-  lightGreen: "#66BB6A",
+  primary: "#2196F3",
+  secondary: "#2196F3",
+  lightGreen: "#2196F3",
   warning: "#FF9800",
   error: "#F44336",
   info: "#2196F3",
-  gradient: "linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)",
-  lightGradient: "linear-gradient(135deg, #388E3C 0%, #66BB6A 100%)"
+  gradient: "linear-gradient(135deg, #2196F3 0%, #05467aff 100%)",
+  lightGradient: "linear-gradient(135deg, #2196F3 0%, #0f4877ff 100%)"
 };
 
 // Styled Components
@@ -108,7 +109,7 @@ const GradientButton = styled(Button)(({ theme }) => ({
   "&:hover": {
     background: greenTheme.lightGradient,
     transform: "translateY(-2px)",
-    boxShadow: "0 6px 12px rgba(46, 125, 50, 0.25)",
+    boxShadow: "0 6px 12px rgba(46, 109, 125, 0.25)",
   },
   "&:disabled": {
     background: "rgba(0, 0, 0, 0.12)",
@@ -119,8 +120,8 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
   borderRadius: "16px",
   background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85))",
   backdropFilter: "blur(10px)",
-  border: "1px solid rgba(46, 125, 50, 0.1)",
-  boxShadow: "0 8px 32px rgba(46, 125, 50, 0.08)",
+  border: "1px solid rgba(46, 93, 125, 0.1)",
+  boxShadow: "0 8px 32px rgba(46, 113, 125, 0.08)",
 }));
 
 const StatCard = styled(Card)(({ theme, color }) => ({
@@ -142,14 +143,14 @@ const StatCard = styled(Card)(({ theme, color }) => ({
   "&:hover": {
     transform: "translateY(-2px)",
     transition: "transform 0.2s",
-    boxShadow: "0 8px 24px rgba(46, 125, 50, 0.2)",
+    boxShadow: "0 8px 24px rgba(46, 113, 125, 0.2)",
   }
 }));
 
 const StatusChip = styled(Chip)(({ theme, status }) => {
   const getColor = (status) => {
     const statusLower = status?.toLowerCase();
-    if (statusLower?.includes("admin")) return "#2E7D32";
+    if (statusLower?.includes("admin")) return "#074d86ff";
     if (statusLower?.includes("employee")) return "#2196F3";
     if (statusLower?.includes("teamlead")) return "#FF9800";
     return "#757575";
@@ -190,6 +191,24 @@ const WorkModeChip = styled(Chip)(({ theme, mode }) => {
   };
 });
 
+const ProfileImageUpload = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '100%',
+  height: '200px',
+  border: '2px dashed rgba(46, 125, 50, 0.3)',
+  borderRadius: '12px',
+  backgroundColor: 'rgba(46, 125, 50, 0.05)',
+  cursor: 'pointer',
+  transition: 'all 0.3s',
+  '&:hover': {
+    backgroundColor: 'rgba(46, 125, 50, 0.1)',
+    borderColor: '#2196F3',
+  }
+}));
+
 const initialForm = {
   empId: "",
   doj: "",
@@ -202,6 +221,8 @@ const initialForm = {
   totalHours: "",
   password: "",
   role: "Employee",
+  profileImgFile: null,
+  profileImgChanged: false,
 };
 
 const workModeOptions = [
@@ -223,6 +244,86 @@ const genderOptions = [
   "Prefer not to say",
 ];
 
+// Helper function to get image URL - UPDATED for URL system
+const getImageUrl = (profileData) => {
+  if (!profileData) return "";
+  
+  // Check if it's already a URL (from backend)
+  if (typeof profileData === 'string') {
+    // If it's a full URL
+    if (profileData.startsWith('http')) {
+      return profileData;
+    }
+    // If it's a base64 string (legacy support)
+    if (profileData.startsWith('data:image') || profileData.length > 100) {
+      return profileData;
+    }
+    return "";
+  }
+  
+  // If profileData is an object
+  if (typeof profileData === 'object' && profileData !== null) {
+    // Try profile_img_url first (new system)
+    if (profileData.profile_img_url && profileData.profile_img_url.startsWith('http')) {
+      return profileData.profile_img_url;
+    }
+    // Fallback to profile_img (legacy system)
+    if (profileData.profile_img) {
+      if (profileData.profile_img.startsWith('http')) {
+        return profileData.profile_img;
+      }
+      if (typeof profileData.profile_img === 'string' && 
+          (profileData.profile_img.startsWith('data:image') || profileData.profile_img.length > 100)) {
+        return profileData.profile_img;
+      }
+    }
+    return "";
+  }
+  
+  return "";
+};
+
+// Helper function to compress image for upload
+const compressImage = async (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to base64 with quality setting
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
@@ -230,6 +331,8 @@ export default function UserManagement() {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [profileImagePreview, setProfileImagePreview] = useState("");
   
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -258,12 +361,67 @@ export default function UserManagement() {
     }
   };
 
+  /* ================= HANDLE IMAGE UPLOAD ================= */
+  const handleImageUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      showToast('Please upload an image file (JPEG, PNG, GIF)', 'error');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image size should be less than 5MB', 'error');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      // Create a preview URL for immediate display
+      const previewUrl = URL.createObjectURL(file);
+      setProfileImagePreview(previewUrl);
+      
+      setForm(prev => ({
+        ...prev,
+        profileImgFile: file,
+        profileImgChanged: true
+      }));
+
+      showToast('Image selected successfully. It will be uploaded when you save the user.', 'info');
+    } catch (error) {
+      console.error('Error processing image:', error);
+      showToast('Error processing image', 'error');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  /* ================= REMOVE IMAGE ================= */
+  const handleRemoveImage = () => {
+    // Clean up blob URL
+    if (profileImagePreview && profileImagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(profileImagePreview);
+    }
+    setProfileImagePreview("");
+    setForm(prev => ({
+      ...prev,
+      profileImgFile: null,
+      profileImgChanged: true
+    }));
+  };
+
   /* ================= FETCH USERS ================= */
   const fetchUsers = async () => {
     setFetching(true);
     try {
-      // Fetch from PostgreSQL
+      // Fetch from PostgreSQL - UPDATED to use profile_img_url
       const response = await fetch(`${API_BASE_URL}employees`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch employees');
+      }
       const pgData = await response.json();
 
       // Fetch from Firebase for roles
@@ -328,25 +486,12 @@ export default function UserManagement() {
       );
       const uid = res.user.uid;
 
-      // 2️⃣ Firebase Firestore
-      await setDoc(doc(db, "users", uid), {
-        uid,
-        empId: form.empId,
-        name: form.name,
-        email: form.email,
-        gender: form.gender,
-        designation: form.designation,
-        department: form.department,
-        workMode: form.workMode,
-        totalHours: form.totalHours,
-        role: form.role,
-        createdAt: serverTimestamp(),
-      });
-
-      // 3️⃣ PostgreSQL Employee
+      // 2️⃣ PostgreSQL Employee
       const pgResponse = await fetch(`${API_BASE_URL}employees`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
           emp_id: form.empId,
           employee_name: form.name,
@@ -358,20 +503,71 @@ export default function UserManagement() {
           work_mode: form.workMode,
           total_hours: form.totalHours,
           password: form.password,
+          // No profile_img - it will be uploaded separately
         }),
       });
 
       if (!pgResponse.ok) {
-        throw new Error("Failed to create employee in PostgreSQL");
+        const errorData = await pgResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to create employee in PostgreSQL");
+      }
+
+      // 3️⃣ Upload profile image if exists - UPDATED to use separate endpoint
+      let profileImageUrl = null;
+      if (form.profileImgFile) {
+        try {
+          const formData = new FormData();
+          formData.append('profile_img', form.profileImgFile);
+          
+          const encodedEmail = encodeURIComponent(form.email);
+          const uploadResponse = await fetch(`${API_BASE_URL}profile/image/${encodedEmail}`, {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json();
+            profileImageUrl = uploadResult.data?.profile_img_url || uploadResult.data?.profile_img;
+          } else {
+            console.warn('Failed to upload profile image, continuing without it');
+          }
+        } catch (uploadError) {
+          console.error('Error uploading profile image:', uploadError);
+          // Continue without profile image
+        }
+      }
+
+      // 4️⃣ Firebase Firestore - Store user data with profile image URL
+      const firestoreData = {
+        uid,
+        empId: form.empId,
+        name: form.name,
+        email: form.email,
+        gender: form.gender,
+        designation: form.designation,
+        department: form.department,
+        workMode: form.workMode,
+        totalHours: form.totalHours,
+        role: form.role,
+        profileImgUrl: profileImageUrl,
+        createdAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, "users", uid), firestoreData);
+
+      // Clean up blob URL
+      if (profileImagePreview) {
+        URL.revokeObjectURL(profileImagePreview);
       }
 
       setOpen(false);
       setForm(initialForm);
+      setProfileImagePreview("");
       fetchUsers();
       showToast("User created successfully!", "success");
     } catch (err) {
       console.error("Error creating user:", err);
-      showToast(err.message, "error");
+      showToast(err.message || "Error creating user", "error");
     }
     setLoading(false);
   };
@@ -382,72 +578,137 @@ export default function UserManagement() {
 
     setLoading(true);
     try {
-      // 🔹 Update Firebase
-      await updateDoc(doc(db, "users", editing.uid), {
-        name: form.name,
+      // 1️⃣ Update PostgreSQL
+      const updateData = {
+        employee_name: form.name,
+        gender: form.gender,
         department: form.department,
         designation: form.designation,
-        workMode: form.workMode,
-        totalHours: form.totalHours,
-        role: form.role,
-        gender: form.gender,
+        work_mode: form.workMode,
+        total_hours: form.totalHours,
+      };
+
+      const updateResponse = await fetch(`${API_BASE_URL}employees/${editing.pgId}`, {
+        method: "PUT",
+        headers: { 
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(updateData),
       });
 
-      // 🔹 Update PostgreSQL
-      await fetch(`${API_BASE_URL}employees/${editing.pgId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employee_name: form.name,
-          gender: form.gender,
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to update employee");
+      }
+
+      // 2️⃣ Upload new profile image if changed - UPDATED
+      let updatedProfileImageUrl = editing.profile_img_url || editing.profile_img;
+      if (form.profileImgFile && form.profileImgChanged) {
+        try {
+          const formData = new FormData();
+          formData.append('profile_img', form.profileImgFile);
+          
+          const encodedEmail = encodeURIComponent(editing.email);
+          const uploadResponse = await fetch(`${API_BASE_URL}profile/image/${encodedEmail}`, {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (uploadResponse.ok) {
+            const uploadResult = await uploadResponse.json();
+            updatedProfileImageUrl = uploadResult.data?.profile_img_url || uploadResult.data?.profile_img;
+            showToast('Profile image updated successfully!', 'success');
+          }
+        } catch (uploadError) {
+          console.error('Error uploading profile image:', uploadError);
+          showToast('Failed to update profile image, keeping existing one', 'warning');
+        }
+      }
+
+      // 3️⃣ Update Firebase Firestore
+      if (editing.uid) {
+        const firestoreUpdateData = {
+          name: form.name,
           department: form.department,
           designation: form.designation,
-          work_mode: form.workMode,
-          total_hours: form.totalHours,
-        }),
-      });
+          workMode: form.workMode,
+          totalHours: form.totalHours,
+          role: form.role,
+          gender: form.gender,
+        };
+        
+        // Only update profile image if it changed
+        if (form.profileImgChanged && updatedProfileImageUrl) {
+          firestoreUpdateData.profileImgUrl = updatedProfileImageUrl;
+        }
+        
+        await updateDoc(doc(db, "users", editing.uid), firestoreUpdateData);
+      }
+
+      // Clean up blob URL
+      if (profileImagePreview) {
+        URL.revokeObjectURL(profileImagePreview);
+      }
 
       setOpen(false);
       setEditing(null);
       setForm(initialForm);
+      setProfileImagePreview("");
       fetchUsers();
       showToast("User updated successfully!", "success");
     } catch (err) {
       console.error("Error updating user:", err);
-      showToast(err.message, "error");
+      showToast(err.message || "Error updating user", "error");
     }
     setLoading(false);
   };
 
   /* ================= DELETE USER ================= */
   const handleDeleteUser = async (user) => {
-    if (
-      !window.confirm(`Are you sure you want to delete ${user.employee_name}?`)
-    )
+    if (!window.confirm(`Are you sure you want to delete ${user.employee_name}?`)) {
       return;
+    }
 
     try {
-      // 🔹 Firebase Firestore
+      // 1️⃣ Delete profile image if exists
+      if (user.profile_img_url) {
+        try {
+          const encodedEmail = encodeURIComponent(user.email);
+          await fetch(`${API_BASE_URL}profile/image/${encodedEmail}`, {
+            method: 'DELETE'
+          });
+        } catch (imgError) {
+          console.warn('Error deleting profile image:', imgError);
+        }
+      }
+
+      // 2️⃣ Firebase Firestore
       if (user.uid) {
         await deleteDoc(doc(db, "users", user.uid));
       }
 
-      // 🔹 PostgreSQL
-      await fetch(`${API_BASE_URL}employees/${user.pgId}`, {
+      // 3️⃣ PostgreSQL
+      const deleteResponse = await fetch(`${API_BASE_URL}employees/${user.pgId}`, {
         method: "DELETE",
       });
+
+      if (!deleteResponse.ok) {
+        throw new Error("Failed to delete employee");
+      }
 
       fetchUsers();
       showToast("User deleted successfully!", "success");
     } catch (err) {
       console.error("Error deleting user:", err);
-      showToast(err.message, "error");
+      showToast(err.message || "Error deleting user", "error");
     }
   };
 
   /* ================= EDIT OPEN ================= */
   const handleEdit = (user) => {
     setEditing(user);
+    const existingProfileImgUrl = getImageUrl(user);
+    
     setForm({
       empId: user.emp_id,
       doj: user.date_of_joining?.split("T")[0] || "",
@@ -459,7 +720,17 @@ export default function UserManagement() {
       workMode: user.work_mode || "",
       totalHours: user.total_hours || "",
       role: user.role || "Employee",
+      profileImgFile: null,
+      profileImgChanged: false,
     });
+    
+    // Set preview for existing image
+    if (existingProfileImgUrl) {
+      setProfileImagePreview(existingProfileImgUrl);
+    } else {
+      setProfileImagePreview("");
+    }
+    
     setOpen(true);
   };
 
@@ -494,8 +765,21 @@ export default function UserManagement() {
   const totalUsers = users.length;
   const totalAdmins = users.filter(u => u.role === "Admin").length;
   const totalWFH = users.filter(u => u.work_mode === "Work From Home").length;
-  const totalTeamLeads = users.filter(u => u.role === "TeamLead").length;
   const totalHours = users.reduce((sum, user) => sum + (parseFloat(user.total_hours) || 0), 0);
+
+  // Handle dialog close
+  const handleDialogClose = () => {
+    if (!loading && !uploadingImage) {
+      // Clean up blob URL
+      if (profileImagePreview && profileImagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(profileImagePreview);
+      }
+      setOpen(false);
+      setEditing(null);
+      setForm(initialForm);
+      setProfileImagePreview("");
+    }
+  };
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -564,6 +848,7 @@ export default function UserManagement() {
                 onClick={() => {
                   setEditing(null);
                   setForm(initialForm);
+                  setProfileImagePreview("");
                   setOpen(true);
                 }}
                 sx={{ px: 3 }}
@@ -575,7 +860,7 @@ export default function UserManagement() {
 
           {/* STATS CARDS */}
           <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
+            <Grid item xs={12} sm={6} md={3} minWidth={'250px'}>
               <StatCard color={greenTheme.gradient}>
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -593,7 +878,7 @@ export default function UserManagement() {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
+            <Grid item xs={12} sm={6} md={3} minWidth={'250px'}>
               <StatCard color="#2196F3">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -611,10 +896,10 @@ export default function UserManagement() {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
+            <Grid item xs={12} sm={6} md={3} minWidth={'250px'}>
               <StatCard color="#FF9800">
                 <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                  <Box sx={{ display: "flex", justifyContent:"space-between", alignItems: "center", mb: 1 }}>
                     <Typography variant="h4" fontWeight="bold">
                       {totalWFH}
                     </Typography>
@@ -629,23 +914,7 @@ export default function UserManagement() {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
-              <StatCard color="#4CAF50">
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {totalTeamLeads}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <AccessTime />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Team Leads
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
+         
           </Grid>
 
           {/* SEARCH BAR */}
@@ -672,7 +941,7 @@ export default function UserManagement() {
           {/* FILTER SECTION */}
           <Collapse in={showFilters}>
             <StyledPaper sx={{ p: 3, mt: 3, bgcolor: "rgba(46, 125, 50, 0.02)" }}>
-              <Typography variant="subtitle1" fontWeight="bold" color="success.main" gutterBottom>
+              <Typography variant="subtitle1" fontWeight="bold" color="#2196F3" gutterBottom>
                 <FilterIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Filter Users
               </Typography>
@@ -680,7 +949,7 @@ export default function UserManagement() {
               <Grid container spacing={2} alignItems="center">
                 <Grid item xs={12} md={4}>
                   <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: "success.main" }}>Department</InputLabel>
+                    <InputLabel sx={{ color: "#2196F3" }}>Department</InputLabel>
                     <Select
                       value={selectedDepartment}
                       label="Department"
@@ -703,7 +972,7 @@ export default function UserManagement() {
                 
                 <Grid item xs={12} md={4}>
                   <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: "success.main" }}>Role</InputLabel>
+                    <InputLabel sx={{ color: "#2196F3" }}>Role</InputLabel>
                     <Select
                       value={selectedRole}
                       label="Role"
@@ -748,7 +1017,7 @@ export default function UserManagement() {
                       size="small"
                       sx={{ 
                         borderColor: "rgba(46, 125, 50, 0.3)",
-                        color: "success.main",
+                        color: "#2196F3",
                         borderRadius: "8px",
                         "&:hover": {
                           borderColor: "#2E7D32",
@@ -763,7 +1032,7 @@ export default function UserManagement() {
               </Grid>
               
               {(selectedDepartment !== "all" || selectedRole !== "all") && (
-                <Typography variant="caption" color="success.main" sx={{ mt: 1, display: "block" }}>
+                <Typography variant="caption" color="#2196F3" sx={{ mt: 1, display: "block" }}>
                   Filtering by: {selectedDepartment !== "all" ? `Department = ${selectedDepartment}` : ""}
                   {selectedDepartment !== "all" && selectedRole !== "all" && ", "}
                   {selectedRole !== "all" ? `Role = ${selectedRole}` : ""}
@@ -780,33 +1049,34 @@ export default function UserManagement() {
               <TableHead>
                 <TableRow sx={{ 
                   bgcolor: "rgba(46, 125, 50, 0.08)",
-                  borderBottom: "2px solid #2E7D32"
+                  borderBottom: "2px solid #2196F3"
                 }}>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold", width: 60 }}>S.No</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Emp ID</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Name</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Email</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Gender</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Department</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Designation</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Role</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Work Mode</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold" }}>Total Hours</TableCell>
-                  <TableCell sx={{ color: "#2E7D32", fontWeight: "bold", width: 150 }}>Actions</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", width: 60, backgroundColor: "#2196F3" }}>S.No</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Profile</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Emp ID</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Name</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Email</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Gender</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Department</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Designation</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Role</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Work Mode</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3" }}>Total Hours</TableCell>
+                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", backgroundColor: "#2196F3", width: 150 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
 
               <TableBody>
                 {fetching ? (
                   <TableRow>
-                    <TableCell colSpan={11} align="center" sx={{ py: 8 }}>
+                    <TableCell colSpan={12} align="center" sx={{ py: 8 }}>
                       <CircularProgress color="success" />
-                      <Typography sx={{ mt: 2, color: "success.main" }}>Loading users...</Typography>
+                      <Typography sx={{ mt: 2, color: "#2196F3" }}>Loading users...</Typography>
                     </TableCell>
                   </TableRow>
                 ) : filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} align="center" sx={{ py: 8 }}>
+                    <TableCell colSpan={12} align="center" sx={{ py: 8 }}>
                       <SearchIcon sx={{ fontSize: 64, color: "rgba(46, 125, 50, 0.3)", mb: 2 }} />
                       <Typography variant="h6" color="text.secondary">
                         {searchTerm || selectedDepartment !== "all" || selectedRole !== "all" ? "No matching users found" : "No users found"}
@@ -842,20 +1112,23 @@ export default function UserManagement() {
                           {index + 1}
                         </Box>
                       </TableCell>
+                      <TableCell>
+                        <Avatar
+                          src={getImageUrl(user)} // UPDATED: Use URL directly
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            border: "2px solid #2196F3",
+                            bgcolor: getImageUrl(user) ? 'transparent' : 'rgba(46, 125, 50, 0.1)',
+                            color: getImageUrl(user) ? 'inherit' : '#2E7D32',
+                            fontWeight: 'bold',
+                          }}
+                        >
+                          {user.employee_name?.charAt(0) || "U"}
+                        </Avatar>
+                      </TableCell>
                       <TableCell sx={{ fontWeight: 500 }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Avatar
-                            sx={{
-                              width: 32,
-                              height: 32,
-                              bgcolor: "rgba(46, 125, 50, 0.1)",
-                              color: "#2E7D32",
-                              fontSize: "0.875rem",
-                              fontWeight: "bold"
-                            }}
-                          >
-                            {user.emp_id?.charAt(0) || "U"}
-                          </Avatar>
                           {user.emp_id}
                         </Box>
                       </TableCell>
@@ -979,12 +1252,12 @@ export default function UserManagement() {
               alignItems: "center",
               borderTop: "1px solid rgba(46, 125, 50, 0.1)"
             }}>
-              <Typography variant="body2" color="success.main" fontWeight="medium">
+              <Typography variant="body2" color="#2196F3" fontWeight="medium">
                 Showing {filteredUsers.length} of {users.length} users
                 {selectedDepartment !== "all" && ` in ${selectedDepartment}`}
                 {selectedRole !== "all" && ` with ${selectedRole} role`}
               </Typography>
-              <Typography variant="body2" fontWeight="bold" color="success.main">
+              <Typography variant="body2" fontWeight="bold" color="#2196F3">
                 <TrendingUp sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Total hours: {totalHours.toFixed(1)}h
               </Typography>
@@ -995,7 +1268,7 @@ export default function UserManagement() {
         {/* CREATE/EDIT DIALOG */}
         <Dialog
           open={open}
-          onClose={() => !loading && setOpen(false)}
+          onClose={handleDialogClose}
           maxWidth="md"
           fullWidth
           PaperProps={{
@@ -1017,6 +1290,115 @@ export default function UserManagement() {
           </DialogTitle>
 
           <DialogContent sx={{ mt: 3 }}>
+            {/* Profile Image Upload Section */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom color="#2196F3">
+                Profile Image {!editing && "(Optional)"}
+                {editing && form.profileImgChanged && (
+                  <Chip 
+                    label="Image changed" 
+                    size="small" 
+                    color="warning" 
+                    sx={{ ml: 1, fontSize: '0.7rem' }}
+                  />
+                )}
+              </Typography>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={{ display: 'none' }}
+                id="profile-image-upload"
+                disabled={uploadingImage}
+              />
+              <label htmlFor="profile-image-upload">
+                <ProfileImageUpload sx={{ 
+                  opacity: uploadingImage ? 0.7 : 1,
+                  pointerEvents: uploadingImage ? 'none' : 'auto'
+                }}>
+                  {profileImagePreview ? (
+                    <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+                      <img
+                        src={profileImagePreview}
+                        alt="Profile Preview"
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          borderRadius: '10px'
+                        }}
+                      />
+                      {!uploadingImage && (
+                        <>
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveImage();
+                            }}
+                            sx={{
+                              position: 'absolute',
+                              top: 8,
+                              right: 8,
+                              backgroundColor: 'rgba(244, 67, 54, 0.8)',
+                              color: 'white',
+                              '&:hover': {
+                                backgroundColor: '#f44336'
+                              }
+                            }}
+                            size="small"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              document.getElementById('profile-image-upload').click();
+                            }}
+                            sx={{
+                              position: 'absolute',
+                              top: 8,
+                              left: 8,
+                              backgroundColor: 'rgba(33, 150, 243, 0.8)',
+                              color: 'white',
+                              '&:hover': {
+                                backgroundColor: '#2196F3'
+                              }
+                            }}
+                            size="small"
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </>
+                      )}
+                    </Box>
+                  ) : (
+                    <>
+                      <CloudUploadIcon sx={{ fontSize: 48, color: '#2196F3', mb: 2 }} />
+                      <Typography variant="body2" color="#2196F3" gutterBottom>
+                        Click to upload profile image
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Recommended: Square image, max 5MB (will be compressed)
+                      </Typography>
+                    </>
+                  )}
+                </ProfileImageUpload>
+              </label>
+              {uploadingImage && (
+                <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  <Typography variant="caption" color="text.secondary">
+                    Processing image...
+                  </Typography>
+                </Box>
+              )}
+              {editing && !form.profileImgChanged && profileImagePreview && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  Current image will be kept unless you upload a new one
+                </Typography>
+              )}
+            </Box>
+
             <Box display="grid" gridTemplateColumns="repeat(2, 1fr)" gap={3}>
               {/* Left Column */}
               <Box>
@@ -1034,7 +1416,7 @@ export default function UserManagement() {
                     '& .MuiOutlinedInput-root': {
                       borderRadius: "8px",
                       bgcolor: "rgba(46, 125, 50, 0.05)",
-                      border: "1px solid rgba(46, 125, 50, 0.1)"
+                      border: "1px solid rgba(46, 125, 50, 0.1)",
                     }
                   }}
                 />
@@ -1269,17 +1651,18 @@ export default function UserManagement() {
               sx={{ mt: 3, display: "block", fontStyle: "italic" }}
             >
               * Required fields
+              {editing && form.profileImgChanged && (
+                <span style={{ color: '#FF9800', marginLeft: '10px' }}>
+                  Note: Profile image will be updated
+                </span>
+              )}
             </Typography>
           </DialogContent>
 
           <DialogActions sx={{ p: 3, borderTop: "1px solid rgba(46, 125, 50, 0.1)" }}>
             <Button
-              onClick={() => {
-                setOpen(false);
-                setEditing(null);
-                setForm(initialForm);
-              }}
-              disabled={loading}
+              onClick={handleDialogClose}
+              disabled={loading || uploadingImage}
               variant="outlined"
               sx={{
                 borderColor: "rgba(46, 125, 50, 0.3)",
@@ -1295,11 +1678,11 @@ export default function UserManagement() {
             </Button>
             <GradientButton
               onClick={editing ? handleUpdateUser : handleCreateUser}
-              disabled={loading}
-              startIcon={loading && <CircularProgress size={20} color="inherit" />}
+              disabled={loading || uploadingImage}
+              startIcon={(loading || uploadingImage) && <CircularProgress size={20} color="inherit" />}
               sx={{ minWidth: 140 }}
             >
-              {loading
+              {loading || uploadingImage
                 ? "Processing..."
                 : editing
                 ? "Update User"
