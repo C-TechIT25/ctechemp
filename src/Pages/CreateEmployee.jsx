@@ -33,8 +33,9 @@ const BLANK = {
 };
 
 // ── QR helpers ─────────────────────────────────────────────────────────────────
+// Hash-router: https://ctechemp.vercel.app/#/employee/profile/<id>
 const qrUrl = (emp) =>
-  `${window.location.origin}/employee/profile/${emp.id}`;
+  `${window.location.origin}/#/employee/profile/${emp.id}`;
 
 async function generateQR(emp) {
   return QRCode.toDataURL(qrUrl(emp), {
@@ -367,12 +368,12 @@ function EmployeeForm({ existing, onDone, onCancel }) {
           );
         });
       }
-      const data = { ...form, workExperience: experience, photoURL, updatedAt: serverTimestamp(), verifyUrl: `${window.location.origin}/employee/profile/DOCID` };
+      const data = { ...form, workExperience: experience, photoURL, updatedAt: serverTimestamp(), verifyUrl: `${window.location.origin}/#/employee/profile/DOCID` };
       if (isEdit) {
         await updateDoc(doc(db, "employees", existing.id), data);
       } else {
         const docRef = await addDoc(collection(db, "employees"), { ...data, createdAt: serverTimestamp() });
-        await updateDoc(doc(db, "employees", docRef.id), { verifyUrl: `${window.location.origin}/employee/profile/${docRef.id}` });
+        await updateDoc(doc(db, "employees", docRef.id), { verifyUrl: `${window.location.origin}/#/employee/profile/${docRef.id}` });
       }
       onDone();
     } catch (e) { setError("Firebase error: " + e.message); }

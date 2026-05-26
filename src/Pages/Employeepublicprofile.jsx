@@ -23,7 +23,7 @@ function calcExperience(joiningDate) {
 }
 
 async function downloadQR(emp, id) {
-  const url = `${window.location.origin}/employee/profile/${id}`;
+  const url = `${window.location.origin}/#/employee/profile/${id}`;
   const dataUrl = await QRCode.toDataURL(url, {
     width: 300, margin: 2,
     color: { dark: "#0052cc", light: "#ffffff" },
@@ -49,7 +49,7 @@ export default function EmployeePublicProfile() {
           const data = { id: snap.id, ...snap.data() };
           setEmp(data);
           setStatus("found");
-          const url = `${window.location.origin}/employee/profile/${id}`;
+          const url = `${window.location.origin}/#/employee/profile/${id}`;
           const dataUrl = await QRCode.toDataURL(url, {
             width: 260, margin: 2,
             color: { dark: "#0052cc", light: "#ffffff" },
@@ -175,7 +175,7 @@ export default function EmployeePublicProfile() {
           <div className="qr-card">
             <p className="qr-card-title">Scan QR to Open This Profile</p>
             {qrUrl && <img src={qrUrl} alt="QR Code" className="qr-img" />}
-            <p className="qr-url">{window.location.href}</p>
+            <p className="qr-url">{`${window.location.origin}/#/employee/profile/${id}`}</p>
             <button className="dl-btn" onClick={() => downloadQR(emp, id)}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
