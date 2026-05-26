@@ -135,6 +135,11 @@ export default function Sidebar({ mobileOpen, onClose }) {
       path: "/admin/timesheet",
       icon: <TimerIcon />,
     },
+    {
+      label: "Create Employee",
+      path: "/admin/create-employee",
+      icon: <PersonIcon />,
+    }
   ];
 
   const employeeMenu = [

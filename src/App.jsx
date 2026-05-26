@@ -3,7 +3,7 @@ import { Suspense, lazy } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./layout/DashboardLayout";
-
+import CreateEmployee from "./Pages/CreateEmployee";
 // 🔹 Lazy loaded pages (BIG performance win)
 const Login = lazy(() => import("./Pages/Login"));
 const UserManagement = lazy(() => import("./Pages/UserManagement"));
@@ -37,6 +37,7 @@ export default function App() {
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/timesheet" element={<Timesheet />} />
             <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/create-employee" element={<CreateEmployee />} />
 
             {/* EMPLOYEE */}
             <Route
