@@ -25,26 +25,75 @@ import NoteAltIcon        from "@mui/icons-material/NoteAlt";
 import BusinessIcon       from "@mui/icons-material/Business";
 import SearchOffIcon      from "@mui/icons-material/SearchOff";
 import EngineeringIcon    from "@mui/icons-material/Engineering";
+import HomeIcon           from "@mui/icons-material/Home";
+import CakeIcon           from "@mui/icons-material/Cake";
+import WcIcon             from "@mui/icons-material/Wc";
 
-// ── Theme ──────────────────────────────────────────────────────────────────────
-const theme = createTheme({
-  palette: {
-    mode: "light",
-    primary:    { main: "#1565C0", light: "#1976d2", dark: "#0D47A1" },
-    success:    { main: "#16a34a" },
-    error:      { main: "#dc2626" },
-    warning:    { main: "#d97706" },
-    background: { default: "#EEF2F7", paper: "#ffffff" },
-    text:       { primary: "#0F172A", secondary: "#64748b" },
+// ── Company Config ─────────────────────────────────────────────────────────────
+const COMPANY_CONFIG = {
+  "C-Tech": {
+    primary:     "#1565C0",
+    primaryDark: "#0D47A1",
+    primaryDeep: "#0052CC",
+    heroStart:   "#0052CC",
+    heroMid:     "#0A3A7A",
+    heroEnd:     "#091E42",
+    navBg:       "linear-gradient(135deg,#1565C0 0%,#0D47A1 100%)",
+    footerBg:    "linear-gradient(145deg,#0052CC 0%,#091E42 100%)",
+    verifiedBg:  "linear-gradient(135deg,#F0FDF4,#ECFDF5)",
+    verifiedBorder: "#86EFAC",
+    verifiedText:   "#166534",
+    verifiedSub:    "#4ade80",
+    infoIconBg:     "#EFF6FF",
+    infoIconColor:  "#1565C0",
+    chipBg: (active) => active ? "rgba(34,197,94,0.18)" : "rgba(245,158,11,0.18)",
+    logoType: "ctech",
   },
-  typography: { fontFamily: "'DM Sans', 'Plus Jakarta Sans', sans-serif" },
-  shape: { borderRadius: 12 },
-  components: {
-    MuiPaper:  { styleOverrides: { root: { backgroundImage: "none" } } },
-    MuiChip:   { styleOverrides: { root: { fontWeight: 600 } } },
-    MuiButton: { styleOverrides: { root: { textTransform: "none", fontWeight: 600, borderRadius: 10 } } },
+  "Precon": {
+    primary:     "#fe5958",
+    primaryDark: "#e04847",
+    primaryDeep: "#c93a39",
+    heroStart:   "#fe5958",
+    heroMid:     "#b83534",
+    heroEnd:     "#7a1f1f",
+    navBg:       "linear-gradient(135deg,#fe5958 0%,#c93a39 100%)",
+    footerBg:    "linear-gradient(145deg,#fe5958 0%,#7a1f1f 100%)",
+    verifiedBg:  "linear-gradient(135deg,#FFF5F5,#FEF2F2)",
+    verifiedBorder: "#FECACA",
+    verifiedText:   "#991b1b",
+    verifiedSub:    "#f87171",
+    infoIconBg:     "#FFF0F0",
+    infoIconColor:  "#fe5958",
+    chipBg: (active) => active ? "rgba(34,197,94,0.18)" : "rgba(245,158,11,0.18)",
+    logoType: "precon",
   },
-});
+};
+
+function getConfig(company) {
+  return COMPANY_CONFIG[company] || COMPANY_CONFIG["C-Tech"];
+}
+
+// ── Theme factory ──────────────────────────────────────────────────────────────
+function buildTheme(cfg) {
+  return createTheme({
+    palette: {
+      mode: "light",
+      primary:    { main: cfg.primary, light: cfg.primary, dark: cfg.primaryDark },
+      success:    { main: "#16a34a" },
+      error:      { main: "#dc2626" },
+      warning:    { main: "#d97706" },
+      background: { default: "#EEF2F7", paper: "#ffffff" },
+      text:       { primary: "#0F172A", secondary: "#64748b" },
+    },
+    typography: { fontFamily: "'DM Sans', 'Plus Jakarta Sans', sans-serif" },
+    shape: { borderRadius: 12 },
+    components: {
+      MuiPaper:  { styleOverrides: { root: { backgroundImage: "none" } } },
+      MuiChip:   { styleOverrides: { root: { fontWeight: 600 } } },
+      MuiButton: { styleOverrides: { root: { textTransform: "none", fontWeight: 600, borderRadius: 10 } } },
+    },
+  });
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function calcExperience(joiningDate) {
@@ -62,6 +111,50 @@ function calcExperience(joiningDate) {
   if (years  > 0) p.push(`${years} yr${years > 1 ? "s" : ""}`);
   if (months > 0) p.push(`${months} mo`);
   return p.join(" ");
+}
+
+function calculateAge(dob) {
+  if (!dob) return "";
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+  return age;
+}
+
+// ── Logo Components ────────────────────────────────────────────────────────────
+function CTechLogo({ size = 32 }) {
+  return (
+    <Box sx={{
+      width: size, height: size, borderRadius: `${size * 0.28}px`,
+      background: "rgba(255,255,255,0.18)",
+      border: "1px solid rgba(255,255,255,0.3)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexShrink: 0,
+    }}>
+      <EngineeringIcon sx={{ color: "#fff", fontSize: size * 0.55 }} />
+    </Box>
+  );
+}
+
+function PreconLogo({ size = 32 }) {
+  return (
+    <Box sx={{
+      width: size, height: size, borderRadius: `${size * 0.28}px`,
+      background: "rgba(255,255,255,0.18)",
+      border: "1px solid rgba(255,255,255,0.3)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexShrink: 0,
+    }}>
+      <BusinessIcon sx={{ color: "#fff", fontSize: size * 0.55 }} />
+    </Box>
+  );
+}
+
+function CompanyLogo({ company, size = 32 }) {
+  if (company === "Precon") return <PreconLogo size={size} />;
+  return <CTechLogo size={size} />;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -91,12 +184,15 @@ export default function Employeepublicprofile() {
     })();
   }, [employeeId]);
 
+  const cfg = emp ? getConfig(emp.company) : getConfig("C-Tech");
+  const theme = buildTheme(cfg);
+
   return (
     <ThemeProvider theme={theme}>
       <Box sx={{ minHeight: "100vh", background: "linear-gradient(160deg,#EEF2F7 0%,#E3EAF4 100%)" }}>
         {status === "loading"  && <LoaderScreen />}
         {status === "notfound" && <NotFoundScreen employeeId={employeeId} />}
-        {status === "found" && emp && <ProfilePage emp={emp} />}
+        {status === "found" && emp && <ProfilePage emp={emp} cfg={cfg} />}
       </Box>
     </ThemeProvider>
   );
@@ -105,9 +201,12 @@ export default function Employeepublicprofile() {
 // ══════════════════════════════════════════════════════════════════════════════
 // PROFILE PAGE
 // ══════════════════════════════════════════════════════════════════════════════
-function ProfilePage({ emp }) {
+function ProfilePage({ emp, cfg }) {
   const experience = calcExperience(emp.joiningDate);
   const isActive   = emp.status === "Active";
+
+  const companyName = emp.company === "Precon" ? "PRECON" : "C-TECH ENGINEERING";
+  const companySubtitle = emp.company === "Precon" ? "Employee Identity Portal" : "Employee Identity Portal";
 
   return (
     <Box>
@@ -115,30 +214,22 @@ function ProfilePage({ emp }) {
       {/* ── Sticky Top Nav ── */}
       <Box sx={{
         position: "sticky", top: 0, zIndex: 100,
-        background: "linear-gradient(135deg,#1565C0 0%,#0D47A1 100%)",
-        boxShadow: "0 4px 20px rgba(21,101,192,0.35)",
+        background: cfg.navBg,
+        boxShadow: `0 4px 20px ${alpha(cfg.primary, 0.35)}`,
       }}>
         <Container maxWidth="sm" disableGutters>
           <Box sx={{ px: { xs: 2, sm: 3 }, py: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}>
-            <Box sx={{
-              width: 38, height: 38, borderRadius: "11px",
-              background: "rgba(255,255,255,0.15)",
-              border: "1px solid rgba(255,255,255,0.25)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0,
-            }}>
-              <EngineeringIcon sx={{ color: "#fff", fontSize: 20 }} />
-            </Box>
+            <CompanyLogo company={emp.company} size={38} />
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography sx={{
                 fontSize: { xs: 12.5, sm: 14 }, fontWeight: 800, color: "#fff",
                 letterSpacing: "0.8px", lineHeight: 1.1,
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>
-                C-TECH ENGINEERING
+                {companyName}
               </Typography>
               <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.3px" }}>
-                Employee Identity Portal
+                {companySubtitle}
               </Typography>
             </Box>
             <Chip
@@ -160,13 +251,13 @@ function ProfilePage({ emp }) {
 
         {/* ── Hero Banner ── */}
         <Box sx={{
-          background: "linear-gradient(145deg,#0052CC 0%,#0A3A7A 58%,#091E42 100%)",
+          background: `linear-gradient(145deg,${cfg.heroStart} 0%,${cfg.heroMid} 58%,${cfg.heroEnd} 100%)`,
           position: "relative", overflow: "hidden",
           pt: 5, pb: 7, px: 2,
         }}>
           <Box sx={{ position: "absolute", top: -50, right: -50, width: 180, height: 180, borderRadius: "50%", border: "45px solid rgba(255,255,255,0.05)" }} />
           <Box sx={{ position: "absolute", bottom: -30, left: -30, width: 120, height: 120, borderRadius: "50%", border: "30px solid rgba(255,255,255,0.04)" }} />
-          <Box sx={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 70% 40%,rgba(33,150,243,0.15) 0%,transparent 65%)" }} />
+          <Box sx={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 70% 40%,${alpha(cfg.primary, 0.22)} 0%,transparent 65%)` }} />
 
           <Box sx={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
             <Badge overlap="circular" anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
@@ -174,7 +265,7 @@ function ProfilePage({ emp }) {
                 <Box sx={{
                   width: 20, height: 20, borderRadius: "50%",
                   background: isActive ? "#22c55e" : "#f59e0b",
-                  border: "2.5px solid #091E42",
+                  border: `2.5px solid ${cfg.heroEnd}`,
                   boxShadow: `0 0 10px ${isActive ? "rgba(34,197,94,0.5)" : "rgba(245,158,11,0.5)"}`,
                 }} />
               }>
@@ -182,7 +273,7 @@ function ProfilePage({ emp }) {
                 sx={{
                   width: 96, height: 96,
                   border: "3px solid rgba(255,255,255,0.3)",
-                  background: "linear-gradient(135deg,#1e40af,#0052cc)",
+                  background: `linear-gradient(135deg,${cfg.primaryDark},${cfg.primaryDeep})`,
                   fontSize: 34, fontWeight: 800, color: "#fff",
                   boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
                 }}>
@@ -209,7 +300,7 @@ function ProfilePage({ emp }) {
                 label={emp.status || "Active"}
                 size="small"
                 sx={{
-                  background: isActive ? "rgba(34,197,94,0.18)" : "rgba(245,158,11,0.18)",
+                  background: cfg.chipBg(isActive),
                   border: `0.5px solid ${isActive ? "rgba(34,197,94,0.4)" : "rgba(245,158,11,0.4)"}`,
                   color: isActive ? "#4ade80" : "#fbbf24",
                   fontWeight: 700, fontSize: 11.5,
@@ -234,26 +325,34 @@ function ProfilePage({ emp }) {
           {/* Verified Strip */}
           <Paper elevation={0} sx={{
             p: "14px 18px", borderRadius: 3,
-            border: "1px solid #86EFAC",
-            background: "linear-gradient(135deg,#F0FDF4,#ECFDF5)",
+            border: `1px solid ${cfg.verifiedBorder}`,
+            background: cfg.verifiedBg,
             display: "flex", alignItems: "center", gap: 1.5, mb: 2,
           }}>
-            <Box sx={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#DCFCE7,#BBF7D0)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(22,163,74,0.2)" }}>
-              <VerifiedUserIcon sx={{ color: "#16a34a", fontSize: 22 }} />
+            <Box sx={{
+              width: 44, height: 44, borderRadius: "50%",
+              background: alpha(cfg.primary, 0.12),
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+              boxShadow: `0 4px 12px ${alpha(cfg.primary, 0.18)}`,
+            }}>
+              <VerifiedUserIcon sx={{ color: cfg.verifiedText, fontSize: 22 }} />
             </Box>
             <Box sx={{ flex: 1 }}>
-              <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#166534" }}>Identity Verified</Typography>
-              <Typography sx={{ fontSize: 11.5, color: "#4ade80", mt: 0.2 }}>Officially authenticated by C-Tech Engineering</Typography>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, color: cfg.verifiedText }}>Identity Verified</Typography>
+              <Typography sx={{ fontSize: 11.5, color: cfg.verifiedSub, mt: 0.2 }}>
+                Officially authenticated by {emp.company === "Precon" ? "Precon" : "C-Tech Engineering"}
+              </Typography>
             </Box>
-            <Chip label="Live" size="small" sx={{ background: "#DCFCE7", color: "#166534", fontWeight: 800, fontSize: 11, border: "1px solid #86EFAC" }} />
+            <Chip label="Live" size="small" sx={{ background: alpha(cfg.primary, 0.1), color: cfg.verifiedText, fontWeight: 800, fontSize: 11, border: `1px solid ${cfg.verifiedBorder}` }} />
           </Paper>
 
-          {/* Quick Stats - Equal height and width cards */}
+          {/* Quick Stats */}
           <Grid container spacing={1.5} sx={{ mb: 2 }}>
             {[
-              { label: "Experience", value: experience || "—",       color: "#1565C0", bg: alpha("#1565C0", 0.08) },
-              { label: "Blood Group", value: emp.bloodGroup || "—",  color: "#dc2626", bg: alpha("#dc2626", 0.08) },
-              { label: "Status",      value: emp.status || "Active", color: isActive ? "#16a34a" : "#d97706", bg: isActive ? alpha("#16a34a", 0.08) : alpha("#d97706", 0.08) },
+              { label: "Experience", value: experience || "—",       color: cfg.primary,                          bg: alpha(cfg.primary, 0.08) },
+              { label: "Blood Group", value: emp.bloodGroup || "—",  color: "#dc2626",                            bg: alpha("#dc2626", 0.08) },
+              { label: "Status",      value: emp.status || "Active", color: isActive ? "#16a34a" : "#d97706",     bg: isActive ? alpha("#16a34a", 0.08) : alpha("#d97706", 0.08) },
             ].map((s) => (
               <Grid item xs={4} key={s.label}>
                 <Paper elevation={0} sx={{
@@ -270,21 +369,21 @@ function ProfilePage({ emp }) {
                   transition: "transform .2s, box-shadow .2s",
                   "&:hover": { transform: "translateY(-2px)", boxShadow: `0 6px 20px ${alpha(s.color, 0.12)}` },
                 }}>
-                  <Typography sx={{ 
-                    fontSize: { xs: 18, sm: 22 }, 
-                    fontWeight: 800, 
-                    color: s.color, 
+                  <Typography sx={{
+                    fontSize: { xs: 18, sm: 22 },
+                    fontWeight: 800,
+                    color: s.color,
                     lineHeight: 1.2,
                     mb: 0.5
                   }}>
                     {s.value}
                   </Typography>
-                  <Typography sx={{ 
-                    fontSize: { xs: 10, sm: 11 }, 
-                    color: "#64748b", 
-                    fontWeight: 600, 
-                    textTransform: "uppercase", 
-                    letterSpacing: "0.5px" 
+                  <Typography sx={{
+                    fontSize: { xs: 10, sm: 11 },
+                    color: "#64748b",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px"
                   }}>
                     {s.label}
                   </Typography>
@@ -293,66 +392,76 @@ function ProfilePage({ emp }) {
             ))}
           </Grid>
 
+          {/* Personal Information */}
+          {(emp.dob || emp.gender || emp.residencyAddress) && (
+            <InfoCard title="Personal Information" icon={<PersonIcon />} iconColor={cfg.primary} cfg={cfg}>
+              {emp.dob && (
+                <InfoRow icon={<CakeIcon />} label="Date of Birth" cfg={cfg}
+                  value={new Date(emp.dob).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} />
+              )}
+              {emp.dob && (
+                <InfoRow icon={<AccessTimeIcon />} label="Age" cfg={cfg} value={`${calculateAge(emp.dob)} years`} />
+              )}
+              {emp.gender && (
+                <InfoRow icon={<WcIcon />} label="Gender" cfg={cfg} value={emp.gender} />
+              )}
+              {emp.residencyAddress && (
+                <InfoRow icon={<HomeIcon />} label="Residency Address" cfg={cfg} value={emp.residencyAddress} />
+              )}
+            </InfoCard>
+          )}
+
           {/* Contact Information */}
-          <InfoCard title="Contact Information" icon={<PhoneIcon />} iconColor="#1565C0">
-            <InfoRow icon={<PhoneIcon />}     label="Mobile"     value={emp.contactNumber} />
-            <InfoRow icon={<EmailIcon />}     label="Work Email" value={emp.email} />
-            <InfoRow icon={<LocationOnIcon />}label="Location"   value={emp.location} />
-            <InfoRow icon={<AccessTimeIcon />}label="Work Shift" value={emp.workShift} />
+          <InfoCard title="Contact Information" icon={<PhoneIcon />} iconColor={cfg.primary} cfg={cfg}>
+            <InfoRow icon={<PhoneIcon />}     label="Mobile"     value={emp.contactNumber} cfg={cfg} />
+            <InfoRow icon={<EmailIcon />}     label="Work Email" value={emp.email} cfg={cfg} />
+            <InfoRow icon={<LocationOnIcon />}label="Location"   value={emp.location} cfg={cfg} />
+            <InfoRow icon={<AccessTimeIcon />}label="Work Shift" value={emp.workShift} cfg={cfg} />
           </InfoCard>
 
           {/* Employment Details */}
-          <InfoCard title="Employment Details" icon={<WorkIcon />} iconColor="#7C3AED">
-            <InfoRow icon={<WorkIcon />}         label="Department"      value={emp.department} />
-            <InfoRow icon={<BadgeIcon />}         label="Designation"     value={emp.designation} />
+          <InfoCard title="Employment Details" icon={<WorkIcon />} iconColor={cfg.primary} cfg={cfg}>
+            <InfoRow icon={<WorkIcon />}         label="Department"      value={emp.department} cfg={cfg} />
+            <InfoRow icon={<BadgeIcon />}         label="Designation"     value={emp.designation} cfg={cfg} />
             <InfoRow
               icon={<CalendarTodayIcon />}
               label="Date of Joining"
+              cfg={cfg}
               value={emp.joiningDate
                 ? new Date(emp.joiningDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
                 : ""}
             />
-            <InfoRow icon={<AccessTimeIcon />} label="Work Experience" value={experience} />
+            <InfoRow icon={<AccessTimeIcon />} label="Work Experience" value={experience} cfg={cfg} />
           </InfoCard>
 
           {/* Medical & Emergency */}
           {(emp.bloodGroup || emp.emergencyContact || emp.emergencyPhone) && (
-            <InfoCard title="Medical & Emergency" icon={<FavoriteIcon />} iconColor="#dc2626" emergency>
-              <InfoRow icon={<FavoriteIcon />}label="Blood Group"       value={emp.bloodGroup} />
-              <InfoRow icon={<PersonIcon />}  label="Emergency Contact" value={emp.emergencyContact} />
-              <InfoRow icon={<PhoneIcon />}   label="Emergency Phone"   value={emp.emergencyPhone} />
+            <InfoCard title="Medical & Emergency" icon={<FavoriteIcon />} iconColor="#dc2626" cfg={cfg} emergency>
+              <InfoRow icon={<FavoriteIcon />}label="Blood Group"       value={emp.bloodGroup} cfg={cfg} />
+              <InfoRow icon={<PersonIcon />}  label="Emergency Contact" value={emp.emergencyContact} cfg={cfg} />
+              <InfoRow icon={<PhoneIcon />}   label="Emergency Phone"   value={emp.emergencyPhone} cfg={cfg} />
             </InfoCard>
           )}
 
           {/* Notes */}
           {emp.notes && (
-            <InfoCard title="Additional Notes" icon={<NoteAltIcon />} iconColor="#0891b2">
+            <InfoCard title="Additional Notes" icon={<NoteAltIcon />} iconColor={cfg.primary} cfg={cfg}>
               <Typography sx={{ fontSize: 13.5, color: "#475569", lineHeight: 1.8, pt: 0.5 }}>{emp.notes}</Typography>
             </InfoCard>
           )}
 
-          {/* Footer */}
+          {/* Footer — copyright only */}
           <Box sx={{
-            background: "linear-gradient(145deg,#0052CC 0%,#091E42 100%)",
-            borderRadius: 3.5, p: 3, textAlign: "center", mt: 1,
-            position: "relative", overflow: "hidden",
+            borderRadius: 3,
+            border: "1px solid #E2E8F0",
+            background: "#fff",
+            py: 2,
+            textAlign: "center",
+            mt: 1,
           }}>
-            <Box sx={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", border: "20px solid rgba(255,255,255,0.05)" }} />
-            <Box sx={{ position: "relative", zIndex: 2 }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, mb: 0.75 }}>
-                <Box sx={{ width: 30, height: 30, borderRadius: "8px", background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <EngineeringIcon sx={{ color: "#fff", fontSize: 16 }} />
-                </Box>
-                <Typography sx={{ fontWeight: 800, fontSize: 14, color: "#fff", letterSpacing: "1.5px" }}>C-TECH ENGINEERING</Typography>
-              </Box>
-              <Box sx={{ width: 40, height: 1, background: "rgba(255,255,255,0.2)", mx: "auto", my: 1.25 }} />
-              <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: "1.5px", textTransform: "uppercase" }}>
-                BUILDING TRUST. DELIVERING EXCELLENCE.
-              </Typography>
-              <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.22)", mt: 1 }}>
-                © {new Date().getFullYear()} C-Tech Engineering Co. All rights reserved.
-              </Typography>
-            </Box>
+            <Typography sx={{ fontSize: 11.5, color: "#94a3b8", fontWeight: 500 }}>
+              © {new Date().getFullYear()} {emp.company === "Precon" ? "Precon" : "C-Tech Engineering Co."}. All rights reserved.
+            </Typography>
           </Box>
         </Box>
       </Container>
@@ -361,7 +470,7 @@ function ProfilePage({ emp }) {
 }
 
 // ── Info Card ──────────────────────────────────────────────────────────────────
-function InfoCard({ title, icon, iconColor, children, emergency }) {
+function InfoCard({ title, icon, iconColor, children, emergency, cfg }) {
   return (
     <Paper elevation={0} sx={{
       borderRadius: 3,
@@ -388,16 +497,18 @@ function InfoCard({ title, icon, iconColor, children, emergency }) {
 }
 
 // ── Info Row ───────────────────────────────────────────────────────────────────
-function InfoRow({ icon, label, value }) {
+function InfoRow({ icon, label, value, cfg }) {
   if (!value) return null;
+  const iconBg    = cfg?.infoIconBg    || "#EFF6FF";
+  const iconColor = cfg?.infoIconColor || "#1565C0";
   return (
     <Box sx={{
       display: "flex", alignItems: "center", gap: 1.5,
       py: 1.4, borderBottom: "1px solid #F8FAFC",
       "&:last-child": { borderBottom: "none" },
     }}>
-      <Box sx={{ width: 34, height: 34, borderRadius: "10px", background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        {React.cloneElement(icon, { sx: { fontSize: 16, color: "#1565C0" } })}
+      <Box sx={{ width: 34, height: 34, borderRadius: "10px", background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        {React.cloneElement(icon, { sx: { fontSize: 16, color: iconColor } })}
       </Box>
       <Box>
         <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1, mb: 0.4 }}>{label}</Typography>
@@ -455,11 +566,11 @@ function NotFoundScreen({ employeeId }) {
         No employee record exists for ID{" "}
         <Box component="span" sx={{ fontWeight: 700, color: "#0F172A", fontFamily: "monospace", background: "#F1F5F9", px: 0.75, py: 0.25, borderRadius: 1 }}>
           {employeeId}
-        </Box>.{" "}Please verify the barcode or contact HR.
+        </Box>.{" "}Please verify the QR code or contact HR.
       </Typography>
       <Box sx={{ mt: 3, px: 3, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff", display: "inline-flex", alignItems: "center", gap: 1 }}>
         <BusinessIcon sx={{ fontSize: 16, color: "#1565C0" }} />
-        <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: "#475569" }}>C-Tech Engineering · HR Department</Typography>
+        <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: "#475569" }}>HR Department</Typography>
       </Box>
     </Box>
   );
