@@ -863,7 +863,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
                   />
                 </Grid>
               ))}
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} md={4}minWidth={'200px'}>
                 <FormControl fullWidth size="small" sx={selectSx}>
                   <InputLabel sx={{ fontSize: { xs: 12.5, md: 14 } }}>Employment Status</InputLabel>
                   <Select name="status" value={form.status} label="Employment Status" onChange={set}
