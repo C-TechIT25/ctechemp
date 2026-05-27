@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { db } from "../Config"; // Make sure this path is correct
-import { doc, getDoc } from "firebase/firestore";
+import { db } from "../Config";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import QRCode from "qrcode";
 
 // ── helper ─────────────────────────────────────────────────────────────────────
@@ -22,50 +22,68 @@ function calcExperience(joiningDate) {
   return p.join(" ");
 }
 
-async function downloadQR(emp, id) {
-  const url = `${window.location.origin}/#/employee/profile/${id}`;
+async function downloadQR(emp, employeeId) {
+  const url = `${window.location.origin}/#/employee/profile/${employeeId}`;
   const dataUrl = await QRCode.toDataURL(url, {
     width: 300, margin: 2,
     color: { dark: "#0052cc", light: "#ffffff" },
   });
   const a = document.createElement("a");
   a.href     = dataUrl;
-  a.download = `QR_${emp.employeeId || id}.png`;
+  a.download = `QR_${emp.employeeId || employeeId}.png`;
   a.click();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Employeepublicprofile() {
-  const { id } = useParams();
-  const [emp,    setEmp]    = useState(null);
+  const { employeeId } = useParams(); // Changed from 'id' to 'employeeId'
+  const [emp, setEmp] = useState(null);
   const [status, setStatus] = useState("loading"); // loading | found | notfound
-  const [qrUrl,  setQrUrl]  = useState("");
+  const [qrUrl, setQrUrl] = useState("");
 
   useEffect(() => {
-    (async () => {
+    const fetchEmployee = async () => {
       try {
-        const snap = await getDoc(doc(db, "employees", id));
-        if (snap.exists()) {
-          const data = { id: snap.id, ...snap.data() };
+        console.log("Searching for employee with ID:", employeeId);
+        
+        if (!employeeId) {
+          setStatus("notfound");
+          return;
+        }
+
+        // Query Firestore where employeeId matches
+        const employeesRef = collection(db, "employees");
+        const q = query(employeesRef, where("employeeId", "==", employeeId));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const doc = querySnapshot.docs[0];
+          const data = { id: doc.id, ...doc.data() };
+          console.log("Employee found:", data);
           setEmp(data);
           setStatus("found");
-          const url = `${window.location.origin}/#/employee/profile/${id}`;
+          
+          const url = `${window.location.origin}/#/employee/profile/${employeeId}`;
           const dataUrl = await QRCode.toDataURL(url, {
             width: 260, margin: 2,
             color: { dark: "#0052cc", light: "#ffffff" },
           });
           setQrUrl(dataUrl);
         } else {
+          console.log("No employee found with ID:", employeeId);
           setStatus("notfound");
         }
-      } catch {
+      } catch (error) {
+        console.error("Error fetching employee:", error);
         setStatus("notfound");
       }
-    })();
-  }, [id]);
+    };
+
+    fetchEmployee();
+  }, [employeeId]);
 
   if (status === "loading") return <Loader />;
-  if (status === "notfound") return <NotFound />;
+  if (status === "notfound") return <NotFound employeeId={employeeId} />;
 
   return (
     <>
@@ -175,8 +193,8 @@ export default function Employeepublicprofile() {
           <div className="qr-card">
             <p className="qr-card-title">Scan QR to Open This Profile</p>
             {qrUrl && <img src={qrUrl} alt="QR Code" className="qr-img" />}
-            <p className="qr-url">{`${window.location.origin}/#/employee/profile/${id}`}</p>
-            <button className="dl-btn" onClick={() => downloadQR(emp, id)}>
+            <p className="qr-url">{`${window.location.origin}/#/employee/profile/${emp.employeeId}`}</p>
+            <button className="dl-btn" onClick={() => downloadQR(emp, emp.employeeId)}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
@@ -246,7 +264,7 @@ function Loader() {
   );
 }
 
-function NotFound() {
+function NotFound({ employeeId }) {
   return (
     <>
       <style>{CSS}</style>
@@ -254,7 +272,12 @@ function NotFound() {
         <div style={{textAlign:"center",padding:32}}>
           <div style={{fontSize:48,marginBottom:12}}>🔍</div>
           <div style={{fontSize:18,fontWeight:700,color:"#1e293b",fontFamily:"sans-serif"}}>Employee not found</div>
-          <div style={{fontSize:14,color:"#64748b",marginTop:8,fontFamily:"sans-serif"}}>This QR code may be invalid or the employee record was removed.</div>
+          <div style={{fontSize:14,color:"#64748b",marginTop:8,fontFamily:"sans-serif"}}>
+            No employee exists with ID: <strong>{employeeId}</strong>
+          </div>
+          <div style={{fontSize:12,color:"#94a3b8",marginTop:16}}>
+            Please check the employee ID and try again.
+          </div>
         </div>
       </div>
     </>
@@ -347,5 +370,5 @@ body{background:#f0f4f8;}
 .footer-div{width:36px;height:1px;background:rgba(255,255,255,.2);margin:8px auto;}
 .footer-tag{font-size:10px;color:rgba(255,255,255,.45);letter-spacing:1.5px;text-transform:uppercase;}
 .footer-copy{font-size:10px;color:rgba(255,255,255,.25);margin-top:8px;}
-@keyframes spin{to{transform:rotate(360deg);)}
+@keyframes spin{to{transform:rotate(360deg);}
 `;

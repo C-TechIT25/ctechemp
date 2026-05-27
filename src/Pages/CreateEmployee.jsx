@@ -35,7 +35,7 @@ const BLANK = {
 // ── QR helpers ─────────────────────────────────────────────────────────────────
 // FIXED: Use hash-router format: /#/employee/profile/<id>
 const qrUrl = (emp) =>
-  `${window.location.origin}/#/employee/profile/${emp.id}`;
+  `${window.location.origin}/#/employee/profile/${emp.employeeId}`;
 
 async function generateQR(emp) {
   return QRCode.toDataURL(qrUrl(emp), {
