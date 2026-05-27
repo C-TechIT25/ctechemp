@@ -3,7 +3,7 @@ import { Suspense, lazy } from "react";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./layout/DashboardLayout";
-import EmployeeApp from "./Pages/CreateEmployee";
+import EmployeeApp from "./Pages/CreateEmployee.jsx";
 import EmployeePublicProfile from "./Pages/EmployeePublicProfile"; // 👈 public page
 
 // 🔹 Lazy loaded pages
