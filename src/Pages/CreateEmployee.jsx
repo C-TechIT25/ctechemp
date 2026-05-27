@@ -203,7 +203,7 @@ export default function EmployeeApp() {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ minHeight: "100vh", background: "linear-gradient(160deg,#EEF2F7 0%,#E3EAF4 100%)", fontFamily: "'DM Sans',sans-serif" }}>
+      <Box sx={{ minHeight: "100vh", background: "white", fontFamily: "'DM Sans',sans-serif" }}>
 
         <EmployeeTable
           employees={employees}
@@ -403,7 +403,7 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
       {/* Stat Cards */}
       <Grid container spacing={{ xs: 1, sm: 1.5, md: 2 }} sx={{ mb: { xs: 2, md: 3 } }}>
         {stats.map((s) => (
-          <Grid item xs={4} key={s.label}>
+          <Grid item xs={4} key={s.label}minWidth={'250px'}>
             <Paper elevation={0} sx={{
               borderRadius: { xs: 2, md: 1 },
               border: "1px solid #E2E8F0",
