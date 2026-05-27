@@ -1,13 +1,12 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { db } from "../Config";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import JsBarcode from "jsbarcode";
 
 // MUI Core
 import {
   Box, Typography, Avatar, Chip, Paper, Grid,
-  CircularProgress, Container, Badge, Button,
+  CircularProgress, Container, Badge,
 } from "@mui/material";
 import { createTheme, ThemeProvider, alpha } from "@mui/material/styles";
 
@@ -26,8 +25,6 @@ import NoteAltIcon        from "@mui/icons-material/NoteAlt";
 import BusinessIcon       from "@mui/icons-material/Business";
 import SearchOffIcon      from "@mui/icons-material/SearchOff";
 import EngineeringIcon    from "@mui/icons-material/Engineering";
-import DownloadIcon       from "@mui/icons-material/Download";
-import QrCodeScannerIcon  from "@mui/icons-material/QrCodeScanner";
 
 // ── Theme ──────────────────────────────────────────────────────────────────────
 const theme = createTheme({
@@ -65,138 +62,6 @@ function calcExperience(joiningDate) {
   if (years  > 0) p.push(`${years} yr${years > 1 ? "s" : ""}`);
   if (months > 0) p.push(`${months} mo`);
   return p.join(" ");
-}
-
-// ── Barcode Card ───────────────────────────────────────────────────────────────
-function BarcodeCard({ employeeId, employeeName, designation, department }) {
-  const canvasRef         = useRef(null);
-  const [rendered, setRendered]   = useState(false);
-  const [barcodeErr, setBarcodeErr] = useState(false);
-
-  useEffect(() => {
-    setRendered(false);
-    setBarcodeErr(false);
-    if (!employeeId) return;
-    const t = setTimeout(() => {
-      if (!canvasRef.current) return;
-      try {
-        const safe = String(employeeId).replace(/[^\x20-\x7E]/g, "");
-        JsBarcode(canvasRef.current, safe, {
-          format:        "CODE128",
-          width:         2.2,
-          height:        72,
-          displayValue:  true,
-          text:          safe,
-          fontOptions:   "bold",
-          font:          "DM Sans, monospace",
-          textAlign:     "center",
-          textPosition:  "bottom",
-          textMargin:    6,
-          fontSize:      14,
-          background:    "#ffffff",
-          lineColor:     "#0F172A",
-          margin:        14,
-        });
-        setRendered(true);
-      } catch { setBarcodeErr(true); }
-    }, 100);
-    return () => clearTimeout(t);
-  }, [employeeId]);
-
-  const handleDownload = () => {
-    if (!canvasRef.current) return;
-    const link = document.createElement("a");
-    link.download = `Barcode_${employeeId}.png`;
-    link.href = canvasRef.current.toDataURL("image/png");
-    link.click();
-  };
-
-  return (
-    <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #E2E8F0", overflow: "hidden", mb: 2 }}>
-
-      {/* Card header */}
-      <Box sx={{
-        px: 2.25, py: 1.5, borderBottom: "1px solid #F1F5F9",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: "#FAFBFC",
-      }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
-          <Box sx={{ width: 30, height: 30, borderRadius: "8px", background: alpha("#1565C0", 0.1), display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <QrCodeScannerIcon sx={{ fontSize: 16, color: "#1565C0" }} />
-          </Box>
-          <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "1.2px" }}>
-            Employee Barcode
-          </Typography>
-        </Box>
-        <Chip label="CODE128" size="small"
-          sx={{ background: "#EFF6FF", color: "#1565C0", border: "1px solid #BFDBFE", fontSize: 10, fontWeight: 700 }} />
-      </Box>
-
-      {/* Barcode body */}
-      <Box sx={{ px: 2.5, pt: 2.5, pb: 2.5, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-
-        {barcodeErr ? (
-          <Box sx={{ py: 3, textAlign: "center" }}>
-            <Typography sx={{ color: "#94a3b8", fontSize: 13 }}>
-              Unable to render barcode for: <strong>{employeeId}</strong>
-            </Typography>
-          </Box>
-        ) : (
-          <Box sx={{
-            background: "#fff", border: "1.5px solid #E2E8F0", borderRadius: 2.5,
-            p: 1, width: "100%", display: "flex", justifyContent: "center",
-            boxShadow: "inset 0 2px 8px rgba(0,0,0,0.04)",
-            minHeight: 110, alignItems: "center", position: "relative",
-          }}>
-            {!rendered && (
-              <CircularProgress size={24} sx={{ color: "#1565C0", position: "absolute" }} />
-            )}
-            <canvas
-              ref={canvasRef}
-              style={{
-                maxWidth: "100%", display: "block",
-                opacity: rendered ? 1 : 0,
-                transition: "opacity 0.35s ease",
-              }}
-            />
-          </Box>
-        )}
-
-        {/* Employee info label */}
-        {!barcodeErr && (
-          <Box sx={{ textAlign: "center" }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{employeeName}</Typography>
-            {(designation || department) && (
-              <Typography sx={{ fontSize: 11.5, color: "#64748b", mt: 0.3 }}>
-                {designation}{department ? ` · ${department}` : ""}
-              </Typography>
-            )}
-          </Box>
-        )}
-
-        {/* Download */}
-        {!barcodeErr && (
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
-            onClick={handleDownload}
-            disabled={!rendered}
-            sx={{
-              px: 2.5, py: 1,
-              background: "linear-gradient(135deg,#1565C0,#0D47A1)",
-              boxShadow: "0 4px 14px rgba(21,101,192,0.28)",
-              fontSize: 13,
-              "&:hover": { background: "linear-gradient(135deg,#0D47A1,#0A3070)", boxShadow: "0 6px 20px rgba(21,101,192,0.38)" },
-              "&:disabled": { background: "#93c5fd", boxShadow: "none" },
-            }}
-          >
-            Download Barcode
-          </Button>
-        )}
-      </Box>
-    </Paper>
-  );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -255,7 +120,6 @@ function ProfilePage({ emp }) {
       }}>
         <Container maxWidth="sm" disableGutters>
           <Box sx={{ px: { xs: 2, sm: 3 }, py: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}>
-            {/* Logo box */}
             <Box sx={{
               width: 38, height: 38, borderRadius: "11px",
               background: "rgba(255,255,255,0.15)",
@@ -384,37 +248,50 @@ function ProfilePage({ emp }) {
             <Chip label="Live" size="small" sx={{ background: "#DCFCE7", color: "#166534", fontWeight: 800, fontSize: 11, border: "1px solid #86EFAC" }} />
           </Paper>
 
-          {/* Quick Stats */}
+          {/* Quick Stats - Equal height and width cards */}
           <Grid container spacing={1.5} sx={{ mb: 2 }}>
             {[
-              { label: "Experience", value: experience || "—",       color: "#1565C0", border: "#1565C0" },
-              { label: "Blood Group", value: emp.bloodGroup || "—",  color: "#dc2626", border: "#dc2626" },
-              { label: "Status",      value: emp.status || "Active", color: isActive ? "#16a34a" : "#d97706", border: isActive ? "#16a34a" : "#d97706" },
+              { label: "Experience", value: experience || "—",       color: "#1565C0", bg: alpha("#1565C0", 0.08) },
+              { label: "Blood Group", value: emp.bloodGroup || "—",  color: "#dc2626", bg: alpha("#dc2626", 0.08) },
+              { label: "Status",      value: emp.status || "Active", color: isActive ? "#16a34a" : "#d97706", bg: isActive ? alpha("#16a34a", 0.08) : alpha("#d97706", 0.08) },
             ].map((s) => (
               <Grid item xs={4} key={s.label}>
                 <Paper elevation={0} sx={{
-                  p: { xs: "12px 8px", sm: "14px 12px" },
-                  borderRadius: 2.5,
-                  border: "1px solid #E2E8F0",
-                  borderTop: `3px solid ${s.border}`,
-                  textAlign: "center", background: "#fff",
+                  borderRadius: "10px",
+                  background: s.bg,
+                  p: { xs: 2, sm: 2.5 },
+                  height: "100%",
+                  minHeight: { xs: 80, sm: 90 },
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
                   transition: "transform .2s, box-shadow .2s",
                   "&:hover": { transform: "translateY(-2px)", boxShadow: `0 6px 20px ${alpha(s.color, 0.12)}` },
                 }}>
-                  <Typography sx={{ fontSize: { xs: 15, sm: 18 }, fontWeight: 800, color: s.color, lineHeight: 1.1 }}>{s.value}</Typography>
-                  <Typography sx={{ fontSize: { xs: 9, sm: 10 }, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", mt: 0.6 }}>{s.label}</Typography>
+                  <Typography sx={{ 
+                    fontSize: { xs: 18, sm: 22 }, 
+                    fontWeight: 800, 
+                    color: s.color, 
+                    lineHeight: 1.2,
+                    mb: 0.5
+                  }}>
+                    {s.value}
+                  </Typography>
+                  <Typography sx={{ 
+                    fontSize: { xs: 10, sm: 11 }, 
+                    color: "#64748b", 
+                    fontWeight: 600, 
+                    textTransform: "uppercase", 
+                    letterSpacing: "0.5px" 
+                  }}>
+                    {s.label}
+                  </Typography>
                 </Paper>
               </Grid>
             ))}
           </Grid>
-
-          {/* ── Barcode ── */}
-          <BarcodeCard
-            employeeId={emp.employeeId}
-            employeeName={emp.fullName}
-            designation={emp.designation}
-            department={emp.department}
-          />
 
           {/* Contact Information */}
           <InfoCard title="Contact Information" icon={<PhoneIcon />} iconColor="#1565C0">
