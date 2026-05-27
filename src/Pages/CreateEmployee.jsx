@@ -154,16 +154,23 @@ const BLANK = {
 
 // ── QR Code helpers ────────────────────────────────────────────────────────────
 function getProfileUrl(employeeId) {
-  return `${window.location.origin}/#/${employeeId}`;
+  // Clean the employee ID first
+  const cleanId = String(employeeId).trim();
+  
+  // Return the correct hash-based URL
+  return `${window.location.origin}/#/${cleanId}`;
 }
 
 async function generateQRCode(employeeId) {
-  const url = getProfileUrl(employeeId);
+  // Clean the employeeId before generating QR
+  const cleanEmployeeId = String(employeeId).trim();
+  const url = getProfileUrl(cleanEmployeeId);
+  
   const QRCodeModule = await import("qrcode");
   return await QRCodeModule.default.toDataURL(url, {
     width: 300,
     margin: 2,
-    color: { dark: "#0052cc", light: "#ffffff" },
+    color: { dark: "#000000", light: "#ffffff" },
   });
 }
 
