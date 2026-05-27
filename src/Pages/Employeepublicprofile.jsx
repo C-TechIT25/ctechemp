@@ -354,13 +354,15 @@ function ProfilePage({ emp, cfg }) {
               { label: "Blood Group", value: emp.bloodGroup || "—",  color: "#dc2626",                            bg: alpha("#dc2626", 0.08) },
               { label: "Status",      value: emp.status || "Active", color: isActive ? "#16a34a" : "#d97706",     bg: isActive ? alpha("#16a34a", 0.08) : alpha("#d97706", 0.08) },
             ].map((s) => (
-              <Grid item xs={4} key={s.label}>
+              <Grid item xs={4} key={s.label}width={'100%'}>
                 <Paper elevation={0} sx={{
                   borderRadius: "10px",
                   background: s.bg,
                   p: { xs: 2, sm: 2.5 },
                   height: "100%",
                   minHeight: { xs: 80, sm: 90 },
+                                    width:'100%',
+
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
