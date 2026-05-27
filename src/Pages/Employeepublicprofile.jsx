@@ -312,7 +312,7 @@ function ProfilePage({ emp, cfg }) {
 
           {/* Quick Stats - One row with 3 boxes */}
           <Grid container spacing={1.5} sx={{ mb: 2 }}>
-            <Grid item xs={4}sx={{width:{xs:'180px',sm:'180px'}}}>
+            <Grid item xs={4}sx={{width:{xs:'160px',sm:'180px'}}}>
               <Paper elevation={0} sx={{
                 borderRadius: "10px",
                 background: alpha(cfg.primary, 0.08),
@@ -348,7 +348,7 @@ function ProfilePage({ emp, cfg }) {
                 </Typography>
               </Paper>
             </Grid>
-            <Grid item xs={4}sx={{width:{xs:'180px',sm:'180px'}}}>
+            <Grid item xs={4}sx={{width:{xs:'160px',sm:'180px'}}}>
               <Paper elevation={0} sx={{
                 borderRadius: "10px",
                 background: alpha("#dc2626", 0.08),
@@ -384,7 +384,7 @@ function ProfilePage({ emp, cfg }) {
                 </Typography>
               </Paper>
             </Grid>
-            <Grid item xs={4}sx={{width:{xs:'180px',sm:'180px'}}}>
+            <Grid item xs={4}sx={{width:{xs:'160px',sm:'180px'}}}>
               <Paper elevation={0} sx={{
                 borderRadius: "10px",
                 background: isActive ? alpha("#16a34a", 0.08) : alpha("#d97706", 0.08),
