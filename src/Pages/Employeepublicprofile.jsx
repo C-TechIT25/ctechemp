@@ -6,9 +6,9 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 // MUI Core
 import {
   Box, Typography, Avatar, Chip, Paper, Grid,
-  CircularProgress, Container, Badge,
+  CircularProgress, Container, Badge, Button,
 } from "@mui/material";
-import { createTheme, ThemeProvider, alpha } from "@mui/material/styles";
+import { createTheme, alpha ,ThemeProvider} from "@mui/material/styles";
 
 // MUI Icons
 import VerifiedUserIcon   from "@mui/icons-material/VerifiedUser";
@@ -28,6 +28,11 @@ import EngineeringIcon    from "@mui/icons-material/Engineering";
 import HomeIcon           from "@mui/icons-material/Home";
 import CakeIcon           from "@mui/icons-material/Cake";
 import WcIcon             from "@mui/icons-material/Wc";
+import CallIcon           from "@mui/icons-material/Call";
+
+// Import logos from assets folder
+import ctechLogo from "../assets/ctech-logo.png"; // Adjust path as needed
+import preconLogo from "../assets/precon-logo.jpg"; // Adjust path as needed
 
 // ── Company Config ─────────────────────────────────────────────────────────────
 const COMPANY_CONFIG = {
@@ -48,6 +53,7 @@ const COMPANY_CONFIG = {
     infoIconColor:  "#1565C0",
     chipBg: (active) => active ? "rgba(34,197,94,0.18)" : "rgba(245,158,11,0.18)",
     logoType: "ctech",
+    logoImage: ctechLogo,
   },
   "Precon": {
     primary:     "#fe5958",
@@ -66,6 +72,7 @@ const COMPANY_CONFIG = {
     infoIconColor:  "#fe5958",
     chipBg: (active) => active ? "rgba(34,197,94,0.18)" : "rgba(245,158,11,0.18)",
     logoType: "precon",
+    logoImage: preconLogo,
   },
 };
 
@@ -123,8 +130,61 @@ function calculateAge(dob) {
   return age;
 }
 
-// ── Logo Components ────────────────────────────────────────────────────────────
-function CTechLogo({ size = 32 }) {
+// Handle phone call redirection
+const handlePhoneCall = (phoneNumber) => {
+  if (phoneNumber) {
+    window.location.href = `tel:${phoneNumber}`;
+  }
+};
+
+// ── Logo Components with Images ────────────────────────────────────────────
+function CompanyLogoImage({ logoImage, size = 32, alt = "Company Logo" }) {
+  return (
+    <Box sx={{
+      width: size, 
+      height: size, 
+      borderRadius: `${size * 0.28}px`,
+      background: "rgba(255,255,255,0.18)",
+      border: "1px solid rgba(255,255,255,0.3)",
+      display: "flex", 
+      alignItems: "center", 
+      justifyContent: "center",
+      flexShrink: 0,
+      overflow: "hidden",
+      p: size * 0.15,
+    }}>
+      <img 
+        src={logoImage} 
+        alt={alt}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+        }}
+      />
+    </Box>
+  );
+}
+
+function CompanyLogo({ company, size = 32 }) {
+  const cfg = getConfig(company);
+  if (cfg.logoImage) {
+    return <CompanyLogoImage logoImage={cfg.logoImage} size={size} alt={`${company} Logo`} />;
+  }
+  // Fallback to icon if image not available
+  if (company === "Precon") {
+    return (
+      <Box sx={{
+        width: size, height: size, borderRadius: `${size * 0.28}px`,
+        background: "rgba(255,255,255,0.18)",
+        border: "1px solid rgba(255,255,255,0.3)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+      }}>
+        <BusinessIcon sx={{ color: "#fff", fontSize: size * 0.55 }} />
+      </Box>
+    );
+  }
   return (
     <Box sx={{
       width: size, height: size, borderRadius: `${size * 0.28}px`,
@@ -136,25 +196,6 @@ function CTechLogo({ size = 32 }) {
       <EngineeringIcon sx={{ color: "#fff", fontSize: size * 0.55 }} />
     </Box>
   );
-}
-
-function PreconLogo({ size = 32 }) {
-  return (
-    <Box sx={{
-      width: size, height: size, borderRadius: `${size * 0.28}px`,
-      background: "rgba(255,255,255,0.18)",
-      border: "1px solid rgba(255,255,255,0.3)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      flexShrink: 0,
-    }}>
-      <BusinessIcon sx={{ color: "#fff", fontSize: size * 0.55 }} />
-    </Box>
-  );
-}
-
-function CompanyLogo({ company, size = 32 }) {
-  if (company === "Precon") return <PreconLogo size={size} />;
-  return <CTechLogo size={size} />;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -354,15 +395,14 @@ function ProfilePage({ emp, cfg }) {
               { label: "Blood Group", value: emp.bloodGroup || "—",  color: "#dc2626",                            bg: alpha("#dc2626", 0.08) },
               { label: "Status",      value: emp.status || "Active", color: isActive ? "#16a34a" : "#d97706",     bg: isActive ? alpha("#16a34a", 0.08) : alpha("#d97706", 0.08) },
             ].map((s) => (
-              <Grid item xs={4} key={s.label}width={'100%'}>
+              <Grid item xs={4} key={s.label} width={'100%'}>
                 <Paper elevation={0} sx={{
                   borderRadius: "10px",
                   background: s.bg,
                   p: { xs: 2, sm: 2.5 },
                   height: "100%",
                   minHeight: { xs: 80, sm: 90 },
-                                    width:'100%',
-
+                  width:'100%',
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
@@ -413,18 +453,59 @@ function ProfilePage({ emp, cfg }) {
             </InfoCard>
           )}
 
-          {/* Contact Information */}
+          {/* Contact Information - with call button */}
           <InfoCard title="Contact Information" icon={<PhoneIcon />} iconColor={cfg.primary} cfg={cfg}>
-            <InfoRow icon={<PhoneIcon />}     label="Mobile"     value={emp.contactNumber} cfg={cfg} />
-            <InfoRow icon={<EmailIcon />}     label="Work Email" value={emp.email} cfg={cfg} />
-            <InfoRow icon={<LocationOnIcon />}label="Location"   value={emp.location} cfg={cfg} />
-            <InfoRow icon={<AccessTimeIcon />}label="Work Shift" value={emp.workShift} cfg={cfg} />
+            {/* Mobile number with call action */}
+            {emp.contactNumber && (
+              <Box sx={{
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "space-between",
+                py: 1.4, 
+                borderBottom: "1px solid #F8FAFC",
+                "&:last-child": { borderBottom: "none" },
+              }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  <Box sx={{ width: 34, height: 34, borderRadius: "10px", background: cfg.infoIconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <PhoneIcon sx={{ fontSize: 16, color: cfg.infoIconColor }} />
+                  </Box>
+                  <Box>
+                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1, mb: 0.4 }}>
+                      Mobile
+                    </Typography>
+                    <Typography sx={{ fontSize: 13.5, color: "#0F172A", fontWeight: 500, lineHeight: 1.3 }}>
+                      {emp.contactNumber}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<CallIcon />}
+                  onClick={() => handlePhoneCall(emp.contactNumber)}
+                  sx={{
+                    bgcolor: cfg.primary,
+                    '&:hover': { bgcolor: cfg.primaryDark },
+                    textTransform: "none",
+                    fontSize: "12px",
+                    px: 2,
+                    py: 0.75,
+                    borderRadius: "20px",
+                  }}
+                >
+                  Call
+                </Button>
+              </Box>
+            )}
+            <InfoRow icon={<EmailIcon />} label="Work Email" value={emp.email} cfg={cfg} />
+            <InfoRow icon={<LocationOnIcon />} label="Location" value={emp.location} cfg={cfg} />
+            <InfoRow icon={<AccessTimeIcon />} label="Work Shift" value={emp.workShift} cfg={cfg} />
           </InfoCard>
 
           {/* Employment Details */}
           <InfoCard title="Employment Details" icon={<WorkIcon />} iconColor={cfg.primary} cfg={cfg}>
-            <InfoRow icon={<WorkIcon />}         label="Department"      value={emp.department} cfg={cfg} />
-            <InfoRow icon={<BadgeIcon />}         label="Designation"     value={emp.designation} cfg={cfg} />
+            <InfoRow icon={<WorkIcon />} label="Department" value={emp.department} cfg={cfg} />
+            <InfoRow icon={<BadgeIcon />} label="Designation" value={emp.designation} cfg={cfg} />
             <InfoRow
               icon={<CalendarTodayIcon />}
               label="Date of Joining"
@@ -439,18 +520,52 @@ function ProfilePage({ emp, cfg }) {
           {/* Medical & Emergency */}
           {(emp.bloodGroup || emp.emergencyContact || emp.emergencyPhone) && (
             <InfoCard title="Medical & Emergency" icon={<FavoriteIcon />} iconColor="#dc2626" cfg={cfg} emergency>
-              <InfoRow icon={<FavoriteIcon />}label="Blood Group"       value={emp.bloodGroup} cfg={cfg} />
-              <InfoRow icon={<PersonIcon />}  label="Emergency Contact" value={emp.emergencyContact} cfg={cfg} />
-              <InfoRow icon={<PhoneIcon />}   label="Emergency Phone"   value={emp.emergencyPhone} cfg={cfg} />
+              <InfoRow icon={<FavoriteIcon />} label="Blood Group" value={emp.bloodGroup} cfg={cfg} />
+              <InfoRow icon={<PersonIcon />} label="Emergency Contact" value={emp.emergencyContact} cfg={cfg} />
+              {/* Emergency phone with call action */}
+              {emp.emergencyPhone && (
+                <Box sx={{
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "space-between",
+                  py: 1.4, 
+                  borderBottom: "1px solid #FEF2F2",
+                  "&:last-child": { borderBottom: "none" },
+                }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <Box sx={{ width: 34, height: 34, borderRadius: "10px", background: "#FFF0F0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <PhoneIcon sx={{ fontSize: 16, color: "#dc2626" }} />
+                    </Box>
+                    <Box>
+                      <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1, mb: 0.4 }}>
+                        Emergency Phone
+                      </Typography>
+                      <Typography sx={{ fontSize: 13.5, color: "#0F172A", fontWeight: 500, lineHeight: 1.3 }}>
+                        {emp.emergencyPhone}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<CallIcon />}
+                    onClick={() => handlePhoneCall(emp.emergencyPhone)}
+                    sx={{
+                      bgcolor: "#dc2626",
+                      '&:hover': { bgcolor: "#b91c1c" },
+                      textTransform: "none",
+                      fontSize: "12px",
+                      px: 2,
+                      py: 0.75,
+                      borderRadius: "20px",
+                    }}
+                  >
+                    Call
+                  </Button>
+                </Box>
+              )}
             </InfoCard>
           )}
-
-          {/* Notes */}
-          {/* {emp.notes && (
-            <InfoCard title="Additional Notes" icon={<NoteAltIcon />} iconColor={cfg.primary} cfg={cfg}>
-              <Typography sx={{ fontSize: 13.5, color: "#475569", lineHeight: 1.8, pt: 0.5 }}>{emp.notes}</Typography>
-            </InfoCard>
-          )} */}
 
           {/* Footer — copyright only */}
           <Box sx={{
