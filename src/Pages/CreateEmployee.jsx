@@ -14,7 +14,7 @@ import {
   TextField, Select, MenuItem, FormControl, InputLabel,
   Typography, Avatar, Chip, IconButton, InputAdornment,
   CircularProgress, LinearProgress, Paper, Grid,
-  Tooltip, Badge, Slide, Snackbar, Alert,
+  Tooltip, Badge, Slide, Snackbar, Alert, useMediaQuery,
 } from "@mui/material";
 import { createTheme, ThemeProvider, alpha } from "@mui/material/styles";
 
@@ -68,8 +68,8 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: "'DM Sans', 'Plus Jakarta Sans', sans-serif",
-    h5: { fontWeight: 700 },
-    h6: { fontWeight: 700 },
+    h5: { fontWeight: 700, fontSize: "clamp(1.2rem, 4vw, 1.5rem)" },
+    h6: { fontWeight: 700, fontSize: "clamp(1rem, 3.5vw, 1.25rem)" },
     body2: { fontSize: "0.8125rem" },
   },
   shape: { borderRadius: 12 },
@@ -96,7 +96,7 @@ const theme = createTheme({
     },
     MuiDialog: {
       styleOverrides: {
-        paper: { borderRadius: 20, boxShadow: "0 24px 80px rgba(0,0,0,0.18)" },
+        paper: { borderRadius: 20, boxShadow: "0 24px 80px rgba(0,0,0,0.18)", margin: 16 },
       },
     },
     MuiChip: { styleOverrides: { root: { fontWeight: 600, fontSize: "0.72rem" } } },
@@ -254,10 +254,12 @@ export default function EmployeeApp() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TABLE
+// TABLE - Responsive
 // ══════════════════════════════════════════════════════════════════════════════
 function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) {
   const [search, setSearch] = useState("");
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   const filtered = employees.filter((e) =>
     [e.fullName, e.employeeId, e.designation, e.department, e.email]
@@ -270,51 +272,72 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
     { label: "Inactive",        value: employees.filter(e => e.status !== "Active").length, icon: <PauseCircleIcon />, color: "#d97706", border: "#d97706" },
   ];
 
+  // Responsive table column configuration
+  const getVisibleColumns = () => {
+    if (isMobile) {
+      return ['Photo', 'Employee ID', 'Full Name', 'Status', 'Actions'];
+    } else if (isTablet) {
+      return ['Photo', 'Employee ID', 'Full Name', 'Designation', 'Company', 'Status', 'Actions'];
+    } else {
+      return ['Photo', 'Employee ID', 'Full Name', 'Designation', 'Department', 'Company', 'Contact', 'Status', 'Experience', 'Actions'];
+    }
+  };
+
+  const visibleColumns = getVisibleColumns();
+
   return (
-    <Box sx={{ p: { xs: 2, md: 3.5 }, maxWidth: 1400, mx: "auto" }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3.5 }, maxWidth: 1600, mx: "auto" }}>
 
       {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3, flexWrap: "wrap", gap: 2 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+      <Box sx={{ 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "space-between", 
+        mb: { xs: 2, sm: 3 }, 
+        flexWrap: "wrap", 
+        gap: 2,
+        flexDirection: { xs: "column", sm: "row" }
+      }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, width: { xs: "100%", sm: "auto" }, justifyContent: { xs: "center", sm: "flex-start" } }}>
           <Box sx={{
-            width: 48, height: 48, borderRadius: "14px",
+            width: { xs: 40, sm: 48 }, height: { xs: 40, sm: 48 }, borderRadius: "14px",
             background: "linear-gradient(135deg,#1565C0,#1976d2)",
             display: "flex", alignItems: "center", justifyContent: "center",
             boxShadow: "0 4px 14px rgba(21,101,192,0.35)",
           }}>
-            <EngineeringIcon sx={{ color: "#fff", fontSize: 26 }} />
+            <EngineeringIcon sx={{ color: "#fff", fontSize: { xs: 22, sm: 26 } }} />
           </Box>
           <Box>
-            <Typography variant="h5" sx={{ color: "#0F172A", fontWeight: 800, lineHeight: 1.1, letterSpacing: "-0.5px" }}>
+            <Typography variant="h5" sx={{ color: "#0F172A", fontWeight: 800, lineHeight: 1.1, letterSpacing: "-0.5px", fontSize: { xs: "1.2rem", sm: "1.5rem" } }}>
               Employee Management
             </Typography>
-            <Typography variant="body2" sx={{ color: "#64748b", mt: 0.3 }}>
+            <Typography variant="body2" sx={{ color: "#64748b", mt: 0.3, fontSize: { xs: "0.7rem", sm: "0.875rem" } }}>
               C-Tech Engineering · Admin Portal
             </Typography>
           </Box>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={onCreate} size="large" sx={{ px: 3, py: 1.3 }}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={onCreate} size={isMobile ? "medium" : "large"} sx={{ px: { xs: 2, sm: 3 }, py: { xs: 0.8, sm: 1.3 }, width: { xs: "100%", sm: "auto" } }}>
           Create Employee
         </Button>
       </Box>
 
       {/* Stat Cards */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Grid container spacing={{ xs: 1, sm: 2 }} sx={{ mb: { xs: 2, sm: 3 } }}>
         {stats.map((s) => (
-          <Grid item xs={12} sm={4} key={s.label} minWidth={"200px"}>
+          <Grid item xs={12} sm={4} key={s.label}>
             <Paper elevation={0} sx={{
-              borderRadius: 1, border: "1px solid #E2E8F0", p: "18px 22px",
+              borderRadius: 1, border: "1px solid #E2E8F0", p: { xs: "12px 16px", sm: "18px 22px" },
               borderTop: `4px solid ${s.border}`, background: "#fff",
               transition: "box-shadow .2s, transform .2s",
               "&:hover": { boxShadow: `0 8px 28px ${alpha(s.color, 0.15)}`, transform: "translateY(-2px)" },
             }}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <Box>
-                  <Typography sx={{ fontSize: 34, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</Typography>
-                  <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 500, mt: 0.5 }}>{s.label}</Typography>
+                  <Typography sx={{ fontSize: { xs: 28, sm: 34 }, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</Typography>
+                  <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 500, mt: 0.5, fontSize: { xs: "0.7rem", sm: "0.875rem" } }}>{s.label}</Typography>
                 </Box>
-                <Box sx={{ width: 46, height: 46, borderRadius: 2.5, background: alpha(s.color, 0.08), display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {React.cloneElement(s.icon, { sx: { color: s.color, fontSize: 22 } })}
+                <Box sx={{ width: { xs: 38, sm: 46 }, height: { xs: 38, sm: 46 }, borderRadius: 2.5, background: alpha(s.color, 0.08), display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {React.cloneElement(s.icon, { sx: { color: s.color, fontSize: { xs: 18, sm: 22 } } })}
                 </Box>
               </Box>
             </Paper>
@@ -329,24 +352,24 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         InputProps={{
-          startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: "#94a3b8" }} /></InputAdornment>,
+          startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: "#94a3b8", fontSize: { xs: 18, sm: 20 } }} /></InputAdornment>,
           sx: { background: "#fff", borderRadius: "12px" },
         }}
-        sx={{ mb: 2.5 }}
+        sx={{ mb: { xs: 1.5, sm: 2.5 } }}
         size="small"
       />
 
       {/* Table */}
       <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #E2E8F0", overflow: "hidden" }}>
         <Box sx={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 960, fontFamily: "'DM Sans',sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: isMobile ? 500 : isTablet ? 700 : 1000, fontFamily: "'DM Sans',sans-serif" }}>
             <thead>
               <tr style={{ background: "#F8FAFC", borderBottom: "2px solid #F1F5F9" }}>
-                {["Photo","Employee ID","Full Name","Designation","Department","Company","Contact","Status","Experience","Actions"].map((h) => (
+                {visibleColumns.map((h) => (
                   <th key={h} style={{
-                    padding: "13px 16px",
+                    padding: { xs: "10px 12px", sm: "13px 16px" },
                     textAlign: h === "Actions" ? "center" : "left",
-                    fontSize: 11, fontWeight: 700, color: "#94a3b8",
+                    fontSize: { xs: 10, sm: 11 }, fontWeight: 700, color: "#94a3b8",
                     letterSpacing: "0.6px", textTransform: "uppercase", whiteSpace: "nowrap",
                   }}>{h}</th>
                 ))}
@@ -355,10 +378,10 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: "center", padding: "60px 20px" }}>
+                  <td colSpan={visibleColumns.length} style={{ textAlign: "center", padding: "40px 20px" }}>
                     <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
-                      <PeopleAltIcon sx={{ fontSize: 48, color: "#CBD5E1" }} />
-                      <Typography sx={{ color: "#94a3b8", fontWeight: 500 }}>
+                      <PeopleAltIcon sx={{ fontSize: { xs: 40, sm: 48 }, color: "#CBD5E1" }} />
+                      <Typography sx={{ color: "#94a3b8", fontWeight: 500, fontSize: { xs: "0.8rem", sm: "0.875rem" } }}>
                         {employees.length === 0
                           ? 'No employees yet. Click "Create Employee" to add one.'
                           : "No results found."}
@@ -373,79 +396,110 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
                     style={{ borderBottom: "1px solid #F8FAFC", transition: "background .12s" }}
                     onMouseEnter={e => e.currentTarget.style.background = "#F8FBFF"}
                     onMouseLeave={e => e.currentTarget.style.background = ""}>
-                    <td style={{ padding: "14px 16px" }}>
-                      <Avatar src={emp.photoURL}
-                        sx={{ width: 38, height: 38, border: "2px solid #E2E8F0", background: "#DBEAFE", color: "#1565C0", fontWeight: 700, fontSize: 15 }}>
-                        {!emp.photoURL && (emp.fullName || "?")[0]}
-                      </Avatar>
-                    </td>
-                    <td style={{ padding: "14px 16px" }}>
-                      <Chip label={emp.employeeId} size="small"
-                        sx={{ fontFamily: "monospace", background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700, fontSize: 12, border: "1px solid #BFDBFE" }} />
-                    </td>
-                    <td style={{ padding: "14px 16px" }}>
-                      <Typography sx={{ fontWeight: 600, fontSize: 14, color: "#0F172A" }}>{emp.fullName}</Typography>
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#64748b", fontSize: 13 }}>{emp.designation}</td>
-                    <td style={{ padding: "14px 16px", color: "#64748b", fontSize: 13 }}>{emp.department}</td>
-                    <td style={{ padding: "14px 16px" }}>
-                      <Chip label={co.label} size="small"
-                        sx={{ background: co.bg, color: co.color, border: `1px solid ${co.border}`, fontWeight: 600, fontSize: 11 }} />
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#64748b", fontSize: 13 }}>{emp.contactNumber}</td>
-                    <td style={{ padding: "14px 16px" }}>
-                      <Chip
-                        label={emp.status || "Active"} size="small"
-                        icon={emp.status === "Active"
-                          ? <CheckCircleIcon style={{ fontSize: 13 }} />
-                          : <PauseCircleIcon style={{ fontSize: 13 }} />}
-                        sx={{
-                          background: emp.status === "Active" ? "#DCFCE7" : "#FEF3C7",
-                          color: emp.status === "Active" ? "#166534" : "#92400E",
-                          fontWeight: 700,
-                          "& .MuiChip-icon": { color: emp.status === "Active" ? "#16a34a" : "#d97706" },
-                        }}
-                      />
-                    </td>
-                    <td style={{ padding: "14px 16px", color: "#64748b", fontSize: 13 }}>
-                      {calcExperience(emp.joiningDate) || "—"}
-                    </td>
-                    <td style={{ padding: "14px 16px" }}>
-                      <Box sx={{ display: "flex", gap: 0.75, justifyContent: "center" }}>
-                        <Tooltip title="View Profile" arrow>
-                          <IconButton size="small" onClick={() => onView(emp)}
-                            sx={{ background: alpha("#2196F3", 0.08), color: "#2196F3", borderRadius: "8px", "&:hover": { background: alpha("#2196F3", 0.16) } }}>
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Edit" arrow>
-                          <IconButton size="small" onClick={() => onEdit(emp)}
-                            sx={{ background: alpha("#f59e0b", 0.08), color: "#d97706", borderRadius: "8px", "&:hover": { background: alpha("#f59e0b", 0.16) } }}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="QR Code" arrow>
-                          <IconButton size="small" onClick={() => onQR(emp)}
-                            sx={{ background: alpha("#8b5cf6", 0.08), color: "#7C3AED", borderRadius: "8px", "&:hover": { background: alpha("#8b5cf6", 0.16) } }}>
-                            <QrCodeIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete" arrow>
-                          <IconButton size="small" onClick={() => onDelete(emp)}
-                            sx={{ background: alpha("#ef4444", 0.08), color: "#dc2626", borderRadius: "8px", "&:hover": { background: alpha("#ef4444", 0.16) } }}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </td>
+                    
+                    {visibleColumns.includes('Photo') && (
+                      <td style={{ padding: { xs: "10px 12px", sm: "14px 16px" } }}>
+                        <Avatar src={emp.photoURL}
+                          sx={{ width: { xs: 32, sm: 38 }, height: { xs: 32, sm: 38 }, border: "2px solid #E2E8F0", background: "#DBEAFE", color: "#1565C0", fontWeight: 700, fontSize: { xs: 13, sm: 15 } }}>
+                          {!emp.photoURL && (emp.fullName || "?")[0]}
+                        </Avatar>
+                      </td>
+                    )}
+                    
+                    {visibleColumns.includes('Employee ID') && (
+                      <td style={{ padding: { xs: "10px 12px", sm: "14px 16px" } }}>
+                        <Chip label={emp.employeeId} size="small"
+                          sx={{ fontFamily: "monospace", background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700, fontSize: { xs: 10, sm: 12 }, border: "1px solid #BFDBFE" }} />
+                      </td>
+                    )}
+                    
+                    {visibleColumns.includes('Full Name') && (
+                      <td style={{ padding: { xs: "10px 12px", sm: "14px 16px" } }}>
+                        <Typography sx={{ fontWeight: 600, fontSize: { xs: 12, sm: 14 }, color: "#0F172A" }}>{emp.fullName}</Typography>
+                      </td>
+                    )}
+                    
+                    {visibleColumns.includes('Designation') && !isMobile && (
+                      <td style={{ padding: { xs: "10px 12px", sm: "14px 16px" }, color: "#64748b", fontSize: { xs: 11, sm: 13 } }}>{emp.designation}</td>
+                    )}
+                    
+                    {visibleColumns.includes('Department') && !isMobile && !isTablet && (
+                      <td style={{ padding: { xs: "10px 12px", sm: "14px 16px" }, color: "#64748b", fontSize: { xs: 11, sm: 13 } }}>{emp.department}</td>
+                    )}
+                    
+                    {visibleColumns.includes('Company') && !isMobile && (
+                      <td style={{ padding: { xs: "10px 12px", sm: "14px 16px" } }}>
+                        <Chip label={co.label} size="small"
+                          sx={{ background: co.bg, color: co.color, border: `1px solid ${co.border}`, fontWeight: 600, fontSize: { xs: 9, sm: 11 } }} />
+                      </td>
+                    )}
+                    
+                    {visibleColumns.includes('Contact') && !isMobile && !isTablet && (
+                      <td style={{ padding: { xs: "10px 12px", sm: "14px 16px" }, color: "#64748b", fontSize: { xs: 11, sm: 13 } }}>{emp.contactNumber}</td>
+                    )}
+                    
+                    {visibleColumns.includes('Status') && (
+                      <td style={{ padding: { xs: "10px 12px", sm: "14px 16px" } }}>
+                        <Chip
+                          label={emp.status || "Active"} size="small"
+                          icon={emp.status === "Active"
+                            ? <CheckCircleIcon style={{ fontSize: { xs: 11, sm: 13 } }} />
+                            : <PauseCircleIcon style={{ fontSize: { xs: 11, sm: 13 } }} />}
+                          sx={{
+                            background: emp.status === "Active" ? "#DCFCE7" : "#FEF3C7",
+                            color: emp.status === "Active" ? "#166534" : "#92400E",
+                            fontWeight: 700,
+                            fontSize: { xs: 9, sm: 11 },
+                            "& .MuiChip-icon": { color: emp.status === "Active" ? "#16a34a" : "#d97706" },
+                          }}
+                        />
+                      </td>
+                    )}
+                    
+                    {visibleColumns.includes('Experience') && !isMobile && !isTablet && (
+                      <td style={{ padding: { xs: "10px 12px", sm: "14px 16px" }, color: "#64748b", fontSize: { xs: 11, sm: 13 } }}>
+                        {calcExperience(emp.joiningDate) || "—"}
+                      </td>
+                    )}
+                    
+                    {visibleColumns.includes('Actions') && (
+                      <td style={{ padding: { xs: "10px 8px", sm: "14px 16px" } }}>
+                        <Box sx={{ display: "flex", gap: { xs: 0.5, sm: 0.75 }, justifyContent: "center", flexWrap: "wrap" }}>
+                          <Tooltip title="View Profile" arrow>
+                            <IconButton size="small" onClick={() => onView(emp)}
+                              sx={{ background: alpha("#2196F3", 0.08), color: "#2196F3", borderRadius: "8px", "&:hover": { background: alpha("#2196F3", 0.16) }, p: { xs: 0.5, sm: 1 } }}>
+                              <VisibilityIcon fontSize="small" sx={{ fontSize: { xs: 16, sm: 20 } }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit" arrow>
+                            <IconButton size="small" onClick={() => onEdit(emp)}
+                              sx={{ background: alpha("#f59e0b", 0.08), color: "#d97706", borderRadius: "8px", "&:hover": { background: alpha("#f59e0b", 0.16) }, p: { xs: 0.5, sm: 1 } }}>
+                              <EditIcon fontSize="small" sx={{ fontSize: { xs: 16, sm: 20 } }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="QR Code" arrow>
+                            <IconButton size="small" onClick={() => onQR(emp)}
+                              sx={{ background: alpha("#8b5cf6", 0.08), color: "#7C3AED", borderRadius: "8px", "&:hover": { background: alpha("#8b5cf6", 0.16) }, p: { xs: 0.5, sm: 1 } }}>
+                              <QrCodeIcon fontSize="small" sx={{ fontSize: { xs: 16, sm: 20 } }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete" arrow>
+                            <IconButton size="small" onClick={() => onDelete(emp)}
+                              sx={{ background: alpha("#ef4444", 0.08), color: "#dc2626", borderRadius: "8px", "&:hover": { background: alpha("#ef4444", 0.16) }, p: { xs: 0.5, sm: 1 } }}>
+                              <DeleteIcon fontSize="small" sx={{ fontSize: { xs: 16, sm: 20 } }} />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </Box>
-        <Box sx={{ px: 3, py: 1.5, borderTop: "1px solid #F1F5F9", background: "#FAFBFC" }}>
-          <Typography variant="body2" sx={{ color: "#94a3b8", textAlign: "center" }}>
+        <Box sx={{ px: { xs: 2, sm: 3 }, py: { xs: 1, sm: 1.5 }, borderTop: "1px solid #F1F5F9", background: "#FAFBFC" }}>
+          <Typography variant="body2" sx={{ color: "#94a3b8", textAlign: "center", fontSize: { xs: "0.7rem", sm: "0.875rem" } }}>
             Showing {filtered.length} of {employees.length} employees · C-Tech Engineering Employee Management System
           </Typography>
         </Box>
@@ -456,18 +510,18 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
 
 // ── Shared field style helpers ─────────────────────────────────────────────────
 const fieldSx = {
-  minWidth: 300,
+  minWidth: { xs: "100%", sm: 300 },
   "& .MuiOutlinedInput-root": { borderRadius: "10px" },
 };
 
 const selectSx = {
-  minWidth: 300,
+  minWidth: { xs: "100%", sm: 300 },
   "& .MuiOutlinedInput-root": { borderRadius: "10px" },
   "& .MuiSelect-select": { borderRadius: "10px" },
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FORM DIALOG
+// FORM DIALOG - Responsive
 // ══════════════════════════════════════════════════════════════════════════════
 function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
   const isEdit = !!employee;
@@ -479,6 +533,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
   const [error, setError]             = useState("");
   const [dragOver, setDragOver]       = useState(false);
   const fileRef = useRef();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     if (open) {
@@ -539,13 +594,13 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
   };
 
   const SectionLabel = ({ icon, title, subtitle }) => (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 2.5, pb: 1.5, borderBottom: "2px solid #F1F5F9" }}>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 2.5, pb: 1.5, borderBottom: "2px solid #F1F5F9", flexWrap: "wrap" }}>
       <Box sx={{ width: 34, height: 34, borderRadius: "10px", background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
         {React.cloneElement(icon, { sx: { color: "#1565C0", fontSize: 18 } })}
       </Box>
       <Box>
-        <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{title}</Typography>
-        <Typography sx={{ fontSize: 11, color: "#94a3b8", mt: 0.2 }}>{subtitle}</Typography>
+        <Typography sx={{ fontSize: { xs: 12, sm: 13 }, fontWeight: 700, color: "#0F172A" }}>{title}</Typography>
+        <Typography sx={{ fontSize: { xs: 10, sm: 11 }, color: "#94a3b8", mt: 0.2 }}>{subtitle}</Typography>
       </Box>
     </Box>
   );
@@ -557,16 +612,16 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
       TransitionComponent={SlideUp} fullWidth maxWidth="lg" scroll="paper">
 
       {/* Dialog Header */}
-      <Box sx={{ background: "linear-gradient(135deg,#1565C0 0%,#0D47A1 100%)", px: 3.5, py: 2.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <Box sx={{ background: "linear-gradient(135deg,#1565C0 0%,#0D47A1 100%)", px: { xs: 2, sm: 3.5 }, py: { xs: 2, sm: 2.5 }, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
           <Box sx={{ width: 38, height: 38, borderRadius: "10px", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {isEdit ? <EditIcon sx={{ color: "#fff", fontSize: 20 }} /> : <AddIcon sx={{ color: "#fff", fontSize: 20 }} />}
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>
+            <Typography sx={{ fontSize: { xs: 15, sm: 17 }, fontWeight: 700, color: "#fff" }}>
               {isEdit ? "Edit Employee" : "Create Employee"}
             </Typography>
-            <Typography sx={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>
+            <Typography sx={{ fontSize: { xs: 10, sm: 11.5 }, color: "rgba(255,255,255,0.65)" }}>
               C-Tech Engineering · Admin Portal
             </Typography>
           </Box>
@@ -582,7 +637,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
       </Box>
 
       <DialogContent sx={{ p: 0, background: "#F8FAFC" }}>
-        <Box sx={{ p: { xs: 2, md: 3 }, display: "flex", flexDirection: "column", gap: 2.5 }}>
+        <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, display: "flex", flexDirection: "column", gap: 2.5 }}>
 
           {error && (
             <Alert severity="error" icon={<WarningAmberIcon />} sx={{ borderRadius: 2, fontWeight: 500 }}>
@@ -591,14 +646,14 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
           )}
 
           {/* Photo Upload */}
-          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<PersonIcon />} title="Employee Photo" subtitle="Upload a clear passport-size photo" />
             <Box
               sx={{
                 border: `2px dashed ${dragOver ? "#1565C0" : "#BFDBFE"}`,
-                borderRadius: 3, p: 2.5, display: "flex", alignItems: "center", gap: 2.5,
+                borderRadius: 3, p: { xs: 1.5, sm: 2, md: 2.5 }, display: "flex", alignItems: "center", gap: 2.5,
                 background: dragOver ? "#EFF6FF" : "#F8FBFF", cursor: "pointer",
-                transition: "all .2s", flexWrap: "wrap",
+                transition: "all .2s", flexWrap: "wrap", justifyContent: "center",
                 "&:hover": { borderColor: "#1565C0", background: "#EFF6FF" },
               }}
               onClick={() => fileRef.current.click()}
@@ -607,14 +662,14 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
               onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
             >
               <Avatar src={imagePreview}
-                sx={{ width: 76, height: 76, border: "3px solid #1565C0", background: "#DBEAFE", color: "#1565C0", fontSize: 28, fontWeight: 700 }}>
-                {!imagePreview && <CloudUploadIcon sx={{ fontSize: 30, color: "#93c5fd" }} />}
+                sx={{ width: { xs: 60, sm: 76 }, height: { xs: 60, sm: 76 }, border: "3px solid #1565C0", background: "#DBEAFE", color: "#1565C0", fontSize: { xs: 22, sm: 28 }, fontWeight: 700 }}>
+                {!imagePreview && <CloudUploadIcon sx={{ fontSize: { xs: 24, sm: 30 }, color: "#93c5fd" }} />}
               </Avatar>
-              <Box sx={{ flex: 1 }}>
-                <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#334155" }}>
+              <Box sx={{ flex: 1, textAlign: { xs: "center", sm: "left" } }}>
+                <Typography sx={{ fontSize: { xs: 12, sm: 14 }, fontWeight: 600, color: "#334155" }}>
                   {imagePreview ? "Photo selected — click to change" : "Drag & drop or click to upload"}
                 </Typography>
-                <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 0.5 }}>JPG, PNG, WEBP · Max 5 MB</Typography>
+                <Typography sx={{ fontSize: { xs: 10, sm: 12 }, color: "#94a3b8", mt: 0.5 }}>JPG, PNG, WEBP · Max 5 MB</Typography>
               </Box>
               <Button variant="contained" size="small" startIcon={<CloudUploadIcon />}
                 onClick={(e) => { e.stopPropagation(); fileRef.current.click(); }} sx={{ flexShrink: 0 }}>
@@ -632,9 +687,9 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
           </Paper>
 
           {/* Company Select */}
-          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<BusinessIcon />} title="Company" subtitle="Select the company this employee belongs to" />
-            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", flexDirection: { xs: "column", sm: "row" } }}>
               {COMPANY_OPTIONS.map((co) => {
                 const isSelected = form.company === co.value;
                 return (
@@ -642,7 +697,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
                     key={co.value}
                     onClick={() => setForm(p => ({ ...p, company: co.value }))}
                     sx={{
-                      minWidth: 300,
+                      minWidth: { xs: "100%", sm: 300 },
                       flex: "1 1 300px",
                       border: `2px solid ${isSelected ? co.color : "#E2E8F0"}`,
                       borderRadius: 2.5,
@@ -684,9 +739,9 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
           </Paper>
 
           {/* Identity & Role */}
-          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<BadgeIcon />} title="Identity & Role" subtitle="Employee ID, designation and department" />
-            <Grid container spacing={2.5}>
+            <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={4}>
                 <TextField fullWidth size="small" label="Employee ID" name="employeeId" required placeholder="EMP-2024-0001" value={form.employeeId} onChange={set} sx={fieldSx} />
               </Grid>
@@ -712,9 +767,9 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
           </Paper>
 
           {/* Personal Information */}
-          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<PersonIcon />} title="Personal Information" subtitle="Date of birth, gender and residency address" />
-            <Grid container spacing={2.5}>
+            <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={4}>
                 <TextField
                   fullWidth
@@ -740,7 +795,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12}minWidth={'400px'}>
+              <Grid item xs={12}>
                 <TextField
                   fullWidth
                   size="small"
@@ -758,9 +813,9 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
           </Paper>
 
           {/* Joining & Experience */}
-          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<CalendarTodayIcon />} title="Joining & Work Experience" subtitle="Experience auto-calculated from joining date" />
-            <Grid container spacing={2.5} alignItems="flex-start">
+            <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={4}>
                 <TextField fullWidth size="small" label="Date of Joining" name="joiningDate" required type="date" InputLabelProps={{ shrink: true }} value={form.joiningDate} onChange={set} sx={fieldSx} />
               </Grid>
@@ -781,9 +836,9 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
           </Paper>
 
           {/* Contact */}
-          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<PhoneIcon />} title="Contact Information" subtitle="Mobile, email and site location" />
-            <Grid container spacing={2.5}>
+            <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={4}>
                 <TextField fullWidth size="small" label="Mobile Number" name="contactNumber" required placeholder="+91 98400 55123" value={form.contactNumber} onChange={set} sx={fieldSx} />
               </Grid>
@@ -797,9 +852,9 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
           </Paper>
 
           {/* Medical & Emergency */}
-          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #FEE2E2", background: "#FFFBFB" }}>
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #FEE2E2", background: "#FFFBFB" }}>
             <SectionLabel icon={<FavoriteIcon />} title="Medical & Emergency" subtitle="Blood group and emergency contact" />
-            <Grid container spacing={2.5}>
+            <Grid container spacing={2}>
               <Grid item xs={12} sm={6} md={4}>
                 <TextField fullWidth size="small" label="Blood Group" name="bloodGroup" placeholder="B+ / O-" value={form.bloodGroup} onChange={set} sx={fieldSx} />
               </Grid>
@@ -813,7 +868,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
           </Paper>
 
           {/* Notes */}
-          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+          <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<NoteAltIcon />} title="Additional Notes" subtitle="Certifications, remarks or special instructions" />
             <TextField fullWidth multiline minRows={3} name="notes" label="Notes"
               placeholder="e.g. Holds PMP certification, site safety trained…"
@@ -823,14 +878,14 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #F1F5F9", gap: 1 }}>
+      <DialogActions sx={{ px: { xs: 2, sm: 3 }, py: 2, borderTop: "1px solid #F1F5F9", gap: 1, flexWrap: "wrap" }}>
         <Button variant="outlined" onClick={onClose} disabled={loading}
-          sx={{ borderColor: "#E2E8F0", color: "#475569", "&:hover": { background: "#F1F5F9" } }}>
+          sx={{ borderColor: "#E2E8F0", color: "#475569", "&:hover": { background: "#F1F5F9" }, flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
           Cancel
         </Button>
         <Button variant="contained" onClick={handleSubmit} disabled={loading}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <VerifiedUserIcon />}
-          sx={{ minWidth: 180 }}>
+          sx={{ minWidth: { xs: "100%", sm: 180 }, flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
           {loading ? "Saving…" : isEdit ? "Update Employee" : "Create & Save"}
         </Button>
       </DialogActions>
@@ -839,10 +894,11 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// VIEW PROFILE DIALOG
+// VIEW PROFILE DIALOG - Responsive
 // ══════════════════════════════════════════════════════════════════════════════
 function ViewProfileDialog({ open, employee, onClose, onEdit }) {
   const emp = employee;
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const InfoRow = ({ icon, label, value }) => {
     if (!value) return null;
@@ -850,13 +906,14 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
       <Box sx={{
         display: "flex", alignItems: "flex-start", gap: 1.5,
         py: 1.25, borderBottom: "1px solid #F8FAFC", "&:last-child": { borderBottom: "none" },
+        flexWrap: { xs: "wrap", sm: "nowrap" }
       }}>
         <Box sx={{ width: 32, height: 32, borderRadius: "8px", background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, mt: 0.25 }}>
           {React.cloneElement(icon, { sx: { color: "#1565C0", fontSize: 16 } })}
         </Box>
         <Box>
           <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px", textTransform: "uppercase", mb: 0.3 }}>{label}</Typography>
-          <Typography sx={{ fontSize: 13.5, color: "#0F172A", fontWeight: 500 }}>{value}</Typography>
+          <Typography sx={{ fontSize: { xs: 12, sm: 13.5 }, color: "#0F172A", fontWeight: 500 }}>{value}</Typography>
         </Box>
       </Box>
     );
@@ -873,7 +930,7 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
       <Box sx={{ background: "linear-gradient(145deg,#0052CC 0%,#0A3A7A 55%,#091E42 100%)", position: "relative", overflow: "hidden" }}>
         <Box sx={{ position: "absolute", top: -40, right: -40, width: 160, height: 160, borderRadius: "50%", border: "40px solid rgba(255,255,255,0.05)" }} />
         <Box sx={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 80% 50%,rgba(255,255,255,0.05) 0%,transparent 60%)" }} />
-        <Box sx={{ position: "relative", zIndex: 2, pt: 4, pb: 5, px: 3, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+        <Box sx={{ position: "relative", zIndex: 2, pt: { xs: 3, sm: 4 }, pb: { xs: 4, sm: 5 }, px: { xs: 2, sm: 3 }, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
           <IconButton onClick={onClose}
             sx={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.7)", "&:hover": { background: "rgba(255,255,255,0.1)" } }}>
             <CloseIcon />
@@ -881,12 +938,12 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
           <Badge overlap="circular" anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
             badgeContent={<Box sx={{ width: 18, height: 18, borderRadius: "50%", background: isActive ? "#22c55e" : "#f59e0b", border: "2px solid #0052CC" }} />}>
             <Avatar src={emp.photoURL}
-              sx={{ width: 86, height: 86, border: "3px solid rgba(255,255,255,0.3)", background: "linear-gradient(135deg,#1e40af,#0052cc)", fontSize: 30, fontWeight: 700, color: "#fff" }}>
+              sx={{ width: { xs: 70, sm: 86 }, height: { xs: 70, sm: 86 }, border: "3px solid rgba(255,255,255,0.3)", background: "linear-gradient(135deg,#1e40af,#0052cc)", fontSize: { xs: 24, sm: 30 }, fontWeight: 700, color: "#fff" }}>
               {!emp.photoURL && (emp.fullName || "?")[0]}
             </Avatar>
           </Badge>
-          <Typography sx={{ fontSize: 21, fontWeight: 800, color: "#fff", mt: 1.5, mb: 0.5 }}>{emp.fullName}</Typography>
-          <Typography sx={{ fontSize: 13, color: "rgba(255,255,255,0.65)", mb: 1.5 }}>
+          <Typography sx={{ fontSize: { xs: 18, sm: 21 }, fontWeight: 800, color: "#fff", mt: 1.5, mb: 0.5 }}>{emp.fullName}</Typography>
+          <Typography sx={{ fontSize: { xs: 11, sm: 13 }, color: "rgba(255,255,255,0.65)", mb: 1.5 }}>
             {emp.designation}{emp.department ? ` · ${emp.department}` : ""}
           </Typography>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, justifyContent: "center" }}>
@@ -910,10 +967,10 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
       </Box>
 
       <DialogContent sx={{ p: 0, background: "#F8FAFC" }}>
-        <Box sx={{ px: 2.5, py: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box sx={{ px: { xs: 1.5, sm: 2.5 }, py: { xs: 1.5, sm: 2 }, display: "flex", flexDirection: "column", gap: 2 }}>
 
           {/* Verified strip */}
-          <Paper elevation={0} sx={{ p: 1.75, borderRadius: 2.5, border: "1px solid #86EFAC", background: "#F0FDF4", display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Paper elevation={0} sx={{ p: 1.75, borderRadius: 2.5, border: "1px solid #86EFAC", background: "#F0FDF4", display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
             <Box sx={{ width: 38, height: 38, borderRadius: "50%", background: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <VerifiedUserIcon sx={{ color: "#16a34a", fontSize: 20 }} />
             </Box>
@@ -933,8 +990,8 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             ].map((s) => (
               <Grid item xs={4} key={s.label}>
                 <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", borderTop: `3px solid ${s.border}`, textAlign: "center" }}>
-                  <Typography sx={{ fontSize: 17, fontWeight: 800, color: s.color, lineHeight: 1.1 }}>{s.value}</Typography>
-                  <Typography sx={{ fontSize: 9.5, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", mt: 0.5 }}>{s.label}</Typography>
+                  <Typography sx={{ fontSize: { xs: 14, sm: 17 }, fontWeight: 800, color: s.color, lineHeight: 1.1 }}>{s.value}</Typography>
+                  <Typography sx={{ fontSize: { xs: 8, sm: 9.5 }, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", mt: 0.5 }}>{s.label}</Typography>
                 </Paper>
               </Grid>
             ))}
@@ -942,7 +999,7 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
 
           {/* Personal Information */}
           {(emp.dob || emp.gender || emp.residencyAddress) && (
-            <Paper elevation={0} sx={{ px: 2, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
+            <Paper elevation={0} sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
               <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>
                 Personal Information
               </Typography>
@@ -962,7 +1019,7 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
           )}
 
           {/* Contact */}
-          <Paper elevation={0} sx={{ px: 2, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
+          <Paper elevation={0} sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
             <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Contact Information</Typography>
             <InfoRow icon={<PhoneIcon />}     label="Mobile"     value={emp.contactNumber} />
             <InfoRow icon={<EmailIcon />}     label="Work Email" value={emp.email} />
@@ -971,7 +1028,7 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
           </Paper>
 
           {/* Employment */}
-          <Paper elevation={0} sx={{ px: 2, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
+          <Paper elevation={0} sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
             <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Employment Details</Typography>
             <InfoRow icon={<BusinessIcon />}      label="Company"         value={co.label} />
             <InfoRow icon={<WorkIcon />}          label="Department"      value={emp.department} />
@@ -981,7 +1038,7 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
           </Paper>
 
           {(emp.bloodGroup || emp.emergencyContact) && (
-            <Paper elevation={0} sx={{ px: 2, py: 1.5, borderRadius: 2.5, border: "1px solid #FECACA", background: "#FFF5F5" }}>
+            <Paper elevation={0} sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #FECACA", background: "#FFF5F5" }}>
               <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Medical & Emergency</Typography>
               <InfoRow icon={<FavoriteIcon />}label="Blood Group"       value={emp.bloodGroup} />
               <InfoRow icon={<PersonIcon />}  label="Emergency Contact" value={emp.emergencyContact} />
@@ -990,39 +1047,40 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
           )}
 
           {emp.notes && (
-            <Paper elevation={0} sx={{ px: 2, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
+            <Paper elevation={0} sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
               <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Notes</Typography>
-              <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.75 }}>{emp.notes}</Typography>
+              <Typography sx={{ fontSize: { xs: 11, sm: 13 }, color: "#475569", lineHeight: 1.75 }}>{emp.notes}</Typography>
             </Paper>
           )}
 
           {/* Footer brand */}
           <Box sx={{ background: "linear-gradient(135deg,#0052cc,#091e42)", borderRadius: 3, p: 2.5, textAlign: "center" }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, mb: 0.75 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, mb: 0.75, flexWrap: "wrap" }}>
               <EngineeringIcon sx={{ color: "#fff", fontSize: 18 }} />
-              <Typography sx={{ fontWeight: 800, fontSize: 14, color: "#fff", letterSpacing: "2px" }}>C-TECH ENGINEERING</Typography>
+              <Typography sx={{ fontWeight: 800, fontSize: { xs: 11, sm: 14 }, color: "#fff", letterSpacing: "2px" }}>C-TECH ENGINEERING</Typography>
             </Box>
             <Box sx={{ width: 36, height: 1, background: "rgba(255,255,255,0.2)", mx: "auto", my: 1 }} />
-            <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: "1.5px" }}>BUILDING TRUST. DELIVERING EXCELLENCE.</Typography>
+            <Typography sx={{ fontSize: { xs: 8, sm: 10 }, color: "rgba(255,255,255,0.45)", letterSpacing: "1.5px" }}>BUILDING TRUST. DELIVERING EXCELLENCE.</Typography>
           </Box>
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 2.5, py: 2, borderTop: "1px solid #F1F5F9", gap: 1 }}>
-        <Button variant="outlined" onClick={onClose} sx={{ borderColor: "#E2E8F0", color: "#475569" }}>Close</Button>
-        <Button variant="contained" startIcon={<EditIcon />} onClick={() => onEdit(emp)}>Edit Employee</Button>
+      <DialogActions sx={{ px: { xs: 1.5, sm: 2.5 }, py: 2, borderTop: "1px solid #F1F5F9", gap: 1, flexWrap: "wrap" }}>
+        <Button variant="outlined" onClick={onClose} sx={{ borderColor: "#E2E8F0", color: "#475569", flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>Close</Button>
+        <Button variant="contained" startIcon={<EditIcon />} onClick={() => onEdit(emp)} sx={{ flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>Edit Employee</Button>
       </DialogActions>
     </Dialog>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// QR CODE DIALOG — Redesigned
+// QR CODE DIALOG — Responsive
 // ══════════════════════════════════════════════════════════════════════════════
 function QRCodeDialog({ open, employee, onClose, onSnack }) {
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [profileUrl, setProfileUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     if (!open || !employee?.employeeId) return;
@@ -1034,7 +1092,7 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
       try {
         const QRCodeModule = await import("qrcode");
         const dataUrl = await QRCodeModule.default.toDataURL(url, {
-          width: 320,
+          width: isMobile ? 250 : 320,
           margin: 2,
           color: { dark: "#1565C0", light: "#ffffff" },
         });
@@ -1044,7 +1102,7 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
       }
     };
     generateQR();
-  }, [open, employee]);
+  }, [open, employee, isMobile]);
 
   const copyToClipboard = async () => {
     try {
@@ -1069,7 +1127,7 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
       {/* Header */}
       <Box sx={{
         background: "linear-gradient(135deg,#4F46E5 0%,#7C3AED 100%)",
-        px: 3, py: 2.5,
+        px: { xs: 2, sm: 3 }, py: { xs: 2, sm: 2.5 },
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
@@ -1081,8 +1139,8 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
             <QrCodeScannerIcon sx={{ color: "#fff", fontSize: 22 }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>Employee QR Code</Typography>
-            <Typography sx={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>Scan to open profile instantly</Typography>
+            <Typography sx={{ fontSize: { xs: 14, sm: 16 }, fontWeight: 700, color: "#fff" }}>Employee QR Code</Typography>
+            <Typography sx={{ fontSize: { xs: 10, sm: 11.5 }, color: "rgba(255,255,255,0.65)" }}>Scan to open profile instantly</Typography>
           </Box>
         </Box>
         <IconButton onClick={onClose} sx={{ color: "rgba(255,255,255,0.7)", "&:hover": { background: "rgba(255,255,255,0.12)" } }}>
@@ -1093,22 +1151,22 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
       <DialogContent sx={{ p: 0, background: "#F8FAFC" }}>
 
         {/* Employee identity strip */}
-        <Box sx={{ px: 2.5, pt: 2.5, pb: 0 }}>
+        <Box sx={{ px: { xs: 1.5, sm: 2.5 }, pt: { xs: 1.5, sm: 2.5 }, pb: 0 }}>
           <Paper elevation={0} sx={{
             p: "14px 18px", borderRadius: 2.5,
             border: `1.5px solid ${co.border}`,
             background: co.bg,
-            display: "flex", alignItems: "center", gap: 1.5,
+            display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap",
           }}>
             <Avatar src={employee.photoURL}
               sx={{ width: 46, height: 46, border: `2px solid ${co.color}`, background: "#DBEAFE", color: co.color, fontWeight: 700, fontSize: 17 }}>
               {!employee.photoURL && (employee.fullName || "?")[0]}
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 700, fontSize: 14, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <Typography sx={{ fontWeight: 700, fontSize: { xs: 13, sm: 14 }, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {employee.fullName}
               </Typography>
-              <Typography sx={{ fontSize: 12, color: "#64748b", mt: 0.2 }}>
+              <Typography sx={{ fontSize: { xs: 10, sm: 12 }, color: "#64748b", mt: 0.2 }}>
                 {employee.designation}
               </Typography>
             </Box>
@@ -1122,22 +1180,20 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
         </Box>
 
         {/* QR Code card */}
-        <Box sx={{ px: 2.5, pt: 2, pb: 0 }}>
+        <Box sx={{ px: { xs: 1.5, sm: 2.5 }, pt: 2, pb: 0 }}>
           <Paper elevation={0} sx={{
             borderRadius: 3,
             border: "1px solid #E2E8F0",
             background: "#fff",
             overflow: "hidden",
           }}>
-            {/* Top label */}
-            <Box sx={{ px: 2.5, pt: 2, pb: 1, borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>Scan with phone camera</Typography>
+            <Box sx={{ px: { xs: 1.5, sm: 2.5 }, pt: 2, pb: 1, borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <Typography sx={{ fontSize: { xs: 10, sm: 12 }, fontWeight: 700, color: "#334155" }}>Scan with phone camera</Typography>
               <Chip label="Live" size="small"
                 sx={{ background: "#DCFCE7", color: "#166534", fontWeight: 700, fontSize: 10, height: 20 }} />
             </Box>
 
-            {/* QR area */}
-            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 3, px: 2, background: "#FAFBFF" }}>
+            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: { xs: 2, sm: 3 }, px: 2, background: "#FAFBFF" }}>
               {qrCodeUrl ? (
                 <Box sx={{
                   p: 2,
@@ -1150,35 +1206,33 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
                   <img
                     src={qrCodeUrl}
                     alt="Employee QR Code"
-                    style={{ width: 200, height: 200, display: "block" }}
+                    style={{ width: isMobile ? 160 : 200, height: isMobile ? 160 : 200, display: "block" }}
                   />
-                  {/* Corner accents */}
                   {[
                     { top: 0, left: 0, borderTop: "3px solid #4F46E5", borderLeft: "3px solid #4F46E5", borderRadius: "6px 0 0 0" },
                     { top: 0, right: 0, borderTop: "3px solid #4F46E5", borderRight: "3px solid #4F46E5", borderRadius: "0 6px 0 0" },
                     { bottom: 0, left: 0, borderBottom: "3px solid #4F46E5", borderLeft: "3px solid #4F46E5", borderRadius: "0 0 0 6px" },
                     { bottom: 0, right: 0, borderBottom: "3px solid #4F46E5", borderRight: "3px solid #4F46E5", borderRadius: "0 0 6px 0" },
                   ].map((s, i) => (
-                    <Box key={i} sx={{ position: "absolute", width: 18, height: 18, ...s }} />
+                    <Box key={i} sx={{ position: "absolute", width: 16, height: 16, ...s }} />
                   ))}
                 </Box>
               ) : (
-                <Box sx={{ width: 232, height: 232, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 2.5, border: "1.5px dashed #DDD6FE", background: "#FAFBFF" }}>
+                <Box sx={{ width: isMobile ? 180 : 232, height: isMobile ? 180 : 232, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 2.5, border: "1.5px dashed #DDD6FE", background: "#FAFBFF" }}>
                   <CircularProgress size={36} sx={{ color: "#7C3AED" }} />
                 </Box>
               )}
             </Box>
 
-            {/* URL row */}
             <Box sx={{
-              px: 2.5, py: 1.75,
+              px: { xs: 1.5, sm: 2.5 }, py: 1.75,
               borderTop: "1px solid #F1F5F9",
               background: "#F8FAFC",
-              display: "flex", alignItems: "center", gap: 1,
+              display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap",
             }}>
               <LinkIcon sx={{ color: "#94a3b8", fontSize: 16, flexShrink: 0 }} />
               <Typography sx={{
-                fontSize: 11, fontFamily: "monospace", color: "#4F46E5",
+                fontSize: { xs: 9, sm: 11 }, fontFamily: "monospace", color: "#4F46E5",
                 flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>
                 {profileUrl}
@@ -1200,21 +1254,20 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
           </Paper>
         </Box>
 
-        {/* Instruction note */}
-        <Box sx={{ px: 2.5, pt: 1.5, pb: 2.5 }}>
-          <Typography sx={{ fontSize: 11.5, color: "#94a3b8", textAlign: "center", lineHeight: 1.6 }}>
+        <Box sx={{ px: { xs: 1.5, sm: 2.5 }, pt: 1.5, pb: 2.5 }}>
+          <Typography sx={{ fontSize: { xs: 10, sm: 11.5 }, color: "#94a3b8", textAlign: "center", lineHeight: 1.6 }}>
             Point your phone camera at the QR code · No app needed
           </Typography>
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 2.5, pb: 2.5, pt: 0, gap: 1, background: "#F8FAFC", borderTop: "1px solid #F1F5F9", flexWrap: "wrap" }}>
+      <DialogActions sx={{ px: { xs: 1.5, sm: 2.5 }, pb: { xs: 1.5, sm: 2.5 }, pt: 0, gap: 1, background: "#F8FAFC", borderTop: "1px solid #F1F5F9", flexWrap: "wrap" }}>
         <Button variant="outlined" onClick={onClose}
-          sx={{ borderColor: "#E2E8F0", color: "#475569", flex: "1 1 auto" }}>
+          sx={{ borderColor: "#E2E8F0", color: "#475569", flex: { xs: "1 1 100%", sm: "0 0 auto" } }}>
           Close
         </Button>
         <Button variant="outlined" startIcon={<OpenInNewIcon />} onClick={openProfile}
-          sx={{ borderColor: "#4F46E5", color: "#4F46E5", flex: "1 1 auto",
+          sx={{ borderColor: "#4F46E5", color: "#4F46E5", flex: { xs: "1 1 100%", sm: "0 0 auto" },
             "&:hover": { background: alpha("#4F46E5", 0.06) } }}>
           Open Profile
         </Button>
@@ -1237,7 +1290,7 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DELETE DIALOG
+// DELETE DIALOG - Responsive
 // ══════════════════════════════════════════════════════════════════════════════
 function DeleteDialog({ open, employee, onClose, onSuccess }) {
   const [deleting, setDeleting] = useState(false);
@@ -1257,18 +1310,18 @@ function DeleteDialog({ open, employee, onClose, onSuccess }) {
   return (
     <Dialog open={open} onClose={!deleting ? onClose : undefined}
       TransitionComponent={SlideUp} maxWidth="xs" fullWidth>
-      <DialogContent sx={{ textAlign: "center", pt: 4, pb: 2, px: 3 }}>
+      <DialogContent sx={{ textAlign: "center", pt: 4, pb: 2, px: { xs: 2, sm: 3 } }}>
         <Box sx={{ width: 64, height: 64, borderRadius: "50%", background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 2 }}>
           <DeleteIcon sx={{ color: "#dc2626", fontSize: 30 }} />
         </Box>
-        <Typography variant="h6" sx={{ mb: 1 }}>Delete Employee?</Typography>
-        <Typography sx={{ fontSize: 13.5, color: "#64748b", lineHeight: 1.7 }}>
+        <Typography variant="h6" sx={{ mb: 1, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>Delete Employee?</Typography>
+        <Typography sx={{ fontSize: { xs: 12, sm: 13.5 }, color: "#64748b", lineHeight: 1.7 }}>
           This will permanently remove{" "}
           <strong style={{ color: "#0F172A" }}>{employee.fullName}</strong>{" "}
           ({employee.employeeId}) from Firebase. This action cannot be undone.
         </Typography>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+      <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: 3, gap: 1, flexWrap: "wrap" }}>
         <Button variant="outlined" fullWidth onClick={onClose} disabled={deleting}
           sx={{ borderColor: "#E2E8F0", color: "#475569" }}>Cancel</Button>
         <Button variant="contained" fullWidth onClick={handleDelete} disabled={deleting} color="error"
