@@ -29,7 +29,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
 
           {/* QR scan lands here — fully public, no login required */}
-<Route path="/employee/profile/:employeeId" element={<Employeepublicprofile />} />
+<Route path="/:employeeId" element={<Employeepublicprofile />} />
 
           {/* ─── PROTECTED ROUTES ────────────────────────────────────────── */}
           <Route

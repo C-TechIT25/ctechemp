@@ -154,7 +154,7 @@ const BLANK = {
 
 // ── QR Code helpers ────────────────────────────────────────────────────────────
 function getProfileUrl(employeeId) {
-  return `${window.location.origin}/#/employee/profile/${employeeId}`;
+  return `${window.location.origin}/#/${employeeId}`;
 }
 
 async function generateQRCode(employeeId) {
