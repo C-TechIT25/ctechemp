@@ -30,7 +30,7 @@ export default function App() {
 
           {/* QR scan lands here — fully public, no login required */}
           {/* This uses hash router format: /#/employee/profile/:id */}
-<Route path="/employee/profile/:employeeId" element={<EmployeePublicProfile />} />
+<Route path="/employee/profile/:employeeId" element={<Employeepublicprofile />} />
 
           {/* ─── PROTECTED ROUTES ────────────────────────────────────────── */}
           <Route
