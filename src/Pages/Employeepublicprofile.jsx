@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { db } from "../firebaseConfig";
+import { db } from "../Config"; // Make sure this path is correct
 import { doc, getDoc } from "firebase/firestore";
 import QRCode from "qrcode";
 
@@ -347,5 +347,5 @@ body{background:#f0f4f8;}
 .footer-div{width:36px;height:1px;background:rgba(255,255,255,.2);margin:8px auto;}
 .footer-tag{font-size:10px;color:rgba(255,255,255,.45);letter-spacing:1.5px;text-transform:uppercase;}
 .footer-copy{font-size:10px;color:rgba(255,255,255,.25);margin-top:8px;}
-@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes spin{to{transform:rotate(360deg);)}
 `;

@@ -33,7 +33,7 @@ const BLANK = {
 };
 
 // ── QR helpers ─────────────────────────────────────────────────────────────────
-// Hash-router: https://ctechemp.vercel.app/#/employee/profile/<id>
+// FIXED: Use hash-router format: /#/employee/profile/<id>
 const qrUrl = (emp) =>
   `${window.location.origin}/#/employee/profile/${emp.id}`;
 
@@ -61,28 +61,11 @@ export default function EmployeeApp() {
   const [selected, setSelected] = useState(null);   // employee for edit/view
   const [viewEmp, setViewEmp] = useState(null);
 
-  // Deep-link: ?view=<docId>
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("view");
-    if (id) setView("deeplink:" + id);
-  }, []);
-
   // Firestore real-time
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "employees"), (snap) => {
       const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setEmployees(list);
-
-      // resolve deep-link
-      setView((v) => {
-        if (v.startsWith("deeplink:")) {
-          const id = v.replace("deeplink:", "");
-          const emp = list.find((e) => e.id === id);
-          if (emp) { setViewEmp(emp); return "profile"; }
-        }
-        return v;
-      });
     });
     return unsub;
   }, []);
@@ -368,12 +351,13 @@ function EmployeeForm({ existing, onDone, onCancel }) {
           );
         });
       }
-      const data = { ...form, workExperience: experience, photoURL, updatedAt: serverTimestamp(), verifyUrl: `${window.location.origin}/#/employee/profile/DOCID` };
+      const data = { ...form, workExperience: experience, photoURL, updatedAt: serverTimestamp() };
+      
       if (isEdit) {
         await updateDoc(doc(db, "employees", existing.id), data);
       } else {
         const docRef = await addDoc(collection(db, "employees"), { ...data, createdAt: serverTimestamp() });
-        await updateDoc(doc(db, "employees", docRef.id), { verifyUrl: `${window.location.origin}/#/employee/profile/${docRef.id}` });
+        // No need to store verifyUrl - it's generated dynamically
       }
       onDone();
     } catch (e) { setError("Firebase error: " + e.message); }
@@ -632,7 +616,7 @@ function EmployeeProfile({ emp, onBack }) {
           <div className="pr-qr-card">
             <div className="pr-qr-title">Scan QR to Open Employee Profile</div>
             {qrDataUrl && <img src={qrDataUrl} alt="QR" className="pr-qr-img"/>}
-            <div className="pr-qr-url">{emp.verifyUrl || "—"}</div>
+            <div className="pr-qr-url">{qrUrl(emp)}</div>
             <button className="btn-primary" style={{marginTop:12}} onClick={() => downloadQR(emp)}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Download QR PNG
