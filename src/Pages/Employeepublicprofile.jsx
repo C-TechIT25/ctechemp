@@ -6,7 +6,7 @@ import JsBarcode from "jsbarcode";
 
 // MUI Core
 import {
-  Box, Typography, Avatar, Chip, Paper, Grid,ThemeProvider,
+  Box, Typography, Avatar, Chip, Paper, Grid,
   CircularProgress, Container, Badge, Button,
 } from "@mui/material";
 import { createTheme, ThemeProvider, alpha } from "@mui/material/styles";
