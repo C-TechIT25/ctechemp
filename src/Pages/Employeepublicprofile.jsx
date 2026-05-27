@@ -137,63 +137,28 @@ const handlePhoneCall = (phoneNumber) => {
   }
 };
 
-// ── Logo Components with Images ────────────────────────────────────────────
-function CompanyLogoImage({ logoImage, size = 32, alt = "Company Logo" }) {
+// ── Full Width Company Logo ────────────────────────────────────────────
+function FullWidthCompanyLogo({ logoImage, alt = "Company Logo" }) {
   return (
     <Box sx={{
-      width: size, 
-      height: size, 
-      borderRadius: `${size * 0.28}px`,
-      background: "rgba(255,255,255,0.18)",
-      border: "1px solid rgba(255,255,255,0.3)",
-      display: "flex", 
-      alignItems: "center", 
+      width: "100%",
+      backgroundColor: "#fff",
+      py: 2,
+      px: 2,
+      // borderBottom: "1px solid #E2E8F0",
+      display: "flex",
       justifyContent: "center",
-      flexShrink: 0,
-      overflow: "hidden",
-      p: size * 0.15,
+      alignItems: "center",
     }}>
-      <img 
-        src={logoImage} 
-        alt={alt}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-        }}
-      />
-    </Box>
-  );
-}
-
-function CompanyLogo({ company, size = 32 }) {
-  const cfg = getConfig(company);
-  if (cfg.logoImage) {
-    return <CompanyLogoImage logoImage={cfg.logoImage} size={size} alt={`${company} Logo`} />;
-  }
-  // Fallback to icon if image not available
-  if (company === "Precon") {
-    return (
-      <Box sx={{
-        width: size, height: size, borderRadius: `${size * 0.28}px`,
-        background: "rgba(255,255,255,0.18)",
-        border: "1px solid rgba(255,255,255,0.3)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-      }}>
-        <BusinessIcon sx={{ color: "#fff", fontSize: size * 0.55 }} />
-      </Box>
-    );
-  }
-  return (
-    <Box sx={{
-      width: size, height: size, borderRadius: `${size * 0.28}px`,
-      background: "rgba(255,255,255,0.18)",
-      border: "1px solid rgba(255,255,255,0.3)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      flexShrink: 0,
-    }}>
-      <EngineeringIcon sx={{ color: "#fff", fontSize: size * 0.55 }} />
+     <img 
+  src={logoImage} 
+  alt={alt}
+  style={{
+    width: window.innerWidth <= 768 ? "100%" : "40%",
+    height: "auto",
+    objectFit: "contain",
+  }}
+/>
     </Box>
   );
 }
@@ -230,7 +195,7 @@ export default function Employeepublicprofile() {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ minHeight: "100vh", background: "linear-gradient(160deg,#EEF2F7 0%,#E3EAF4 100%)" }}>
+      <Box sx={{ minHeight: "100vh", background: "white" }}>
         {status === "loading"  && <LoaderScreen />}
         {status === "notfound" && <NotFoundScreen employeeId={employeeId} />}
         {status === "found" && emp && <ProfilePage emp={emp} cfg={cfg} />}
@@ -246,47 +211,10 @@ function ProfilePage({ emp, cfg }) {
   const experience = calcExperience(emp.joiningDate);
   const isActive   = emp.status === "Active";
 
-  const companyName = emp.company === "Precon" ? "PRECON" : "C-TECH ENGINEERING";
-  const companySubtitle = emp.company === "Precon" ? "Employee Identity Portal" : "Employee Identity Portal";
-
   return (
     <Box>
-
-      {/* ── Sticky Top Nav ── */}
-      <Box sx={{
-        position: "sticky", top: 0, zIndex: 100,
-        background: cfg.navBg,
-        boxShadow: `0 4px 20px ${alpha(cfg.primary, 0.35)}`,
-      }}>
-        <Container maxWidth="sm" disableGutters>
-          <Box sx={{ px: { xs: 2, sm: 3 }, py: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}>
-            <CompanyLogo company={emp.company} size={38} />
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{
-                fontSize: { xs: 12.5, sm: 14 }, fontWeight: 800, color: "#fff",
-                letterSpacing: "0.8px", lineHeight: 1.1,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>
-                {companyName}
-              </Typography>
-              <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.3px" }}>
-                {companySubtitle}
-              </Typography>
-            </Box>
-            <Chip
-              icon={<Box sx={{
-                width: 6, height: 6, borderRadius: "50%", background: "#4ade80",
-                ml: "4px !important",
-                animation: "blink 1.5s infinite",
-                "@keyframes blink": { "0%,100%": { opacity: 1 }, "50%": { opacity: 0.3 } },
-              }} />}
-              label="Verified"
-              size="small"
-              sx={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", fontWeight: 700, fontSize: 11, flexShrink: 0 }}
-            />
-          </Box>
-        </Container>
-      </Box>
+      {/* ── Full Width Company Logo Only ── */}
+      <FullWidthCompanyLogo logoImage={cfg.logoImage} alt={`${emp.company} Logo`} />
 
       <Container maxWidth="sm" disableGutters sx={{ pb: 5 }}>
 
