@@ -888,7 +888,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
                   helperText={form.dob ? `Age: ${calculateAge(form.dob)} years` : " "}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}>
+              <Grid item xs={12} sm={6} md={4}minWidth={'200px'}>
                 <FormControl fullWidth size="small" sx={selectSx}>
                   <InputLabel sx={{ fontSize: { xs: 12.5, md: 14 } }}>Gender</InputLabel>
                   <Select name="gender" value={form.gender} label="Gender" onChange={set}
@@ -900,7 +900,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12}>
+              <Grid item xs={12}minWidth={'500px'}>
                 <TextField fullWidth size="small" label="Residency Address" name="residencyAddress"
                   multiline rows={2}
                   placeholder="House No, Street, City, State, Pincode"
