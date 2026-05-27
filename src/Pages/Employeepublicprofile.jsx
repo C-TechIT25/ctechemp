@@ -444,15 +444,15 @@ function ProfilePage({ emp, cfg }) {
           )}
 
           {/* Notes */}
-          {emp.notes && (
+          {/* {emp.notes && (
             <InfoCard title="Additional Notes" icon={<NoteAltIcon />} iconColor={cfg.primary} cfg={cfg}>
               <Typography sx={{ fontSize: 13.5, color: "#475569", lineHeight: 1.8, pt: 0.5 }}>{emp.notes}</Typography>
             </InfoCard>
-          )}
+          )} */}
 
           {/* Footer — copyright only */}
           <Box sx={{
-            borderRadius: 3,
+            borderRadius: 1,
             border: "1px solid #E2E8F0",
             background: "#fff",
             py: 2,
