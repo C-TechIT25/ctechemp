@@ -1,10 +1,55 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { db } from "../Config";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import QRCode from "qrcode";
+import JsBarcode from "jsbarcode";
 
-// ── helper ─────────────────────────────────────────────────────────────────────
+// MUI Core
+import {
+  Box, Typography, Avatar, Chip, Paper, Grid,
+  CircularProgress, Container, Badge, Button,
+} from "@mui/material";
+import { createTheme, ThemeProvider, alpha } from "@mui/material/styles";
+
+// MUI Icons
+import VerifiedUserIcon   from "@mui/icons-material/VerifiedUser";
+import PhoneIcon          from "@mui/icons-material/Phone";
+import EmailIcon          from "@mui/icons-material/Email";
+import LocationOnIcon     from "@mui/icons-material/LocationOn";
+import AccessTimeIcon     from "@mui/icons-material/AccessTime";
+import WorkIcon           from "@mui/icons-material/Work";
+import BadgeIcon          from "@mui/icons-material/Badge";
+import CalendarTodayIcon  from "@mui/icons-material/CalendarToday";
+import FavoriteIcon       from "@mui/icons-material/Favorite";
+import PersonIcon         from "@mui/icons-material/Person";
+import NoteAltIcon        from "@mui/icons-material/NoteAlt";
+import BusinessIcon       from "@mui/icons-material/Business";
+import SearchOffIcon      from "@mui/icons-material/SearchOff";
+import EngineeringIcon    from "@mui/icons-material/Engineering";
+import DownloadIcon       from "@mui/icons-material/Download";
+import QrCodeScannerIcon  from "@mui/icons-material/QrCodeScanner";
+
+// ── Theme ──────────────────────────────────────────────────────────────────────
+const theme = createTheme({
+  palette: {
+    mode: "light",
+    primary:    { main: "#1565C0", light: "#1976d2", dark: "#0D47A1" },
+    success:    { main: "#16a34a" },
+    error:      { main: "#dc2626" },
+    warning:    { main: "#d97706" },
+    background: { default: "#EEF2F7", paper: "#ffffff" },
+    text:       { primary: "#0F172A", secondary: "#64748b" },
+  },
+  typography: { fontFamily: "'DM Sans', 'Plus Jakarta Sans', sans-serif" },
+  shape: { borderRadius: 12 },
+  components: {
+    MuiPaper:  { styleOverrides: { root: { backgroundImage: "none" } } },
+    MuiChip:   { styleOverrides: { root: { fontWeight: 600 } } },
+    MuiButton: { styleOverrides: { root: { textTransform: "none", fontWeight: 600, borderRadius: 10 } } },
+  },
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 function calcExperience(joiningDate) {
   if (!joiningDate) return "";
   const start = new Date(joiningDate);
@@ -17,358 +62,528 @@ function calcExperience(joiningDate) {
   if (months < 0) { years -= 1; months += 12; }
   if (years === 0 && months === 0) return "< 1 month";
   const p = [];
-  if (years  > 0) p.push(`${years}  yr${years  > 1 ? "s" : ""}`);
+  if (years  > 0) p.push(`${years} yr${years > 1 ? "s" : ""}`);
   if (months > 0) p.push(`${months} mo`);
   return p.join(" ");
 }
 
-async function downloadQR(emp, employeeId) {
-  const url = `${window.location.origin}/#/employee/profile/${employeeId}`;
-  const dataUrl = await QRCode.toDataURL(url, {
-    width: 300, margin: 2,
-    color: { dark: "#0052cc", light: "#ffffff" },
-  });
-  const a = document.createElement("a");
-  a.href     = dataUrl;
-  a.download = `QR_${emp.employeeId || employeeId}.png`;
-  a.click();
+// ── Barcode Card ───────────────────────────────────────────────────────────────
+function BarcodeCard({ employeeId, employeeName, designation, department }) {
+  const canvasRef         = useRef(null);
+  const [rendered, setRendered]   = useState(false);
+  const [barcodeErr, setBarcodeErr] = useState(false);
+
+  useEffect(() => {
+    setRendered(false);
+    setBarcodeErr(false);
+    if (!employeeId) return;
+    const t = setTimeout(() => {
+      if (!canvasRef.current) return;
+      try {
+        const safe = String(employeeId).replace(/[^\x20-\x7E]/g, "");
+        JsBarcode(canvasRef.current, safe, {
+          format:        "CODE128",
+          width:         2.2,
+          height:        72,
+          displayValue:  true,
+          text:          safe,
+          fontOptions:   "bold",
+          font:          "DM Sans, monospace",
+          textAlign:     "center",
+          textPosition:  "bottom",
+          textMargin:    6,
+          fontSize:      14,
+          background:    "#ffffff",
+          lineColor:     "#0F172A",
+          margin:        14,
+        });
+        setRendered(true);
+      } catch { setBarcodeErr(true); }
+    }, 100);
+    return () => clearTimeout(t);
+  }, [employeeId]);
+
+  const handleDownload = () => {
+    if (!canvasRef.current) return;
+    const link = document.createElement("a");
+    link.download = `Barcode_${employeeId}.png`;
+    link.href = canvasRef.current.toDataURL("image/png");
+    link.click();
+  };
+
+  return (
+    <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #E2E8F0", overflow: "hidden", mb: 2 }}>
+
+      {/* Card header */}
+      <Box sx={{
+        px: 2.25, py: 1.5, borderBottom: "1px solid #F1F5F9",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "#FAFBFC",
+      }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+          <Box sx={{ width: 30, height: 30, borderRadius: "8px", background: alpha("#1565C0", 0.1), display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <QrCodeScannerIcon sx={{ fontSize: 16, color: "#1565C0" }} />
+          </Box>
+          <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "1.2px" }}>
+            Employee Barcode
+          </Typography>
+        </Box>
+        <Chip label="CODE128" size="small"
+          sx={{ background: "#EFF6FF", color: "#1565C0", border: "1px solid #BFDBFE", fontSize: 10, fontWeight: 700 }} />
+      </Box>
+
+      {/* Barcode body */}
+      <Box sx={{ px: 2.5, pt: 2.5, pb: 2.5, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+
+        {barcodeErr ? (
+          <Box sx={{ py: 3, textAlign: "center" }}>
+            <Typography sx={{ color: "#94a3b8", fontSize: 13 }}>
+              Unable to render barcode for: <strong>{employeeId}</strong>
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{
+            background: "#fff", border: "1.5px solid #E2E8F0", borderRadius: 2.5,
+            p: 1, width: "100%", display: "flex", justifyContent: "center",
+            boxShadow: "inset 0 2px 8px rgba(0,0,0,0.04)",
+            minHeight: 110, alignItems: "center", position: "relative",
+          }}>
+            {!rendered && (
+              <CircularProgress size={24} sx={{ color: "#1565C0", position: "absolute" }} />
+            )}
+            <canvas
+              ref={canvasRef}
+              style={{
+                maxWidth: "100%", display: "block",
+                opacity: rendered ? 1 : 0,
+                transition: "opacity 0.35s ease",
+              }}
+            />
+          </Box>
+        )}
+
+        {/* Employee info label */}
+        {!barcodeErr && (
+          <Box sx={{ textAlign: "center" }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{employeeName}</Typography>
+            {(designation || department) && (
+              <Typography sx={{ fontSize: 11.5, color: "#64748b", mt: 0.3 }}>
+                {designation}{department ? ` · ${department}` : ""}
+              </Typography>
+            )}
+          </Box>
+        )}
+
+        {/* Download */}
+        {!barcodeErr && (
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
+            onClick={handleDownload}
+            disabled={!rendered}
+            sx={{
+              px: 2.5, py: 1,
+              background: "linear-gradient(135deg,#1565C0,#0D47A1)",
+              boxShadow: "0 4px 14px rgba(21,101,192,0.28)",
+              fontSize: 13,
+              "&:hover": { background: "linear-gradient(135deg,#0D47A1,#0A3070)", boxShadow: "0 6px 20px rgba(21,101,192,0.38)" },
+              "&:disabled": { background: "#93c5fd", boxShadow: "none" },
+            }}
+          >
+            Download Barcode
+          </Button>
+        )}
+      </Box>
+    </Paper>
+  );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// MAIN
+// ══════════════════════════════════════════════════════════════════════════════
 export default function Employeepublicprofile() {
-  const { employeeId } = useParams(); // Changed from 'id' to 'employeeId'
-  const [emp, setEmp] = useState(null);
-  const [status, setStatus] = useState("loading"); // loading | found | notfound
-  const [qrUrl, setQrUrl] = useState("");
+  const { employeeId } = useParams();
+  const [emp,    setEmp]    = useState(null);
+  const [status, setStatus] = useState("loading");
 
   useEffect(() => {
-    const fetchEmployee = async () => {
+    (async () => {
       try {
-        console.log("Searching for employee with ID:", employeeId);
-        
-        if (!employeeId) {
-          setStatus("notfound");
-          return;
-        }
-
-        // Query Firestore where employeeId matches
-        const employeesRef = collection(db, "employees");
-        const q = query(employeesRef, where("employeeId", "==", employeeId));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const doc = querySnapshot.docs[0];
-          const data = { id: doc.id, ...doc.data() };
-          console.log("Employee found:", data);
-          setEmp(data);
+        if (!employeeId) { setStatus("notfound"); return; }
+        const q    = query(collection(db, "employees"), where("employeeId", "==", employeeId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          setEmp({ id: snap.docs[0].id, ...snap.docs[0].data() });
           setStatus("found");
-          
-          const url = `${window.location.origin}/#/employee/profile/${employeeId}`;
-          const dataUrl = await QRCode.toDataURL(url, {
-            width: 260, margin: 2,
-            color: { dark: "#0052cc", light: "#ffffff" },
-          });
-          setQrUrl(dataUrl);
         } else {
-          console.log("No employee found with ID:", employeeId);
           setStatus("notfound");
         }
-      } catch (error) {
-        console.error("Error fetching employee:", error);
+      } catch (e) {
+        console.error(e);
         setStatus("notfound");
       }
-    };
-
-    fetchEmployee();
+    })();
   }, [employeeId]);
 
-  if (status === "loading") return <Loader />;
-  if (status === "notfound") return <NotFound employeeId={employeeId} />;
+  return (
+    <ThemeProvider theme={theme}>
+      <Box sx={{ minHeight: "100vh", background: "linear-gradient(160deg,#EEF2F7 0%,#E3EAF4 100%)" }}>
+        {status === "loading"  && <LoaderScreen />}
+        {status === "notfound" && <NotFoundScreen employeeId={employeeId} />}
+        {status === "found" && emp && <ProfilePage emp={emp} />}
+      </Box>
+    </ThemeProvider>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROFILE PAGE
+// ══════════════════════════════════════════════════════════════════════════════
+function ProfilePage({ emp }) {
+  const experience = calcExperience(emp.joiningDate);
+  const isActive   = emp.status === "Active";
 
   return (
-    <>
-      <style>{CSS}</style>
-      <div className="pub-root">
+    <Box>
 
-        {/* ── Top nav ── */}
-        <div className="pub-nav">
-          <div className="pub-nav-logo">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="2 20 12 4 22 20"/><line x1="2" y1="20" x2="22" y2="20"/><line x1="12" y1="14" x2="12" y2="20"/>
-            </svg>
-          </div>
-          <span className="pub-nav-brand">C-TECH ENGINEERING</span>
-          <div className="pub-nav-badge">
-            <span className="blink-dot" />QR Verified
-          </div>
-        </div>
+      {/* ── Sticky Top Nav ── */}
+      <Box sx={{
+        position: "sticky", top: 0, zIndex: 100,
+        background: "linear-gradient(135deg,#1565C0 0%,#0D47A1 100%)",
+        boxShadow: "0 4px 20px rgba(21,101,192,0.35)",
+      }}>
+        <Container maxWidth="sm" disableGutters>
+          <Box sx={{ px: { xs: 2, sm: 3 }, py: 1.5, display: "flex", alignItems: "center", gap: 1.5 }}>
+            {/* Logo box */}
+            <Box sx={{
+              width: 38, height: 38, borderRadius: "11px",
+              background: "rgba(255,255,255,0.15)",
+              border: "1px solid rgba(255,255,255,0.25)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              <EngineeringIcon sx={{ color: "#fff", fontSize: 20 }} />
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography sx={{
+                fontSize: { xs: 12.5, sm: 14 }, fontWeight: 800, color: "#fff",
+                letterSpacing: "0.8px", lineHeight: 1.1,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                C-TECH ENGINEERING
+              </Typography>
+              <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.3px" }}>
+                Employee Identity Portal
+              </Typography>
+            </Box>
+            <Chip
+              icon={<Box sx={{
+                width: 6, height: 6, borderRadius: "50%", background: "#4ade80",
+                ml: "4px !important",
+                animation: "blink 1.5s infinite",
+                "@keyframes blink": { "0%,100%": { opacity: 1 }, "50%": { opacity: 0.3 } },
+              }} />}
+              label="Verified"
+              size="small"
+              sx={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff", fontWeight: 700, fontSize: 11, flexShrink: 0 }}
+            />
+          </Box>
+        </Container>
+      </Box>
 
-        {/* ── Hero ── */}
-        <div className="pub-hero">
-          <div className="hero-deco" />
-          <div className="hero-inner">
-            <div className="hero-avatar-ring">
-              <div className="hero-avatar">
-                {emp.photoURL
-                  ? <img src={emp.photoURL} alt={emp.fullName} />
-                  : <span>{(emp.fullName || "?")[0].toUpperCase()}</span>
-                }
-              </div>
-            </div>
-            <h1 className="hero-name">{emp.fullName}</h1>
-            <p className="hero-desig">
+      <Container maxWidth="sm" disableGutters sx={{ pb: 5 }}>
+
+        {/* ── Hero Banner ── */}
+        <Box sx={{
+          background: "linear-gradient(145deg,#0052CC 0%,#0A3A7A 58%,#091E42 100%)",
+          position: "relative", overflow: "hidden",
+          pt: 5, pb: 7, px: 2,
+        }}>
+          <Box sx={{ position: "absolute", top: -50, right: -50, width: 180, height: 180, borderRadius: "50%", border: "45px solid rgba(255,255,255,0.05)" }} />
+          <Box sx={{ position: "absolute", bottom: -30, left: -30, width: 120, height: 120, borderRadius: "50%", border: "30px solid rgba(255,255,255,0.04)" }} />
+          <Box sx={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 70% 40%,rgba(33,150,243,0.15) 0%,transparent 65%)" }} />
+
+          <Box sx={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+            <Badge overlap="circular" anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              badgeContent={
+                <Box sx={{
+                  width: 20, height: 20, borderRadius: "50%",
+                  background: isActive ? "#22c55e" : "#f59e0b",
+                  border: "2.5px solid #091E42",
+                  boxShadow: `0 0 10px ${isActive ? "rgba(34,197,94,0.5)" : "rgba(245,158,11,0.5)"}`,
+                }} />
+              }>
+              <Avatar src={emp.photoURL}
+                sx={{
+                  width: 96, height: 96,
+                  border: "3px solid rgba(255,255,255,0.3)",
+                  background: "linear-gradient(135deg,#1e40af,#0052cc)",
+                  fontSize: 34, fontWeight: 800, color: "#fff",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                }}>
+                {!emp.photoURL && (emp.fullName || "?")[0].toUpperCase()}
+              </Avatar>
+            </Badge>
+
+            <Typography sx={{ fontSize: { xs: 22, sm: 26 }, fontWeight: 800, color: "#fff", mt: 2, mb: 0.5, letterSpacing: "-0.5px" }}>
+              {emp.fullName}
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: "rgba(255,255,255,0.6)", mb: 2 }}>
               {emp.designation}{emp.department ? ` · ${emp.department}` : ""}
-            </p>
-            <div className="hero-pills">
-              <span className={`pill ${emp.status === "Active" ? "pill-green" : "pill-gray"}`}>
-                <span className="blink-dot" />{emp.status || "Active"}
-              </span>
-              {emp.employeeId && <span className="pill pill-blue">{emp.employeeId}</span>}
-              {emp.location   && <span className="pill pill-blue">{emp.location}</span>}
-            </div>
-          </div>
-        </div>
+            </Typography>
 
-        {/* ── Body ── */}
-        <div className="pub-body">
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, justifyContent: "center" }}>
+              <Chip
+                icon={<Box sx={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: isActive ? "#4ade80" : "#fbbf24",
+                  ml: "4px !important",
+                  animation: "blink 1.5s infinite",
+                  "@keyframes blink": { "0%,100%": { opacity: 1 }, "50%": { opacity: 0.3 } },
+                }} />}
+                label={emp.status || "Active"}
+                size="small"
+                sx={{
+                  background: isActive ? "rgba(34,197,94,0.18)" : "rgba(245,158,11,0.18)",
+                  border: `0.5px solid ${isActive ? "rgba(34,197,94,0.4)" : "rgba(245,158,11,0.4)"}`,
+                  color: isActive ? "#4ade80" : "#fbbf24",
+                  fontWeight: 700, fontSize: 11.5,
+                }}
+              />
+              {emp.employeeId && (
+                <Chip label={emp.employeeId} size="small"
+                  sx={{ background: "rgba(255,255,255,0.1)", border: "0.5px solid rgba(255,255,255,0.22)", color: "rgba(255,255,255,0.85)", fontWeight: 600, fontSize: 11.5, fontFamily: "monospace" }} />
+              )}
+              {emp.location && (
+                <Chip icon={<LocationOnIcon style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }} />}
+                  label={emp.location} size="small"
+                  sx={{ background: "rgba(255,255,255,0.1)", border: "0.5px solid rgba(255,255,255,0.22)", color: "rgba(255,255,255,0.75)", fontWeight: 600, fontSize: 11.5 }} />
+              )}
+            </Box>
+          </Box>
+        </Box>
 
-          {/* Verified strip */}
-          <div className="verified-strip">
-            <div className="v-shield">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>
-              </svg>
-            </div>
-            <div style={{flex:1}}>
-              <div className="v-title">Identity Verified</div>
-              <div className="v-sub">Officially authenticated by C-Tech Engineering</div>
-            </div>
-            <span className="v-live">Live</span>
-          </div>
+        {/* ── Content Area ── */}
+        <Box sx={{ px: { xs: 1.5, sm: 2 }, mt: "-28px", position: "relative", zIndex: 10 }}>
 
-          {/* Stats */}
-          <div className="stats-row">
-            <Stat label="Experience" val={calcExperience(emp.joiningDate) || "—"} />
-            <Stat label="Blood Group" val={emp.bloodGroup || "—"} />
-            <Stat label="Status"     val={emp.status || "Active"} />
-          </div>
+          {/* Verified Strip */}
+          <Paper elevation={0} sx={{
+            p: "14px 18px", borderRadius: 3,
+            border: "1px solid #86EFAC",
+            background: "linear-gradient(135deg,#F0FDF4,#ECFDF5)",
+            display: "flex", alignItems: "center", gap: 1.5, mb: 2,
+          }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#DCFCE7,#BBF7D0)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(22,163,74,0.2)" }}>
+              <VerifiedUserIcon sx={{ color: "#16a34a", fontSize: 22 }} />
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#166534" }}>Identity Verified</Typography>
+              <Typography sx={{ fontSize: 11.5, color: "#4ade80", mt: 0.2 }}>Officially authenticated by C-Tech Engineering</Typography>
+            </Box>
+            <Chip label="Live" size="small" sx={{ background: "#DCFCE7", color: "#166534", fontWeight: 800, fontSize: 11, border: "1px solid #86EFAC" }} />
+          </Paper>
 
-          {/* Contact */}
-          <Card title="Contact Information">
-            <Row icon={<PhoneIco />} label="Mobile"     val={emp.contactNumber} />
-            <Row icon={<MailIco  />} label="Work Email" val={emp.email} />
-            <Row icon={<PinIco   />} label="Location"   val={emp.location} />
-            <Row icon={<ClockIco />} label="Work Shift" val={emp.workShift} />
-          </Card>
+          {/* Quick Stats */}
+          <Grid container spacing={1.5} sx={{ mb: 2 }}>
+            {[
+              { label: "Experience", value: experience || "—",       color: "#1565C0", border: "#1565C0" },
+              { label: "Blood Group", value: emp.bloodGroup || "—",  color: "#dc2626", border: "#dc2626" },
+              { label: "Status",      value: emp.status || "Active", color: isActive ? "#16a34a" : "#d97706", border: isActive ? "#16a34a" : "#d97706" },
+            ].map((s) => (
+              <Grid item xs={4} key={s.label}>
+                <Paper elevation={0} sx={{
+                  p: { xs: "12px 8px", sm: "14px 12px" },
+                  borderRadius: 2.5,
+                  border: "1px solid #E2E8F0",
+                  borderTop: `3px solid ${s.border}`,
+                  textAlign: "center", background: "#fff",
+                  transition: "transform .2s, box-shadow .2s",
+                  "&:hover": { transform: "translateY(-2px)", boxShadow: `0 6px 20px ${alpha(s.color, 0.12)}` },
+                }}>
+                  <Typography sx={{ fontSize: { xs: 15, sm: 18 }, fontWeight: 800, color: s.color, lineHeight: 1.1 }}>{s.value}</Typography>
+                  <Typography sx={{ fontSize: { xs: 9, sm: 10 }, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", mt: 0.6 }}>{s.label}</Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
 
-          {/* Employment */}
-          <Card title="Employment Details">
-            <Row icon={<BagIco  />} label="Department"      val={emp.department} />
-            <Row icon={<UserIco />} label="Designation"     val={emp.designation} />
-            <Row icon={<CalIco  />} label="Date of Joining" val={
-              emp.joiningDate
-                ? new Date(emp.joiningDate).toLocaleDateString("en-IN", { day:"numeric", month:"long", year:"numeric" })
-                : ""
-            } />
-            <Row icon={<ClockIco />} label="Work Experience" val={calcExperience(emp.joiningDate)} />
-          </Card>
+          {/* ── Barcode ── */}
+          <BarcodeCard
+            employeeId={emp.employeeId}
+            employeeName={emp.fullName}
+            designation={emp.designation}
+            department={emp.department}
+          />
 
-          {/* Emergency */}
+          {/* Contact Information */}
+          <InfoCard title="Contact Information" icon={<PhoneIcon />} iconColor="#1565C0">
+            <InfoRow icon={<PhoneIcon />}     label="Mobile"     value={emp.contactNumber} />
+            <InfoRow icon={<EmailIcon />}     label="Work Email" value={emp.email} />
+            <InfoRow icon={<LocationOnIcon />}label="Location"   value={emp.location} />
+            <InfoRow icon={<AccessTimeIcon />}label="Work Shift" value={emp.workShift} />
+          </InfoCard>
+
+          {/* Employment Details */}
+          <InfoCard title="Employment Details" icon={<WorkIcon />} iconColor="#7C3AED">
+            <InfoRow icon={<WorkIcon />}         label="Department"      value={emp.department} />
+            <InfoRow icon={<BadgeIcon />}         label="Designation"     value={emp.designation} />
+            <InfoRow
+              icon={<CalendarTodayIcon />}
+              label="Date of Joining"
+              value={emp.joiningDate
+                ? new Date(emp.joiningDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
+                : ""}
+            />
+            <InfoRow icon={<AccessTimeIcon />} label="Work Experience" value={experience} />
+          </InfoCard>
+
+          {/* Medical & Emergency */}
           {(emp.bloodGroup || emp.emergencyContact || emp.emergencyPhone) && (
-            <Card title="Medical & Emergency" emergency>
-              <Row icon={<HeartIco />} label="Blood Group"       val={emp.bloodGroup} />
-              <Row icon={<UserIco  />} label="Emergency Contact" val={emp.emergencyContact} />
-              <Row icon={<PhoneIco />} label="Emergency Phone"   val={emp.emergencyPhone} />
-            </Card>
+            <InfoCard title="Medical & Emergency" icon={<FavoriteIcon />} iconColor="#dc2626" emergency>
+              <InfoRow icon={<FavoriteIcon />}label="Blood Group"       value={emp.bloodGroup} />
+              <InfoRow icon={<PersonIcon />}  label="Emergency Contact" value={emp.emergencyContact} />
+              <InfoRow icon={<PhoneIcon />}   label="Emergency Phone"   value={emp.emergencyPhone} />
+            </InfoCard>
           )}
 
           {/* Notes */}
           {emp.notes && (
-            <Card title="Notes">
-              <p style={{fontSize:13,color:"#475569",lineHeight:1.75,marginTop:4}}>{emp.notes}</p>
-            </Card>
+            <InfoCard title="Additional Notes" icon={<NoteAltIcon />} iconColor="#0891b2">
+              <Typography sx={{ fontSize: 13.5, color: "#475569", lineHeight: 1.8, pt: 0.5 }}>{emp.notes}</Typography>
+            </InfoCard>
           )}
 
-          {/* QR */}
-          <div className="qr-card">
-            <p className="qr-card-title">Scan QR to Open This Profile</p>
-            {qrUrl && <img src={qrUrl} alt="QR Code" className="qr-img" />}
-            <p className="qr-url">{`${window.location.origin}/#/employee/profile/${emp.employeeId}`}</p>
-            <button className="dl-btn" onClick={() => downloadQR(emp, emp.employeeId)}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              Download QR PNG
-            </button>
-          </div>
-
           {/* Footer */}
-          <div className="pub-footer">
-            <div className="footer-logo">C-TECH ENGINEERING</div>
-            <div className="footer-div" />
-            <div className="footer-tag">BUILDING TRUST. DELIVERING EXCELLENCE.</div>
-            <div className="footer-copy">© {new Date().getFullYear()} C-Tech Engineering Co. All rights reserved.</div>
-          </div>
-
-        </div>
-      </div>
-    </>
+          <Box sx={{
+            background: "linear-gradient(145deg,#0052CC 0%,#091E42 100%)",
+            borderRadius: 3.5, p: 3, textAlign: "center", mt: 1,
+            position: "relative", overflow: "hidden",
+          }}>
+            <Box sx={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", border: "20px solid rgba(255,255,255,0.05)" }} />
+            <Box sx={{ position: "relative", zIndex: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, mb: 0.75 }}>
+                <Box sx={{ width: 30, height: 30, borderRadius: "8px", background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <EngineeringIcon sx={{ color: "#fff", fontSize: 16 }} />
+                </Box>
+                <Typography sx={{ fontWeight: 800, fontSize: 14, color: "#fff", letterSpacing: "1.5px" }}>C-TECH ENGINEERING</Typography>
+              </Box>
+              <Box sx={{ width: 40, height: 1, background: "rgba(255,255,255,0.2)", mx: "auto", my: 1.25 }} />
+              <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: "1.5px", textTransform: "uppercase" }}>
+                BUILDING TRUST. DELIVERING EXCELLENCE.
+              </Typography>
+              <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.22)", mt: 1 }}>
+                © {new Date().getFullYear()} C-Tech Engineering Co. All rights reserved.
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      </Container>
+    </Box>
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
-function Card({ title, children, emergency }) {
+// ── Info Card ──────────────────────────────────────────────────────────────────
+function InfoCard({ title, icon, iconColor, children, emergency }) {
   return (
-    <div className={`pub-card${emergency ? " pub-card-emg" : ""}`}>
-      <div className={`card-title${emergency ? " card-title-emg" : ""}`}>{title}</div>
-      {children}
-    </div>
+    <Paper elevation={0} sx={{
+      borderRadius: 3,
+      border: `1px solid ${emergency ? "#FECACA" : "#E2E8F0"}`,
+      background: emergency ? "#FFF5F5" : "#fff",
+      overflow: "hidden", mb: 2,
+    }}>
+      <Box sx={{
+        px: 2.25, py: 1.5,
+        borderBottom: `1px solid ${emergency ? "#FEE2E2" : "#F1F5F9"}`,
+        display: "flex", alignItems: "center", gap: 1.25,
+        background: emergency ? "#FFF0F0" : "#FAFBFC",
+      }}>
+        <Box sx={{ width: 30, height: 30, borderRadius: "8px", background: alpha(iconColor, 0.1), display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {React.cloneElement(icon, { sx: { fontSize: 16, color: iconColor } })}
+        </Box>
+        <Typography sx={{ fontSize: 11, fontWeight: 700, color: emergency ? "#b91c1c" : "#64748b", textTransform: "uppercase", letterSpacing: "1.2px" }}>
+          {title}
+        </Typography>
+      </Box>
+      <Box sx={{ px: 2.25, pb: 0.5, pt: 0.5 }}>{children}</Box>
+    </Paper>
   );
 }
 
-function Row({ icon, label, val }) {
-  if (!val) return null;
+// ── Info Row ───────────────────────────────────────────────────────────────────
+function InfoRow({ icon, label, value }) {
+  if (!value) return null;
   return (
-    <div className="detail-row">
-      <div className="detail-icon">{icon}</div>
-      <div>
-        <div className="detail-label">{label}</div>
-        <div className="detail-val">{val}</div>
-      </div>
-    </div>
+    <Box sx={{
+      display: "flex", alignItems: "center", gap: 1.5,
+      py: 1.4, borderBottom: "1px solid #F8FAFC",
+      "&:last-child": { borderBottom: "none" },
+    }}>
+      <Box sx={{ width: 34, height: 34, borderRadius: "10px", background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        {React.cloneElement(icon, { sx: { fontSize: 16, color: "#1565C0" } })}
+      </Box>
+      <Box>
+        <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px", lineHeight: 1, mb: 0.4 }}>{label}</Typography>
+        <Typography sx={{ fontSize: 13.5, color: "#0F172A", fontWeight: 500, lineHeight: 1.3 }}>{value}</Typography>
+      </Box>
+    </Box>
   );
 }
 
-function Stat({ label, val }) {
+// ══════════════════════════════════════════════════════════════════════════════
+// LOADER
+// ══════════════════════════════════════════════════════════════════════════════
+function LoaderScreen() {
   return (
-    <div className="stat-box">
-      <div className="stat-val">{val}</div>
-      <div className="stat-label">{label}</div>
-    </div>
+    <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2.5, px: 3 }}>
+      <Box sx={{
+        width: 72, height: 72, borderRadius: "20px",
+        background: "linear-gradient(135deg,#1565C0,#0D47A1)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: "0 8px 28px rgba(21,101,192,0.35)",
+        animation: "pulse 2s ease-in-out infinite",
+        "@keyframes pulse": {
+          "0%,100%": { transform: "scale(1)",    boxShadow: "0 8px 28px rgba(21,101,192,0.35)" },
+          "50%":     { transform: "scale(1.05)", boxShadow: "0 12px 36px rgba(21,101,192,0.5)" },
+        },
+      }}>
+        <EngineeringIcon sx={{ color: "#fff", fontSize: 34 }} />
+      </Box>
+      <CircularProgress size={28} thickness={4.5} sx={{ color: "#1565C0" }} />
+      <Box sx={{ textAlign: "center" }}>
+        <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#0F172A", mb: 0.5 }}>Loading Employee Profile</Typography>
+        <Typography sx={{ fontSize: 13, color: "#94a3b8" }}>Please wait a moment…</Typography>
+      </Box>
+    </Box>
   );
 }
 
-function Loader() {
+// ══════════════════════════════════════════════════════════════════════════════
+// NOT FOUND
+// ══════════════════════════════════════════════════════════════════════════════
+function NotFoundScreen({ employeeId }) {
   return (
-    <>
-      <style>{CSS}</style>
-      <div className="pub-root" style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh"}}>
-        <div style={{textAlign:"center"}}>
-          <svg style={{animation:"spin .8s linear infinite",display:"block",margin:"0 auto 16px"}} width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-          </svg>
-          <div style={{fontSize:14,color:"#64748b",fontFamily:"sans-serif"}}>Loading employee profile…</div>
-        </div>
-      </div>
-    </>
+    <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", px: 3, textAlign: "center" }}>
+      <Box sx={{
+        width: 80, height: 80, borderRadius: "22px",
+        background: "linear-gradient(135deg,#FEF2F2,#FEE2E2)",
+        border: "1px solid #FECACA",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        mb: 2.5, boxShadow: "0 8px 24px rgba(220,38,38,0.12)",
+      }}>
+        <SearchOffIcon sx={{ fontSize: 38, color: "#dc2626" }} />
+      </Box>
+      <Typography sx={{ fontSize: 20, fontWeight: 800, color: "#0F172A", mb: 1 }}>Employee Not Found</Typography>
+      <Typography sx={{ fontSize: 13.5, color: "#64748b", lineHeight: 1.75, maxWidth: 320 }}>
+        No employee record exists for ID{" "}
+        <Box component="span" sx={{ fontWeight: 700, color: "#0F172A", fontFamily: "monospace", background: "#F1F5F9", px: 0.75, py: 0.25, borderRadius: 1 }}>
+          {employeeId}
+        </Box>.{" "}Please verify the barcode or contact HR.
+      </Typography>
+      <Box sx={{ mt: 3, px: 3, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff", display: "inline-flex", alignItems: "center", gap: 1 }}>
+        <BusinessIcon sx={{ fontSize: 16, color: "#1565C0" }} />
+        <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: "#475569" }}>C-Tech Engineering · HR Department</Typography>
+      </Box>
+    </Box>
   );
 }
-
-function NotFound({ employeeId }) {
-  return (
-    <>
-      <style>{CSS}</style>
-      <div className="pub-root" style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh"}}>
-        <div style={{textAlign:"center",padding:32}}>
-          <div style={{fontSize:48,marginBottom:12}}>🔍</div>
-          <div style={{fontSize:18,fontWeight:700,color:"#1e293b",fontFamily:"sans-serif"}}>Employee not found</div>
-          <div style={{fontSize:14,color:"#64748b",marginTop:8,fontFamily:"sans-serif"}}>
-            No employee exists with ID: <strong>{employeeId}</strong>
-          </div>
-          <div style={{fontSize:12,color:"#94a3b8",marginTop:16}}>
-            Please check the employee ID and try again.
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ── Tiny SVG icons ─────────────────────────────────────────────────────────────
-const Ico = (d) => () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d={d}/>
-  </svg>
-);
-const PhoneIco = Ico("M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z");
-const MailIco  = Ico("M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z");
-const PinIco   = Ico("M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z");
-const ClockIco = Ico("M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z");
-const BagIco   = Ico("M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z");
-const UserIco  = Ico("M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2");
-const CalIco   = Ico("M3 4h18v16H3z");
-const HeartIco = Ico("M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z");
-
-// ── Styles ─────────────────────────────────────────────────────────────────────
-const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{background:#f0f4f8;}
-.pub-root{min-height:100vh;background:#f0f4f8;font-family:'Plus Jakarta Sans',sans-serif;max-width:600px;margin:0 auto;}
-
-/* nav */
-.pub-nav{background:#2196F3;padding:12px 18px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50;}
-.pub-nav-logo{width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.pub-nav-brand{font-size:14px;font-weight:700;color:#fff;letter-spacing:1px;flex:1;}
-.pub-nav-badge{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;color:#fff;white-space:nowrap;}
-
-/* hero */
-.pub-hero{background:linear-gradient(140deg,#0052cc 0%,#0a3a7a 55%,#091e42 100%);padding:32px 20px 60px;position:relative;overflow:hidden;}
-.hero-deco{position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;border:40px solid rgba(255,255,255,.05);}
-.hero-inner{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;}
-.hero-avatar-ring{width:96px;height:96px;border-radius:50%;border:3px solid rgba(255,255,255,.3);padding:3px;margin-bottom:14px;}
-.hero-avatar{width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#1e40af,#0052cc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:32px;color:#fff;overflow:hidden;}
-.hero-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
-.hero-name{font-size:24px;font-weight:700;color:#fff;margin-bottom:4px;}
-.hero-desig{font-size:13px;color:rgba(255,255,255,.65);margin-bottom:14px;}
-.hero-pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
-.pill{border-radius:20px;padding:4px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:5px;}
-.pill-green{background:rgba(34,197,94,.2);border:.5px solid rgba(34,197,94,.45);color:#4ade80;}
-.pill-blue{background:rgba(255,255,255,.12);border:.5px solid rgba(255,255,255,.25);color:rgba(255,255,255,.85);}
-.pill-gray{background:rgba(255,255,255,.1);border:.5px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);}
-.blink-dot{width:6px;height:6px;background:#22c55e;border-radius:50%;display:inline-block;animation:blink 1.5s infinite;}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-
-/* body */
-.pub-body{padding:0 14px 32px;}
-
-/* verified */
-.verified-strip{background:#f0fdf4;border:1px solid #86efac;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin:46px 0 14px;position:relative;z-index:5;}
-.v-shield{width:42px;height:42px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.v-title{font-size:14px;font-weight:700;color:#166534;}
-.v-sub{font-size:11px;color:#4ade80;margin-top:2px;}
-.v-live{background:#dcfce7;color:#166534;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;}
-
-/* stats */
-.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
-.stat-box{background:#fff;border:1px solid #e2e8f0;border-radius:13px;padding:14px 10px;text-align:center;}
-.stat-val{font-size:17px;font-weight:700;color:#2196F3;line-height:1;}
-.stat-label{font-size:10px;color:#94a3b8;font-weight:600;margin-top:5px;text-transform:uppercase;letter-spacing:.5px;}
-
-/* cards */
-.pub-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px 16px 8px;margin-bottom:10px;}
-.pub-card-emg{background:#fff5f5;border-color:#fecaca;}
-.card-title{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;}
-.card-title-emg{color:#b91c1c;}
-.detail-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:.5px solid #f8fafc;}
-.detail-row:last-child{border-bottom:none;}
-.detail-icon{width:30px;height:30px;background:#eff6ff;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#2196F3;flex-shrink:0;margin-top:1px;}
-.detail-label{font-size:10px;color:#94a3b8;font-weight:600;letter-spacing:.4px;text-transform:uppercase;line-height:1;margin-bottom:3px;}
-.detail-val{font-size:13px;color:#1e293b;font-weight:500;}
-
-/* qr */
-.qr-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:12px;}
-.qr-card-title{font-size:13px;font-weight:600;color:#475569;}
-.qr-img{width:170px;height:170px;border-radius:12px;border:3px solid #e3f2fd;}
-.qr-url{font-size:10px;font-family:monospace;color:#2196F3;background:#eff6ff;border-radius:7px;padding:6px 10px;text-align:center;word-break:break-all;max-width:100%;}
-.dl-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;background:#2196F3;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:background .18s;}
-.dl-btn:hover{background:#1976d2;}
-
-/* footer */
-.pub-footer{background:linear-gradient(135deg,#0052cc,#091e42);border-radius:16px;padding:20px;text-align:center;}
-.footer-logo{font-weight:700;font-size:14px;color:#fff;letter-spacing:1.5px;}
-.footer-div{width:36px;height:1px;background:rgba(255,255,255,.2);margin:8px auto;}
-.footer-tag{font-size:10px;color:rgba(255,255,255,.45);letter-spacing:1.5px;text-transform:uppercase;}
-.footer-copy{font-size:10px;color:rgba(255,255,255,.25);margin-top:8px;}
-@keyframes spin{to{transform:rotate(360deg);}
-`;

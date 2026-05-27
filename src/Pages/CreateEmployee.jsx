@@ -1,26 +1,114 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { db, storage } from "../Config";
 import {
   collection, addDoc, updateDoc, deleteDoc,
   doc, onSnapshot, serverTimestamp,
 } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import QRCode from "qrcode";
+import JsBarcode from "jsbarcode";
 
-// ── helpers ────────────────────────────────────────────────────────────────────
+// MUI Core
+import {
+  Box, Button, Dialog, DialogContent, DialogActions,
+  TextField, Select, MenuItem, FormControl, InputLabel,
+  Typography, Avatar, Chip, IconButton, InputAdornment,
+  CircularProgress, LinearProgress, Paper, Grid,
+  Tooltip, Badge, Slide, Snackbar, Alert,
+} from "@mui/material";
+import { createTheme, ThemeProvider, alpha } from "@mui/material/styles";
+
+// MUI Icons
+import AddIcon            from "@mui/icons-material/Add";
+import EditIcon           from "@mui/icons-material/Edit";
+import VisibilityIcon     from "@mui/icons-material/Visibility";
+import DeleteIcon         from "@mui/icons-material/Delete";
+import SearchIcon         from "@mui/icons-material/Search";
+import CloseIcon          from "@mui/icons-material/Close";
+import DownloadIcon       from "@mui/icons-material/Download";
+import PeopleAltIcon      from "@mui/icons-material/PeopleAlt";
+import CheckCircleIcon    from "@mui/icons-material/CheckCircle";
+import PauseCircleIcon    from "@mui/icons-material/PauseCircle";
+import BadgeIcon          from "@mui/icons-material/Badge";
+import PhoneIcon          from "@mui/icons-material/Phone";
+import EmailIcon          from "@mui/icons-material/Email";
+import LocationOnIcon     from "@mui/icons-material/LocationOn";
+import AccessTimeIcon     from "@mui/icons-material/AccessTime";
+import WorkIcon           from "@mui/icons-material/Work";
+import CalendarTodayIcon  from "@mui/icons-material/CalendarToday";
+import FavoriteIcon       from "@mui/icons-material/Favorite";
+import NoteAltIcon        from "@mui/icons-material/NoteAlt";
+import VerifiedUserIcon   from "@mui/icons-material/VerifiedUser";
+import BusinessIcon       from "@mui/icons-material/Business";
+import CloudUploadIcon    from "@mui/icons-material/CloudUpload";
+import WarningAmberIcon   from "@mui/icons-material/WarningAmber";
+import PersonIcon         from "@mui/icons-material/Person";
+import EngineeringIcon    from "@mui/icons-material/Engineering";
+import QrCodeScannerIcon  from "@mui/icons-material/QrCodeScanner";
+
+// ── Theme ──────────────────────────────────────────────────────────────────────
+const theme = createTheme({
+  palette: {
+    mode: "light",
+    primary:    { main: "#1565C0", light: "#1976d2", dark: "#0D47A1" },
+    secondary:  { main: "#7C3AED" },
+    success:    { main: "#16a34a", light: "#dcfce7" },
+    warning:    { main: "#d97706", light: "#fef3c7" },
+    error:      { main: "#dc2626", light: "#fef2f2" },
+    background: { default: "#EEF2F7", paper: "#ffffff" },
+    text:       { primary: "#0F172A", secondary: "#64748b" },
+  },
+  typography: {
+    fontFamily: "'DM Sans', 'Plus Jakarta Sans', sans-serif",
+    h5: { fontWeight: 700 },
+    h6: { fontWeight: 700 },
+    body2: { fontSize: "0.8125rem" },
+  },
+  shape: { borderRadius: 12 },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: { textTransform: "none", fontWeight: 600, borderRadius: 10 },
+        containedPrimary: {
+          background: "linear-gradient(135deg, #1565C0 0%, #1976d2 100%)",
+          boxShadow: "0 4px 14px rgba(21,101,192,0.3)",
+          "&:hover": { background: "linear-gradient(135deg, #0D47A1 0%, #1565C0 100%)", boxShadow: "0 6px 20px rgba(21,101,192,0.4)" },
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 10,
+            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#1565C0" },
+          },
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: { borderRadius: 20, boxShadow: "0 24px 80px rgba(0,0,0,0.18)" },
+      },
+    },
+    MuiChip: { styleOverrides: { root: { fontWeight: 600, fontSize: "0.72rem" } } },
+    MuiPaper: { styleOverrides: { root: { backgroundImage: "none" } } },
+  },
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
 function calcExperience(joiningDate) {
   if (!joiningDate) return "";
   const start = new Date(joiningDate);
-  const now = new Date();
+  const now   = new Date();
   if (isNaN(start) || start > now) return "";
-  let years = now.getFullYear() - start.getFullYear();
-  let months = now.getMonth() - start.getMonth();
-  const days = now.getDate() - start.getDate();
-  if (days < 0) months -= 1;
+  let years  = now.getFullYear() - start.getFullYear();
+  let months = now.getMonth()    - start.getMonth();
+  const days = now.getDate()     - start.getDate();
+  if (days   < 0) months  -= 1;
   if (months < 0) { years -= 1; months += 12; }
   if (years === 0 && months === 0) return "< 1 month";
   const p = [];
-  if (years > 0) p.push(`${years} yr${years > 1 ? "s" : ""}`);
+  if (years  > 0) p.push(`${years} yr${years > 1 ? "s" : ""}`);
   if (months > 0) p.push(`${months} mo`);
   return p.join(" ");
 }
@@ -32,305 +120,348 @@ const BLANK = {
   joiningDate: "", location: "", workShift: "", status: "Active", notes: "",
 };
 
-// ── QR helpers ─────────────────────────────────────────────────────────────────
-// FIXED: Use hash-router format: /#/employee/profile/<id>
-const qrUrl = (emp) =>
-  `${window.location.origin}/#/employee/profile/${emp.employeeId}`;
-
-async function generateQR(emp) {
-  return QRCode.toDataURL(qrUrl(emp), {
-    width: 300, margin: 2,
-    color: { dark: "#0052cc", light: "#ffffff" },
-  });
+// ── Barcode helpers ────────────────────────────────────────────────────────────
+function renderBarcode(canvas, value) {
+  if (!canvas || !value) return false;
+  try {
+    const safe = String(value).replace(/[^\x20-\x7E]/g, "");
+    JsBarcode(canvas, safe, {
+      format: "CODE128",
+      width: 2, height: 60,
+      displayValue: true,
+      text: safe,
+      fontOptions: "bold",
+      font: "DM Sans, monospace",
+      textAlign: "center",
+      textPosition: "bottom",
+      textMargin: 5,
+      fontSize: 13,
+      background: "#ffffff",
+      lineColor: "#0F172A",
+      margin: 12,
+    });
+    return true;
+  } catch { return false; }
 }
 
-async function downloadQR(emp) {
-  const dataUrl = await generateQR(emp);
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = `QR_${emp.employeeId || emp.id}.png`;
-  a.click();
+function downloadBarcode(employeeId, canvas) {
+  if (!canvas) return;
+  const link = document.createElement("a");
+  link.download = `Barcode_${employeeId}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
 }
+
+// ── Slide transition ───────────────────────────────────────────────────────────
+const SlideUp = React.forwardRef(function Transition(props, ref) {
+  return <Slide direction="up" ref={ref} {...props} />;
+});
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ROOT
 // ══════════════════════════════════════════════════════════════════════════════
 export default function EmployeeApp() {
   const [employees, setEmployees] = useState([]);
-  const [view, setView] = useState("table"); // "table" | "form" | "profile"
-  const [selected, setSelected] = useState(null);   // employee for edit/view
-  const [viewEmp, setViewEmp] = useState(null);
+  const [formDialog,   setFormDialog]   = useState({ open: false, employee: null });
+  const [viewDialog,   setViewDialog]   = useState({ open: false, employee: null });
+  const [barcodeDialog,setBarcodeDialog]= useState({ open: false, employee: null });
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, employee: null });
+  const [snack, setSnack] = useState({ open: false, message: "", severity: "success" });
 
-  // Firestore real-time
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "employees"), (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setEmployees(list);
+      setEmployees(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return unsub;
   }, []);
 
-  const openCreate = () => { setSelected(null); setView("form"); };
-  const openEdit = (emp) => { setSelected(emp); setView("form"); };
-  const openProfile = (emp) => { setViewEmp(emp); setView("profile"); };
-  const goTable = () => { setView("table"); setSelected(null); setViewEmp(null); };
+  const showSnack = (message, severity = "success") =>
+    setSnack({ open: true, message, severity });
 
-  if (view === "form") return (
-    <EmployeeForm
-      existing={selected}
-      onDone={goTable}
-      onCancel={goTable}
-    />
-  );
-  if (view === "profile") return (
-    <EmployeeProfile emp={viewEmp} onBack={goTable} />
-  );
   return (
-    <EmployeeTable
-      employees={employees}
-      onCreate={openCreate}
-      onEdit={openEdit}
-      onView={openProfile}
-    />
+    <ThemeProvider theme={theme}>
+      <Box sx={{ minHeight: "100vh", background: "linear-gradient(160deg,#EEF2F7 0%,#E3EAF4 100%)", fontFamily: "'DM Sans',sans-serif" }}>
+
+        <EmployeeTable
+          employees={employees}
+          onCreate={() => setFormDialog({ open: true, employee: null })}
+          onEdit={(emp) => setFormDialog({ open: true, employee: emp })}
+          onView={(emp) => setViewDialog({ open: true, employee: emp })}
+          onBarcode={(emp) => setBarcodeDialog({ open: true, employee: emp })}
+          onDelete={(emp) => setDeleteDialog({ open: true, employee: emp })}
+        />
+
+        <EmployeeFormDialog
+          open={formDialog.open}
+          employee={formDialog.employee}
+          onClose={() => setFormDialog({ open: false, employee: null })}
+          onSuccess={(msg) => { setFormDialog({ open: false, employee: null }); showSnack(msg); }}
+        />
+
+        <ViewProfileDialog
+          open={viewDialog.open}
+          employee={viewDialog.employee}
+          onClose={() => setViewDialog({ open: false, employee: null })}
+          onEdit={(emp) => { setViewDialog({ open: false, employee: null }); setFormDialog({ open: true, employee: emp }); }}
+        />
+
+        <BarcodeDialog
+          open={barcodeDialog.open}
+          employee={barcodeDialog.employee}
+          onClose={() => setBarcodeDialog({ open: false, employee: null })}
+        />
+
+        <DeleteDialog
+          open={deleteDialog.open}
+          employee={deleteDialog.employee}
+          onClose={() => setDeleteDialog({ open: false, employee: null })}
+          onSuccess={() => { setDeleteDialog({ open: false, employee: null }); showSnack("Employee deleted successfully."); }}
+        />
+
+        <Snackbar open={snack.open} autoHideDuration={3500}
+          onClose={() => setSnack(s => ({ ...s, open: false }))}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
+          <Alert severity={snack.severity} variant="filled"
+            sx={{ borderRadius: 2, fontWeight: 600 }}>{snack.message}</Alert>
+        </Snackbar>
+      </Box>
+    </ThemeProvider>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TABLE
 // ══════════════════════════════════════════════════════════════════════════════
-function EmployeeTable({ employees, onCreate, onEdit, onView }) {
+function EmployeeTable({ employees, onCreate, onEdit, onView, onBarcode, onDelete }) {
   const [search, setSearch] = useState("");
-  const [qrModal, setQrModal] = useState(null); // { emp, dataUrl }
-  const [delConfirm, setDelConfirm] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   const filtered = employees.filter((e) =>
     [e.fullName, e.employeeId, e.designation, e.department, e.email]
       .some((f) => (f || "").toLowerCase().includes(search.toLowerCase()))
   );
 
-  const openQR = async (emp) => {
-    const dataUrl = await generateQR(emp);
-    setQrModal({ emp, dataUrl });
-  };
-
-  const handleDelete = async () => {
-    if (!delConfirm) return;
-    setDeleting(true);
-    await deleteDoc(doc(db, "employees", delConfirm.id));
-    setDeleting(false);
-    setDelConfirm(null);
-  };
+  const stats = [
+    { label: "Total Employees", value: employees.length,                                   icon: <PeopleAltIcon />,   color: "#1565C0", border: "#1565C0" },
+    { label: "Active",          value: employees.filter(e => e.status === "Active").length, icon: <CheckCircleIcon />, color: "#16a34a", border: "#16a34a" },
+    { label: "Inactive",        value: employees.filter(e => e.status !== "Active").length, icon: <PauseCircleIcon />, color: "#d97706", border: "#d97706" },
+  ];
 
   return (
-    <>
-      <style>{CSS_TABLE}</style>
-      <div className="app-root">
-        {/* Header */}
-        <div className="tbl-header">
-          <div className="tbl-header-left">
-            <div className="app-logo">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="2 20 12 4 22 20" /><line x1="2" y1="20" x2="22" y2="20" /><line x1="12" y1="14" x2="12" y2="20" />
-              </svg>
-            </div>
-            <div>
-              <div className="app-title">Employee Management</div>
-              <div className="app-sub">C-Tech Engineering · Admin Portal</div>
-            </div>
-          </div>
-          <button className="btn-primary" onClick={onCreate}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Create Employee
-          </button>
-        </div>
+    <Box sx={{ p: { xs: 2, md: 3.5 }, maxWidth: 1400, mx: "auto" }}>
 
-        {/* Stats */}
-        <div className="stat-row">
-          {[
-            { label: "Total Employees", val: employees.length, color: "#2196F3" },
-            { label: "Active", val: employees.filter(e => e.status === "Active").length, color: "#22c55e" },
-            { label: "Inactive", val: employees.filter(e => e.status === "Inactive").length, color: "#f59e0b" },
-          ].map((s) => (
-            <div className="stat-card" key={s.label}>
-              <div className="stat-num" style={{ color: s.color }}>{s.val}</div>
-              <div className="stat-label">{s.label}</div>
-            </div>
-          ))}
-        </div>
+      {/* Header */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3, flexWrap: "wrap", gap: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box sx={{
+            width: 48, height: 48, borderRadius: "14px",
+            background: "linear-gradient(135deg,#1565C0,#1976d2)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 4px 14px rgba(21,101,192,0.35)",
+          }}>
+            <EngineeringIcon sx={{ color: "#fff", fontSize: 26 }} />
+          </Box>
+          <Box>
+            <Typography variant="h5" sx={{ color: "#0F172A", fontWeight: 800, lineHeight: 1.1, letterSpacing: "-0.5px" }}>
+              Employee Management
+            </Typography>
+            <Typography variant="body2" sx={{ color: "#64748b", mt: 0.3 }}>
+              C-Tech Engineering · Admin Portal
+            </Typography>
+          </Box>
+        </Box>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={onCreate} size="large" sx={{ px: 3, py: 1.3 }}>
+          Create Employee
+        </Button>
+      </Box>
 
-        {/* Search */}
-        <div className="search-wrap">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}>
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input
-            className="search-input"
-            placeholder="Search by name, ID, designation, department…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+      {/* Stat Cards */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {stats.map((s) => (
+          <Grid item xs={12} sm={4} key={s.label}>
+            <Paper elevation={0} sx={{
+              borderRadius: 3, border: "1px solid #E2E8F0", p: "18px 22px",
+              borderTop: `4px solid ${s.border}`, background: "#fff",
+              transition: "box-shadow .2s, transform .2s",
+              "&:hover": { boxShadow: `0 8px 28px ${alpha(s.color, 0.15)}`, transform: "translateY(-2px)" },
+            }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <Box>
+                  <Typography sx={{ fontSize: 34, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</Typography>
+                  <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 500, mt: 0.5 }}>{s.label}</Typography>
+                </Box>
+                <Box sx={{ width: 46, height: 46, borderRadius: 2.5, background: alpha(s.color, 0.08), display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {React.cloneElement(s.icon, { sx: { color: s.color, fontSize: 22 } })}
+                </Box>
+              </Box>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
 
-        {/* Table */}
-        <div className="tbl-wrap">
-          <table className="emp-table">
+      {/* Search */}
+      <TextField
+        fullWidth
+        placeholder="Search by name, ID, designation, department, email…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        InputProps={{
+          startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: "#94a3b8" }} /></InputAdornment>,
+          sx: { background: "#fff", borderRadius: "12px" },
+        }}
+        sx={{ mb: 2.5 }}
+        size="small"
+      />
+
+      {/* Table */}
+      <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #E2E8F0", overflow: "hidden" }}>
+        <Box sx={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920, fontFamily: "'DM Sans',sans-serif" }}>
             <thead>
-              <tr>
-                <th>Photo</th>
-                <th>Employee ID</th>
-                <th>Full Name</th>
-                <th>Designation</th>
-                <th>Department</th>
-                <th>Contact</th>
-                <th>Status</th>
-                <th>Experience</th>
-                <th style={{textAlign:"center"}}>Actions</th>
+              <tr style={{ background: "#F8FAFC", borderBottom: "2px solid #F1F5F9" }}>
+                {["Photo","Employee ID","Full Name","Designation","Department","Contact","Status","Experience","Actions"].map((h) => (
+                  <th key={h} style={{
+                    padding: "13px 16px",
+                    textAlign: h === "Actions" ? "center" : "left",
+                    fontSize: 11, fontWeight: 700, color: "#94a3b8",
+                    letterSpacing: "0.6px", textTransform: "uppercase", whiteSpace: "nowrap",
+                  }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{textAlign:"center",padding:"48px",color:"#94a3b8"}}>
-                    {employees.length === 0 ? "No employees yet. Click \"Create Employee\" to add one." : "No results found."}
+                  <td colSpan={9} style={{ textAlign: "center", padding: "60px 20px" }}>
+                    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
+                      <PeopleAltIcon sx={{ fontSize: 48, color: "#CBD5E1" }} />
+                      <Typography sx={{ color: "#94a3b8", fontWeight: 500 }}>
+                        {employees.length === 0
+                          ? 'No employees yet. Click "Create Employee" to add one.'
+                          : "No results found."}
+                      </Typography>
+                    </Box>
                   </td>
                 </tr>
               ) : filtered.map((emp) => (
-                <tr key={emp.id} className="emp-row">
-                  <td>
-                    <div className="tbl-avatar">
-                      {emp.photoURL
-                        ? <img src={emp.photoURL} alt={emp.fullName} />
-                        : <span>{(emp.fullName || "?")[0]}</span>
-                      }
-                    </div>
+                <tr key={emp.id}
+                  style={{ borderBottom: "1px solid #F8FAFC", transition: "background .12s" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#F8FBFF"}
+                  onMouseLeave={e => e.currentTarget.style.background = ""}>
+                  <td style={{ padding: "14px 16px" }}>
+                    <Avatar src={emp.photoURL}
+                      sx={{ width: 38, height: 38, border: "2px solid #E2E8F0", background: "#DBEAFE", color: "#1565C0", fontWeight: 700, fontSize: 15 }}>
+                      {!emp.photoURL && (emp.fullName || "?")[0]}
+                    </Avatar>
                   </td>
-                  <td><span className="emp-id-pill">{emp.employeeId}</span></td>
-                  <td><span className="emp-name">{emp.fullName}</span></td>
-                  <td className="muted-cell">{emp.designation}</td>
-                  <td className="muted-cell">{emp.department}</td>
-                  <td className="muted-cell">{emp.contactNumber}</td>
-                  <td>
-                    <span className={`status-pill ${emp.status === "Active" ? "s-active" : "s-inactive"}`}>
-                      {emp.status || "—"}
-                    </span>
+                  <td style={{ padding: "14px 16px" }}>
+                    <Chip label={emp.employeeId} size="small"
+                      sx={{ fontFamily: "monospace", background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700, fontSize: 12, border: "1px solid #BFDBFE" }} />
                   </td>
-                  <td className="muted-cell">{calcExperience(emp.joiningDate) || "—"}</td>
-                  <td>
-                    <div className="action-row">
-                      <ActionBtn title="View" color="#2196F3" onClick={() => onView(emp)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      </ActionBtn>
-                      <ActionBtn title="Edit" color="#f59e0b" onClick={() => onEdit(emp)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </ActionBtn>
-                      <ActionBtn title="QR Code" color="#8b5cf6" onClick={() => openQR(emp)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3z"/><path d="M17 17h4v4h-4z"/></svg>
-                      </ActionBtn>
-                      <ActionBtn title="Delete" color="#ef4444" onClick={() => setDelConfirm(emp)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                      </ActionBtn>
-                    </div>
+                  <td style={{ padding: "14px 16px" }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: 14, color: "#0F172A" }}>{emp.fullName}</Typography>
+                  </td>
+                  <td style={{ padding: "14px 16px", color: "#64748b", fontSize: 13 }}>{emp.designation}</td>
+                  <td style={{ padding: "14px 16px", color: "#64748b", fontSize: 13 }}>{emp.department}</td>
+                  <td style={{ padding: "14px 16px", color: "#64748b", fontSize: 13 }}>{emp.contactNumber}</td>
+                  <td style={{ padding: "14px 16px" }}>
+                    <Chip
+                      label={emp.status || "Active"} size="small"
+                      icon={emp.status === "Active"
+                        ? <CheckCircleIcon style={{ fontSize: 13 }} />
+                        : <PauseCircleIcon style={{ fontSize: 13 }} />}
+                      sx={{
+                        background: emp.status === "Active" ? "#DCFCE7" : "#FEF3C7",
+                        color: emp.status === "Active" ? "#166534" : "#92400E",
+                        fontWeight: 700,
+                        "& .MuiChip-icon": { color: emp.status === "Active" ? "#16a34a" : "#d97706" },
+                      }}
+                    />
+                  </td>
+                  <td style={{ padding: "14px 16px", color: "#64748b", fontSize: 13 }}>
+                    {calcExperience(emp.joiningDate) || "—"}
+                  </td>
+                  <td style={{ padding: "14px 16px" }}>
+                    <Box sx={{ display: "flex", gap: 0.75, justifyContent: "center" }}>
+                      <Tooltip title="View Profile" arrow>
+                        <IconButton size="small" onClick={() => onView(emp)}
+                          sx={{ background: alpha("#2196F3", 0.08), color: "#2196F3", borderRadius: "8px", "&:hover": { background: alpha("#2196F3", 0.16) } }}>
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Edit" arrow>
+                        <IconButton size="small" onClick={() => onEdit(emp)}
+                          sx={{ background: alpha("#f59e0b", 0.08), color: "#d97706", borderRadius: "8px", "&:hover": { background: alpha("#f59e0b", 0.16) } }}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Barcode" arrow>
+                        <IconButton size="small" onClick={() => onBarcode(emp)}
+                          sx={{ background: alpha("#8b5cf6", 0.08), color: "#7C3AED", borderRadius: "8px", "&:hover": { background: alpha("#8b5cf6", 0.16) } }}>
+                          <QrCodeScannerIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete" arrow>
+                        <IconButton size="small" onClick={() => onDelete(emp)}
+                          sx={{ background: alpha("#ef4444", 0.08), color: "#dc2626", borderRadius: "8px", "&:hover": { background: alpha("#ef4444", 0.16) } }}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-
-        <div className="tbl-footer">
-          Showing {filtered.length} of {employees.length} employees · C-Tech Engineering Employee Management System
-        </div>
-      </div>
-
-      {/* QR Modal */}
-      {qrModal && (
-        <div className="modal-overlay" onClick={() => setQrModal(null)}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <div className="modal-title">Employee QR Code</div>
-                <div className="modal-sub">{qrModal.emp.fullName} · {qrModal.emp.employeeId}</div>
-              </div>
-              <button className="modal-close" onClick={() => setQrModal(null)}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div className="qr-display">
-              <img src={qrModal.dataUrl} alt="QR" className="qr-img" />
-            </div>
-            <div className="qr-url">{qrUrl(qrModal.emp)}</div>
-            <div className="qr-hint">Scan to open employee profile on any device</div>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setQrModal(null)}>Close</button>
-              <button className="btn-primary" onClick={() => downloadQR(qrModal.emp)}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Download PNG
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirm */}
-      {delConfirm && (
-        <div className="modal-overlay" onClick={() => setDelConfirm(null)}>
-          <div className="modal-box" style={{maxWidth:420}} onClick={(e) => e.stopPropagation()}>
-            <div className="del-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-            </div>
-            <div className="modal-title" style={{textAlign:"center",marginBottom:8}}>Delete Employee?</div>
-            <div className="modal-sub" style={{textAlign:"center",marginBottom:24}}>
-              This will permanently remove <strong>{delConfirm.fullName}</strong> ({delConfirm.employeeId}) from Firebase. This cannot be undone.
-            </div>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setDelConfirm(null)}>Cancel</button>
-              <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
-                {deleting ? "Deleting…" : "Yes, Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function ActionBtn({ children, title, color, onClick }) {
-  return (
-    <button className="action-btn" title={title} onClick={onClick}
-      style={{"--ac": color}}>
-      {children}
-    </button>
+        </Box>
+        <Box sx={{ px: 3, py: 1.5, borderTop: "1px solid #F1F5F9", background: "#FAFBFC" }}>
+          <Typography variant="body2" sx={{ color: "#94a3b8", textAlign: "center" }}>
+            Showing {filtered.length} of {employees.length} employees · C-Tech Engineering Employee Management System
+          </Typography>
+        </Box>
+      </Paper>
+    </Box>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FORM  (create + edit)
+// FORM DIALOG
 // ══════════════════════════════════════════════════════════════════════════════
-function EmployeeForm({ existing, onDone, onCancel }) {
-  const isEdit = !!existing;
-  const [form, setForm] = useState(isEdit ? { ...BLANK, ...existing } : BLANK);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(existing?.photoURL || null);
+function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
+  const isEdit = !!employee;
+  const [form, setForm]               = useState(BLANK);
+  const [imageFile, setImageFile]     = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [dragOver, setDragOver] = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState("");
+  const [dragOver, setDragOver]       = useState(false);
   const fileRef = useRef();
-  const experience = calcExperience(form.joiningDate);
 
-  const set = (e) => { setForm((p) => ({ ...p, [e.target.name]: e.target.value })); setError(""); };
+  useEffect(() => {
+    if (open) {
+      setForm(isEdit ? { ...BLANK, ...employee } : BLANK);
+      setImageFile(null);
+      setImagePreview(isEdit ? employee?.photoURL || null : null);
+      setError("");
+      setUploadProgress(0);
+    }
+  }, [open, employee]);
+
+  const experience = calcExperience(form.joiningDate);
+  const set = (e) => { setForm(p => ({ ...p, [e.target.name]: e.target.value })); setError(""); };
 
   const handleFile = (file) => {
     if (!file?.type.startsWith("image/")) { setError("Select a valid image."); return; }
-    if (file.size > 5 * 1024 * 1024) { setError("Image must be under 5 MB."); return; }
+    if (file.size > 5 * 1024 * 1024)     { setError("Image must be under 5 MB."); return; }
     setError(""); setImageFile(file); setImagePreview(URL.createObjectURL(file));
   };
 
   const validate = () => {
-    const req = [["employeeId","Employee ID"],["fullName","Full Name"],["designation","Designation"],["department","Department"],["contactNumber","Contact Number"],["email","Email"],["joiningDate","Joining Date"]];
-    for (const [k, l] of req) if (!form[k].trim()) return `"${l}" is required.`;
+    const req = [
+      ["employeeId","Employee ID"],["fullName","Full Name"],["designation","Designation"],
+      ["department","Department"],["contactNumber","Contact Number"],["email","Email"],["joiningDate","Joining Date"],
+    ];
+    for (const [k, l] of req) if (!form[k]?.trim()) return `"${l}" is required.`;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Enter a valid email.";
     return null;
   };
@@ -340,497 +471,496 @@ function EmployeeForm({ existing, onDone, onCancel }) {
     const err = validate(); if (err) { setError(err); return; }
     setLoading(true);
     try {
-      let photoURL = existing?.photoURL || "";
+      let photoURL = employee?.photoURL || "";
       if (imageFile) {
         const sRef = ref(storage, `employee-photos/${form.employeeId}_${Date.now()}`);
         const task = uploadBytesResumable(sRef, imageFile);
         photoURL = await new Promise((res, rej) => {
           task.on("state_changed",
             (s) => setUploadProgress(Math.round((s.bytesTransferred / s.totalBytes) * 100)),
-            rej, async () => res(await getDownloadURL(task.snapshot.ref))
+            rej,
+            async () => res(await getDownloadURL(task.snapshot.ref))
           );
         });
       }
       const data = { ...form, workExperience: experience, photoURL, updatedAt: serverTimestamp() };
-      
       if (isEdit) {
-        await updateDoc(doc(db, "employees", existing.id), data);
+        await updateDoc(doc(db, "employees", employee.id), data);
+        onSuccess("Employee updated successfully!");
       } else {
-        const docRef = await addDoc(collection(db, "employees"), { ...data, createdAt: serverTimestamp() });
-        // No need to store verifyUrl - it's generated dynamically
+        await addDoc(collection(db, "employees"), { ...data, createdAt: serverTimestamp() });
+        onSuccess("Employee created successfully!");
       }
-      onDone();
     } catch (e) { setError("Firebase error: " + e.message); }
     finally { setLoading(false); }
   };
 
+  const SectionLabel = ({ icon, title, subtitle }) => (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 2, pb: 1.5, borderBottom: "2px solid #F1F5F9" }}>
+      <Box sx={{ width: 34, height: 34, borderRadius: "10px", background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {React.cloneElement(icon, { sx: { color: "#1565C0", fontSize: 18 } })}
+      </Box>
+      <Box>
+        <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{title}</Typography>
+        <Typography sx={{ fontSize: 11, color: "#94a3b8", mt: 0.2 }}>{subtitle}</Typography>
+      </Box>
+    </Box>
+  );
+
   return (
-    <>
-      <style>{CSS_TABLE}</style>
-      <div className="app-root">
-        {/* Header */}
-        <div className="tbl-header">
-          <div className="tbl-header-left">
-            <button className="back-btn" onClick={onCancel}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <div className="app-logo">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="2 20 12 4 22 20"/><line x1="2" y1="20" x2="22" y2="20"/><line x1="12" y1="14" x2="12" y2="20"/>
-              </svg>
-            </div>
-            <div>
-              <div className="app-title">{isEdit ? "Edit Employee" : "Create Employee"}</div>
-              <div className="app-sub">C-Tech Engineering · Admin Portal</div>
-            </div>
-          </div>
-          <span className="tbl-badge">{isEdit ? "Editing Record" : "New Registration"}</span>
-        </div>
+    <Dialog open={open} onClose={!loading ? onClose : undefined}
+      TransitionComponent={SlideUp} fullWidth maxWidth="md" scroll="paper">
 
-        {error && <div className="form-error"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{error}</div>}
+      {/* Dialog Header */}
+      <Box sx={{ background: "linear-gradient(135deg,#1565C0 0%,#0D47A1 100%)", px: 3.5, py: 2.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box sx={{ width: 38, height: 38, borderRadius: "10px", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {isEdit ? <EditIcon sx={{ color: "#fff", fontSize: 20 }} /> : <AddIcon sx={{ color: "#fff", fontSize: 20 }} />}
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>
+              {isEdit ? "Edit Employee" : "Create Employee"}
+            </Typography>
+            <Typography sx={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>
+              C-Tech Engineering · Admin Portal
+            </Typography>
+          </Box>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Chip label={isEdit ? "Editing Record" : "New Registration"} size="small"
+            sx={{ background: "rgba(255,255,255,0.15)", color: "#fff", fontWeight: 600, border: "1px solid rgba(255,255,255,0.25)" }} />
+          <IconButton onClick={onClose} disabled={loading}
+            sx={{ color: "rgba(255,255,255,0.7)", "&:hover": { background: "rgba(255,255,255,0.1)" } }}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+      </Box>
 
-        {/* Photo */}
-        <div className="f-card">
-          <SectionHead icon="user" title="Employee Photo" sub="Upload a clear passport-size photo" />
-          <div className={`photo-zone${dragOver?" drag":""}`}
-            onClick={() => fileRef.current.click()}
-            onDragOver={(e)=>{e.preventDefault();setDragOver(true);}}
-            onDragLeave={()=>setDragOver(false)}
-            onDrop={(e)=>{e.preventDefault();setDragOver(false);handleFile(e.dataTransfer.files[0]);}}>
-            <div className="f-avatar">
-              {imagePreview ? <img src={imagePreview} alt="preview"/> : <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>}
-            </div>
-            <div>
-              <div className="photo-title">{imagePreview?"Photo selected — click to change":"Drag & drop or click to upload"}</div>
-              <div className="photo-sub">JPG, PNG, WEBP · Max 5 MB</div>
-            </div>
-            <button className="btn-sm-blue" onClick={(e)=>{e.stopPropagation();fileRef.current.click();}}>
-              {imagePreview?"Change":"Browse"}
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={(e)=>handleFile(e.target.files[0])}/>
-          </div>
-          {loading && uploadProgress > 0 && (
-            <div style={{marginTop:12}}>
-              <div style={{fontSize:12,color:"#64748b",marginBottom:4}}>Uploading… {uploadProgress}%</div>
-              <div className="prog-wrap"><div className="prog-bar" style={{width:`${uploadProgress}%`}}/></div>
-            </div>
+      <DialogContent sx={{ p: 0, background: "#F8FAFC" }}>
+        <Box sx={{ p: { xs: 2, md: 3 }, display: "flex", flexDirection: "column", gap: 2.5 }}>
+
+          {error && (
+            <Alert severity="error" icon={<WarningAmberIcon />} sx={{ borderRadius: 2, fontWeight: 500 }}>
+              {error}
+            </Alert>
           )}
-        </div>
 
-        {/* Identity */}
-        <div className="f-card">
-          <SectionHead icon="badge" title="Identity & Role" sub="Employee ID, designation and department"/>
-          <div className="g2">
-            <F label="Employee ID" name="employeeId" placeholder="EMP-2024-0001" value={form.employeeId} onChange={set} req/>
-            <F label="Full Name" name="fullName" placeholder="Rajesh Kumar" value={form.fullName} onChange={set} req/>
-            <F label="Designation" name="designation" placeholder="e.g. Senior Structural Engineer" value={form.designation} onChange={set} req/>
-            <F label="Department" name="department" placeholder="e.g. Civil & Structural Division" value={form.department} onChange={set} req/>
-            <div className="f-field">
-              <label className="f-label">Employment Status</label>
-              <select className="f-input" name="status" value={form.status} onChange={set}>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-        </div>
+          {/* Photo Upload */}
+          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+            <SectionLabel icon={<PersonIcon />} title="Employee Photo" subtitle="Upload a clear passport-size photo" />
+            <Box
+              sx={{
+                border: `2px dashed ${dragOver ? "#1565C0" : "#BFDBFE"}`,
+                borderRadius: 3, p: 2.5, display: "flex", alignItems: "center", gap: 2.5,
+                background: dragOver ? "#EFF6FF" : "#F8FBFF", cursor: "pointer",
+                transition: "all .2s", flexWrap: "wrap",
+                "&:hover": { borderColor: "#1565C0", background: "#EFF6FF" },
+              }}
+              onClick={() => fileRef.current.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
+            >
+              <Avatar src={imagePreview}
+                sx={{ width: 76, height: 76, border: "3px solid #1565C0", background: "#DBEAFE", color: "#1565C0", fontSize: 28, fontWeight: 700 }}>
+                {!imagePreview && <CloudUploadIcon sx={{ fontSize: 30, color: "#93c5fd" }} />}
+              </Avatar>
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#334155" }}>
+                  {imagePreview ? "Photo selected — click to change" : "Drag & drop or click to upload"}
+                </Typography>
+                <Typography sx={{ fontSize: 12, color: "#94a3b8", mt: 0.5 }}>JPG, PNG, WEBP · Max 5 MB</Typography>
+              </Box>
+              <Button variant="contained" size="small" startIcon={<CloudUploadIcon />}
+                onClick={(e) => { e.stopPropagation(); fileRef.current.click(); }} sx={{ flexShrink: 0 }}>
+                {imagePreview ? "Change" : "Browse"}
+              </Button>
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
+                onChange={(e) => handleFile(e.target.files[0])} />
+            </Box>
+            {loading && uploadProgress > 0 && (
+              <Box sx={{ mt: 1.5 }}>
+                <Typography sx={{ fontSize: 12, color: "#64748b", mb: 0.75 }}>Uploading… {uploadProgress}%</Typography>
+                <LinearProgress variant="determinate" value={uploadProgress} sx={{ borderRadius: 99, height: 6 }} />
+              </Box>
+            )}
+          </Paper>
 
-        {/* Joining */}
-        <div className="f-card">
-          <SectionHead icon="calendar" title="Joining & Work Experience" sub="Experience auto-calculated from joining date"/>
-          <div className="g3">
-            <F label="Date of Joining" name="joiningDate" type="date" value={form.joiningDate} onChange={set} req/>
-            <F label="Work Shift" name="workShift" placeholder="e.g. 8:00 AM – 5:30 PM" value={form.workShift} onChange={set}/>
-            <div className="f-field">
-              <label className="f-label">Work Experience</label>
-              {experience
-                ? <div className="exp-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>{experience}</div>
-                : <div className="exp-empty">Auto-filled after selecting joining date</div>
-              }
-            </div>
-          </div>
-        </div>
+          {/* Identity & Role */}
+          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+            <SectionLabel icon={<BadgeIcon />} title="Identity & Role" subtitle="Employee ID, designation and department" />
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Employee ID" name="employeeId" required placeholder="EMP-2024-0001" value={form.employeeId} onChange={set} /></Grid>
+              <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Full Name" name="fullName" required placeholder="Rajesh Kumar" value={form.fullName} onChange={set} /></Grid>
+              <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Designation" name="designation" required placeholder="Senior Structural Engineer" value={form.designation} onChange={set} /></Grid>
+              <Grid item xs={12} sm={6}><TextField fullWidth size="small" label="Department" name="department" required placeholder="Civil & Structural Division" value={form.department} onChange={set} /></Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Employment Status</InputLabel>
+                  <Select name="status" value={form.status} label="Employment Status" onChange={set} sx={{ borderRadius: "10px" }}>
+                    <MenuItem value="Active">Active</MenuItem>
+                    <MenuItem value="Inactive">Inactive</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </Paper>
 
-        {/* Contact */}
-        <div className="f-card">
-          <SectionHead icon="phone" title="Contact Information" sub="Mobile, email and site location"/>
-          <div className="g3">
-            <F label="Mobile Number" name="contactNumber" placeholder="+91 98400 55123" value={form.contactNumber} onChange={set} req/>
-            <F label="Work Email" name="email" placeholder="name@ctech-engg.in" value={form.email} onChange={set} req/>
-            <F label="Work Location" name="location" placeholder="e.g. Chennai, Tamil Nadu" value={form.location} onChange={set}/>
-          </div>
-        </div>
+          {/* Joining & Experience */}
+          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+            <SectionLabel icon={<CalendarTodayIcon />} title="Joining & Work Experience" subtitle="Experience auto-calculated from joining date" />
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={4}><TextField fullWidth size="small" label="Date of Joining" name="joiningDate" required type="date" InputLabelProps={{ shrink: true }} value={form.joiningDate} onChange={set} /></Grid>
+              <Grid item xs={12} sm={4}><TextField fullWidth size="small" label="Work Shift" name="workShift" placeholder="8:00 AM – 5:30 PM" value={form.workShift} onChange={set} /></Grid>
+              <Grid item xs={12} sm={4}>
+                <Box sx={{ pt: 0.5 }}>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#334155", mb: 0.75 }}>Work Experience</Typography>
+                  {experience
+                    ? <Chip icon={<AccessTimeIcon />} label={experience}
+                        sx={{ background: "#EFF6FF", color: "#1D4ED8", border: "1.5px solid #BFDBFE", fontWeight: 600, height: 36 }} />
+                    : <Typography sx={{ fontSize: 13, color: "#CBD5E1", fontStyle: "italic" }}>Auto-filled after joining date</Typography>
+                  }
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
 
-        {/* Medical */}
-        <div className="f-card">
-          <SectionHead icon="heart" title="Medical & Emergency" sub="Blood group and emergency contact"/>
-          <div className="g3">
-            <F label="Blood Group" name="bloodGroup" placeholder="e.g. B+ / O-" value={form.bloodGroup} onChange={set}/>
-            <F label="Emergency Contact Name" name="emergencyContact" placeholder="Priya Kumar (Spouse)" value={form.emergencyContact} onChange={set}/>
-            <F label="Emergency Phone" name="emergencyPhone" placeholder="+91 94450 22876" value={form.emergencyPhone} onChange={set}/>
-          </div>
-        </div>
+          {/* Contact */}
+          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+            <SectionLabel icon={<PhoneIcon />} title="Contact Information" subtitle="Mobile, email and site location" />
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={4}><TextField fullWidth size="small" label="Mobile Number" name="contactNumber" required placeholder="+91 98400 55123" value={form.contactNumber} onChange={set} /></Grid>
+              <Grid item xs={12} sm={4}><TextField fullWidth size="small" label="Work Email" name="email" required placeholder="name@ctech-engg.in" value={form.email} onChange={set} /></Grid>
+              <Grid item xs={12} sm={4}><TextField fullWidth size="small" label="Work Location" name="location" placeholder="Chennai, Tamil Nadu" value={form.location} onChange={set} /></Grid>
+            </Grid>
+          </Paper>
 
-        {/* Notes */}
-        <div className="f-card">
-          <SectionHead icon="file" title="Additional Notes" sub="Certifications, remarks or special instructions"/>
-          <textarea className="f-textarea" name="notes" value={form.notes} onChange={set}
-            placeholder="e.g. Holds PMP certification, site safety trained…"/>
-        </div>
+          {/* Medical & Emergency */}
+          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #FEE2E2", background: "#FFFBFB" }}>
+            <SectionLabel icon={<FavoriteIcon />} title="Medical & Emergency" subtitle="Blood group and emergency contact" />
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={4}><TextField fullWidth size="small" label="Blood Group" name="bloodGroup" placeholder="B+ / O-" value={form.bloodGroup} onChange={set} /></Grid>
+              <Grid item xs={12} sm={4}><TextField fullWidth size="small" label="Emergency Contact Name" name="emergencyContact" placeholder="Priya Kumar (Spouse)" value={form.emergencyContact} onChange={set} /></Grid>
+              <Grid item xs={12} sm={4}><TextField fullWidth size="small" label="Emergency Phone" name="emergencyPhone" placeholder="+91 94450 22876" value={form.emergencyPhone} onChange={set} /></Grid>
+            </Grid>
+          </Paper>
 
-        <div className="form-actions">
-          <button className="btn-secondary" onClick={onCancel}>Cancel</button>
-          <button className="btn-primary" onClick={handleSubmit} disabled={loading}>
-            {loading
-              ? <><Spin/> Saving…</>
-              : <><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>{isEdit?"Update Employee":"Create & Save to Firebase"}</>
-            }
-          </button>
-        </div>
-      </div>
-    </>
+          {/* Notes */}
+          <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #E2E8F0" }}>
+            <SectionLabel icon={<NoteAltIcon />} title="Additional Notes" subtitle="Certifications, remarks or special instructions" />
+            <TextField fullWidth multiline minRows={3} name="notes" label="Notes"
+              placeholder="e.g. Holds PMP certification, site safety trained…"
+              value={form.notes} onChange={set} />
+          </Paper>
+        </Box>
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #F1F5F9", gap: 1 }}>
+        <Button variant="outlined" onClick={onClose} disabled={loading}
+          sx={{ borderColor: "#E2E8F0", color: "#475569", "&:hover": { background: "#F1F5F9" } }}>
+          Cancel
+        </Button>
+        <Button variant="contained" onClick={handleSubmit} disabled={loading}
+          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <VerifiedUserIcon />}
+          sx={{ minWidth: 180 }}>
+          {loading ? "Saving…" : isEdit ? "Update Employee" : "Create & Save"}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// PROFILE  (view / QR scan landing)
+// VIEW PROFILE DIALOG
 // ══════════════════════════════════════════════════════════════════════════════
-function EmployeeProfile({ emp, onBack }) {
-  const [qrDataUrl, setQrDataUrl] = useState(null);
+function ViewProfileDialog({ open, employee, onClose, onEdit }) {
+  const emp = employee;
 
-  useEffect(() => {
-    generateQR(emp).then(setQrDataUrl);
-  }, [emp]);
+  const InfoRow = ({ icon, label, value }) => {
+    if (!value) return null;
+    return (
+      <Box sx={{
+        display: "flex", alignItems: "flex-start", gap: 1.5,
+        py: 1.25, borderBottom: "1px solid #F8FAFC", "&:last-child": { borderBottom: "none" },
+      }}>
+        <Box sx={{ width: 32, height: 32, borderRadius: "8px", background: "#EFF6FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, mt: 0.25 }}>
+          {React.cloneElement(icon, { sx: { color: "#1565C0", fontSize: 16 } })}
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.5px", textTransform: "uppercase", mb: 0.3 }}>{label}</Typography>
+          <Typography sx={{ fontSize: 13.5, color: "#0F172A", fontWeight: 500 }}>{value}</Typography>
+        </Box>
+      </Box>
+    );
+  };
 
-  const Row = ({ icon, label, val }) => val ? (
-    <div className="pr-row">
-      <div className="pr-icon">{icon}</div>
-      <div>
-        <div className="pr-label">{label}</div>
-        <div className="pr-val">{val}</div>
-      </div>
-    </div>
-  ) : null;
+  if (!emp) return null;
+  const isActive = emp.status === "Active";
 
   return (
-    <>
-      <style>{CSS_TABLE}</style>
-      <div className="app-root" style={{background:"#f0f4f8"}}>
-        {/* Nav */}
-        <div className="pr-nav">
-          <button className="back-btn" onClick={onBack}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <div className="pr-nav-title">Employee Profile</div>
-          <div className="pr-nav-badge">
-            <span className="pr-dot"/>QR Verified
-          </div>
-        </div>
+    <Dialog open={open} onClose={onClose} TransitionComponent={SlideUp} fullWidth maxWidth="sm" scroll="paper">
 
-        {/* Hero */}
-        <div className="pr-hero">
-          <div className="pr-hero-deco"/>
-          <div className="pr-hero-inner">
-            <div className="pr-avatar-ring">
-              <div className="pr-avatar">
-                {emp.photoURL
-                  ? <img src={emp.photoURL} alt={emp.fullName}/>
-                  : <span>{(emp.fullName||"?")[0]}</span>
-                }
-              </div>
-            </div>
-            <div className="pr-name">{emp.fullName}</div>
-            <div className="pr-desig">{emp.designation}{emp.department ? ` · ${emp.department}` : ""}</div>
-            <div className="pr-pills">
-              <span className={`pr-pill ${emp.status==="Active"?"pr-pill-green":"pr-pill-gray"}`}>
-                <span className="pr-dot"/>
-                {emp.status || "Active"}
-              </span>
-              {emp.employeeId && <span className="pr-pill pr-pill-blue">{emp.employeeId}</span>}
-              {emp.location && <span className="pr-pill pr-pill-blue">{emp.location}</span>}
-            </div>
-          </div>
-        </div>
+      {/* Hero */}
+      <Box sx={{ background: "linear-gradient(145deg,#0052CC 0%,#0A3A7A 55%,#091E42 100%)", position: "relative", overflow: "hidden" }}>
+        <Box sx={{ position: "absolute", top: -40, right: -40, width: 160, height: 160, borderRadius: "50%", border: "40px solid rgba(255,255,255,0.05)" }} />
+        <Box sx={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 80% 50%,rgba(255,255,255,0.05) 0%,transparent 60%)" }} />
+        <Box sx={{ position: "relative", zIndex: 2, pt: 4, pb: 5, px: 3, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+          <IconButton onClick={onClose}
+            sx={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.7)", "&:hover": { background: "rgba(255,255,255,0.1)" } }}>
+            <CloseIcon />
+          </IconButton>
+          <Badge overlap="circular" anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            badgeContent={<Box sx={{ width: 18, height: 18, borderRadius: "50%", background: isActive ? "#22c55e" : "#f59e0b", border: "2px solid #0052CC" }} />}>
+            <Avatar src={emp.photoURL}
+              sx={{ width: 86, height: 86, border: "3px solid rgba(255,255,255,0.3)", background: "linear-gradient(135deg,#1e40af,#0052cc)", fontSize: 30, fontWeight: 700, color: "#fff" }}>
+              {!emp.photoURL && (emp.fullName || "?")[0]}
+            </Avatar>
+          </Badge>
+          <Typography sx={{ fontSize: 21, fontWeight: 800, color: "#fff", mt: 1.5, mb: 0.5 }}>{emp.fullName}</Typography>
+          <Typography sx={{ fontSize: 13, color: "rgba(255,255,255,0.65)", mb: 1.5 }}>
+            {emp.designation}{emp.department ? ` · ${emp.department}` : ""}
+          </Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, justifyContent: "center" }}>
+            <Chip label={emp.status || "Active"} size="small"
+              icon={<Box sx={{ width: 6, height: 6, borderRadius: "50%", background: isActive ? "#4ade80" : "#fbbf24" }} />}
+              sx={{ background: "rgba(34,197,94,0.2)", border: "0.5px solid rgba(34,197,94,0.45)", color: "#4ade80", fontWeight: 700, fontSize: 11 }} />
+            {emp.employeeId && (
+              <Chip label={emp.employeeId} size="small"
+                sx={{ background: "rgba(255,255,255,0.12)", border: "0.5px solid rgba(255,255,255,0.25)", color: "rgba(255,255,255,0.85)", fontWeight: 600, fontSize: 11 }} />
+            )}
+            {emp.location && (
+              <Chip label={emp.location} size="small"
+                sx={{ background: "rgba(255,255,255,0.12)", border: "0.5px solid rgba(255,255,255,0.25)", color: "rgba(255,255,255,0.85)", fontWeight: 600, fontSize: 11 }} />
+            )}
+          </Box>
+        </Box>
+      </Box>
 
-        <div className="pr-body">
+      <DialogContent sx={{ p: 0, background: "#F8FAFC" }}>
+        <Box sx={{ px: 2.5, py: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+
           {/* Verified strip */}
-          <div className="verified-strip">
-            <div className="verified-shield">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
-            </div>
-            <div style={{flex:1}}>
-              <div className="verified-title">Identity Verified</div>
-              <div className="verified-sub">Authenticated via C-Tech QR Code</div>
-            </div>
-            <div className="verified-live">Live</div>
-          </div>
+          <Paper elevation={0} sx={{ p: 1.75, borderRadius: 2.5, border: "1px solid #86EFAC", background: "#F0FDF4", display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Box sx={{ width: 38, height: 38, borderRadius: "50%", background: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <VerifiedUserIcon sx={{ color: "#16a34a", fontSize: 20 }} />
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: "#166534" }}>Identity Verified</Typography>
+              <Typography sx={{ fontSize: 11.5, color: "#4ade80" }}>Authenticated via C-Tech Barcode</Typography>
+            </Box>
+            <Chip label="Live" size="small" sx={{ background: "#DCFCE7", color: "#166534", fontWeight: 700, fontSize: 11 }} />
+          </Paper>
 
-          {/* Stats */}
-          <div className="pr-stats">
+          {/* Quick stats */}
+          <Grid container spacing={1.25}>
             {[
-              { label: "Experience", val: calcExperience(emp.joiningDate) || "—" },
-              { label: "Blood Group", val: emp.bloodGroup || "—" },
-              { label: "Status", val: emp.status || "Active" },
+              { label: "Experience", value: calcExperience(emp.joiningDate) || "—", color: "#1565C0", border: "#1565C0" },
+              { label: "Blood Group", value: emp.bloodGroup || "—",                 color: "#dc2626", border: "#dc2626" },
+              { label: "Status",      value: emp.status || "Active",                color: isActive ? "#16a34a" : "#d97706", border: isActive ? "#16a34a" : "#d97706" },
             ].map((s) => (
-              <div className="pr-stat" key={s.label}>
-                <div className="pr-stat-val">{s.val}</div>
-                <div className="pr-stat-label">{s.label}</div>
-              </div>
+              <Grid item xs={4} key={s.label}>
+                <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", borderTop: `3px solid ${s.border}`, textAlign: "center" }}>
+                  <Typography sx={{ fontSize: 17, fontWeight: 800, color: s.color, lineHeight: 1.1 }}>{s.value}</Typography>
+                  <Typography sx={{ fontSize: 9.5, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", mt: 0.5 }}>{s.label}</Typography>
+                </Paper>
+              </Grid>
             ))}
-          </div>
+          </Grid>
 
-          {/* Details card */}
-          <div className="pr-card">
-            <div className="pr-card-title">Contact Information</div>
-            <Row icon={<PhoneIcon/>} label="Mobile" val={emp.contactNumber}/>
-            <Row icon={<MailIcon/>} label="Work Email" val={emp.email}/>
-            <Row icon={<PinIcon/>} label="Location" val={emp.location}/>
-            <Row icon={<ClockIcon/>} label="Work Shift" val={emp.workShift}/>
-          </div>
+          {/* Contact */}
+          <Paper elevation={0} sx={{ px: 2, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
+            <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Contact Information</Typography>
+            <InfoRow icon={<PhoneIcon />}     label="Mobile"     value={emp.contactNumber} />
+            <InfoRow icon={<EmailIcon />}     label="Work Email" value={emp.email} />
+            <InfoRow icon={<LocationOnIcon />}label="Location"   value={emp.location} />
+            <InfoRow icon={<AccessTimeIcon />}label="Work Shift" value={emp.workShift} />
+          </Paper>
 
-          <div className="pr-card">
-            <div className="pr-card-title">Employment Details</div>
-            <Row icon={<BagIcon/>} label="Department" val={emp.department}/>
-            <Row icon={<UserIcon/>} label="Designation" val={emp.designation}/>
-            <Row icon={<CalIcon/>} label="Date of Joining" val={emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"}) : ""}/>
-            <Row icon={<ClockIcon/>} label="Work Experience" val={calcExperience(emp.joiningDate)}/>
-          </div>
+          {/* Employment */}
+          <Paper elevation={0} sx={{ px: 2, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
+            <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Employment Details</Typography>
+            <InfoRow icon={<WorkIcon />}          label="Department"      value={emp.department} />
+            <InfoRow icon={<BadgeIcon />}          label="Designation"     value={emp.designation} />
+            <InfoRow icon={<CalendarTodayIcon />}  label="Date of Joining" value={emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"}) : ""} />
+            <InfoRow icon={<AccessTimeIcon />}     label="Work Experience" value={calcExperience(emp.joiningDate)} />
+          </Paper>
 
           {(emp.bloodGroup || emp.emergencyContact) && (
-            <div className="pr-card pr-emergency">
-              <div className="pr-card-title" style={{color:"#b91c1c"}}>Medical & Emergency</div>
-              <Row icon={<HeartIcon/>} label="Blood Group" val={emp.bloodGroup}/>
-              <Row icon={<UserIcon/>} label="Emergency Contact" val={emp.emergencyContact}/>
-              <Row icon={<PhoneIcon/>} label="Emergency Phone" val={emp.emergencyPhone}/>
-            </div>
+            <Paper elevation={0} sx={{ px: 2, py: 1.5, borderRadius: 2.5, border: "1px solid #FECACA", background: "#FFF5F5" }}>
+              <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Medical & Emergency</Typography>
+              <InfoRow icon={<FavoriteIcon />}label="Blood Group"       value={emp.bloodGroup} />
+              <InfoRow icon={<PersonIcon />}  label="Emergency Contact" value={emp.emergencyContact} />
+              <InfoRow icon={<PhoneIcon />}   label="Emergency Phone"   value={emp.emergencyPhone} />
+            </Paper>
           )}
 
           {emp.notes && (
-            <div className="pr-card">
-              <div className="pr-card-title">Notes</div>
-              <p style={{fontSize:13,color:"#475569",lineHeight:1.7,marginTop:4}}>{emp.notes}</p>
-            </div>
+            <Paper elevation={0} sx={{ px: 2, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
+              <Typography sx={{ fontSize: 10.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Notes</Typography>
+              <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.75 }}>{emp.notes}</Typography>
+            </Paper>
           )}
 
-          {/* QR Section */}
-          <div className="pr-qr-card">
-            <div className="pr-qr-title">Scan QR to Open Employee Profile</div>
-            {qrDataUrl && <img src={qrDataUrl} alt="QR" className="pr-qr-img"/>}
-            <div className="pr-qr-url">{qrUrl(emp)}</div>
-            <button className="btn-primary" style={{marginTop:12}} onClick={() => downloadQR(emp)}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Download QR PNG
-            </button>
-          </div>
+          {/* Footer brand */}
+          <Box sx={{ background: "linear-gradient(135deg,#0052cc,#091e42)", borderRadius: 3, p: 2.5, textAlign: "center" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, mb: 0.75 }}>
+              <EngineeringIcon sx={{ color: "#fff", fontSize: 18 }} />
+              <Typography sx={{ fontWeight: 800, fontSize: 14, color: "#fff", letterSpacing: "2px" }}>C-TECH ENGINEERING</Typography>
+            </Box>
+            <Box sx={{ width: 36, height: 1, background: "rgba(255,255,255,0.2)", mx: "auto", my: 1 }} />
+            <Typography sx={{ fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: "1.5px" }}>BUILDING TRUST. DELIVERING EXCELLENCE.</Typography>
+          </Box>
+        </Box>
+      </DialogContent>
 
-          {/* Footer */}
-          <div className="pr-footer">
-            <div className="pr-footer-logo">C-TECH ENGINEERING</div>
-            <div className="pr-footer-div"/>
-            <div className="pr-footer-tag">BUILDING TRUST. DELIVERING EXCELLENCE.</div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ── Small icon components ──────────────────────────────────────────────────────
-const I = (d) => () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>;
-const PhoneIcon = I("M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z");
-const MailIcon = I("M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z");
-const PinIcon  = I("M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z");
-const BagIcon  = I("M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z");
-const UserIcon = I("M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2");
-const CalIcon  = I("M3 4h18v16H3z");
-const ClockIcon= I("M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z");
-const HeartIcon= I("M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z");
-
-function Spin() {
-  return <svg style={{animation:"spin .85s linear infinite",display:"inline-block"}} width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
-}
-
-function SectionHead({ title, sub }) {
-  return (
-    <div className="sec-head">
-      <div className="sec-icon">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2196F3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-      </div>
-      <div>
-        <div className="sec-title">{title}</div>
-        <div className="sec-sub">{sub}</div>
-      </div>
-    </div>
-  );
-}
-
-function F({ label, name, placeholder, value, onChange, type="text", req }) {
-  return (
-    <div className="f-field">
-      <label className="f-label">{label}{req && <span style={{color:"#ef4444"}}> *</span>}</label>
-      <input className="f-input" type={type} name={name} placeholder={placeholder} value={value} onChange={onChange} autoComplete="off"/>
-    </div>
+      <DialogActions sx={{ px: 2.5, py: 2, borderTop: "1px solid #F1F5F9", gap: 1 }}>
+        <Button variant="outlined" onClick={onClose} sx={{ borderColor: "#E2E8F0", color: "#475569" }}>Close</Button>
+        <Button variant="contained" startIcon={<EditIcon />} onClick={() => onEdit(emp)}>Edit Employee</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// STYLES
+// BARCODE DIALOG
 // ══════════════════════════════════════════════════════════════════════════════
-const CSS_TABLE = `
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-.app-root{min-height:100vh;background:#f0f4f8;font-family:'Plus Jakarta Sans',sans-serif;padding:28px 28px 60px;color:#1e293b;}
-@media(max-width:768px){.app-root{padding:16px 14px 48px;}}
+function BarcodeDialog({ open, employee, onClose }) {
+  const canvasRef  = useRef(null);
+  const [rendered, setRendered] = useState(false);
+  const [barcodeError, setBarcodeError] = useState(false);
 
-/* header */
-.tbl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
-.tbl-header-left{display:flex;align-items:center;gap:12px;}
-.app-logo{width:46px;height:46px;background:#2196F3;border-radius:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.app-title{font-size:21px;font-weight:700;color:#1e293b;letter-spacing:-0.3px;}
-.app-sub{font-size:12px;color:#64748b;margin-top:1px;}
-.tbl-badge{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:600;}
-.back-btn{width:36px;height:36px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#475569;flex-shrink:0;transition:background .15s;}
-.back-btn:hover{background:#f1f5f9;}
+  useEffect(() => {
+    setRendered(false);
+    setBarcodeError(false);
+    if (!open || !employee?.employeeId) return;
+    // Small timeout so the canvas is mounted in the DOM
+    const t = setTimeout(() => {
+      if (canvasRef.current) {
+        const ok = renderBarcode(canvasRef.current, employee.employeeId);
+        if (ok) setRendered(true);
+        else setBarcodeError(true);
+      }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [open, employee]);
 
-/* stats */
-.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;}
-@media(max-width:500px){.stat-row{grid-template-columns:1fr 1fr;}  }
-.stat-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px 18px;}
-.stat-num{font-size:28px;font-weight:700;line-height:1;}
-.stat-label{font-size:12px;color:#64748b;margin-top:4px;font-weight:500;}
+  if (!employee) return null;
 
-/* search */
-.search-wrap{position:relative;margin-bottom:16px;}
-.search-input{width:100%;padding:11px 14px 11px 40px;border:1.5px solid #e2e8f0;border-radius:11px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;background:#fff;outline:none;transition:border-color .18s,box-shadow .18s;color:#1e293b;}
-.search-input:focus{border-color:#2196F3;box-shadow:0 0 0 3px rgba(33,150,243,.12);}
-.search-input::placeholder{color:#c4ccd8;}
+  return (
+    <Dialog open={open} onClose={onClose} TransitionComponent={SlideUp} maxWidth="xs" fullWidth>
 
-/* table */
-.tbl-wrap{background:#fff;border-radius:16px;border:1px solid #e2e8f0;overflow:auto;}
-.emp-table{width:100%;border-collapse:collapse;min-width:900px;}
-.emp-table thead tr{background:#f8fafc;border-bottom:2px solid #f1f5f9;}
-.emp-table th{padding:13px 16px;text-align:left;font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:.6px;text-transform:uppercase;white-space:nowrap;}
-.emp-table td{padding:14px 16px;border-bottom:1px solid #f8fafc;vertical-align:middle;}
-.emp-row{transition:background .12s;}
-.emp-row:hover{background:#f8fbff;}
-.emp-row:last-child td{border-bottom:none;}
-.tbl-avatar{width:38px;height:38px;border-radius:50%;overflow:hidden;background:#dbeafe;display:flex;align-items:center;justify-content:center;border:2px solid #e2e8f0;}
-.tbl-avatar img{width:100%;height:100%;object-fit:cover;}
-.tbl-avatar span{font-size:15px;font-weight:700;color:#2196F3;}
-.emp-id-pill{background:#eff6ff;color:#1d4ed8;border-radius:6px;padding:3px 9px;font-size:12px;font-weight:600;font-family:monospace;white-space:nowrap;}
-.emp-name{font-weight:600;font-size:14px;color:#1e293b;}
-.muted-cell{font-size:13px;color:#64748b;}
-.status-pill{border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;white-space:nowrap;}
-.s-active{background:#dcfce7;color:#166534;}
-.s-inactive{background:#fef3c7;color:#92400e;}
-.action-row{display:flex;align-items:center;gap:6px;justify-content:center;}
-.action-btn{width:32px;height:32px;border-radius:8px;border:1px solid color-mix(in srgb,var(--ac) 25%,transparent);background:color-mix(in srgb,var(--ac) 10%,transparent);color:var(--ac);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,transform .12s;}
-.action-btn:hover{background:color-mix(in srgb,var(--ac) 18%,transparent);transform:scale(1.08);}
-.tbl-footer{margin-top:14px;font-size:12px;color:#94a3b8;text-align:center;}
+      {/* Header */}
+      <Box sx={{ background: "linear-gradient(135deg,#7C3AED 0%,#5B21B6 100%)", px: 3, py: 2.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box sx={{ width: 36, height: 36, borderRadius: "9px", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <QrCodeScannerIcon sx={{ color: "#fff", fontSize: 20 }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>Employee Barcode</Typography>
+            <Typography sx={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>{employee.fullName} · {employee.employeeId}</Typography>
+          </Box>
+        </Box>
+        <IconButton onClick={onClose} sx={{ color: "rgba(255,255,255,0.7)", "&:hover": { background: "rgba(255,255,255,0.1)" } }}>
+          <CloseIcon />
+        </IconButton>
+      </Box>
 
-/* modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
-.modal-box{background:#fff;border-radius:20px;padding:28px;width:100%;max-width:460px;}
-.modal-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;}
-.modal-title{font-size:17px;font-weight:700;color:#1e293b;}
-.modal-sub{font-size:13px;color:#64748b;margin-top:3px;}
-.modal-close{width:32px;height:32px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#64748b;flex-shrink:0;}
-.qr-display{display:flex;justify-content:center;margin:8px 0 12px;}
-.qr-img{width:220px;height:220px;border-radius:12px;border:3px solid #e3f2fd;}
-.qr-url{text-align:center;font-size:11px;font-family:monospace;color:#2196F3;background:#eff6ff;border-radius:8px;padding:7px 12px;word-break:break-all;}
-.qr-hint{text-align:center;font-size:12px;color:#94a3b8;margin-top:8px;}
-.modal-actions{display:flex;gap:10px;margin-top:20px;}
-.del-icon{width:60px;height:60px;background:#fef2f2;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
-.btn-danger{flex:1;padding:11px;background:#ef4444;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:background .18s;}
-.btn-danger:hover:not(:disabled){background:#dc2626;}
-.btn-danger:disabled{opacity:.6;cursor:not-allowed;}
+      <DialogContent sx={{ textAlign: "center", py: 3, px: 3 }}>
+        <Chip label="CODE128 FORMAT" size="small"
+          sx={{ background: "#EDE9FE", color: "#6D28D9", border: "1px solid #C4B5FD", fontWeight: 700, fontSize: 10, letterSpacing: "0.5px", mb: 2 }} />
 
-/* shared buttons */
-.btn-primary{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#2196F3;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:background .18s,transform .12s;white-space:nowrap;box-shadow:0 2px 10px rgba(33,150,243,.25);}
-.btn-primary:hover:not(:disabled){background:#1976d2;transform:translateY(-1px);}
-.btn-primary:disabled{background:#90caf9;cursor:not-allowed;box-shadow:none;}
-.btn-secondary{flex:1;padding:11px;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;color:#475569;font-size:14px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:background .15s;}
-.btn-secondary:hover{background:#f1f5f9;}
-.btn-sm-blue{background:#2196F3;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap;}
-.btn-sm-blue:hover{background:#1976d2;}
+        {/* Barcode Canvas */}
+        <Box sx={{
+          background: "#fff", border: "2px solid #EDE9FE", borderRadius: 3,
+          p: 1.5, mb: 2, display: "flex", justifyContent: "center",
+          minHeight: 120, alignItems: "center",
+          boxShadow: "inset 0 2px 10px rgba(0,0,0,0.04)",
+        }}>
+          {barcodeError ? (
+            <Typography sx={{ color: "#94a3b8", fontSize: 13 }}>
+              Unable to render barcode for: <strong>{employee.employeeId}</strong>
+            </Typography>
+          ) : (
+            <canvas
+              ref={canvasRef}
+              style={{
+                maxWidth: "100%", display: "block",
+                opacity: rendered ? 1 : 0,
+                transition: "opacity 0.3s ease",
+              }}
+            />
+          )}
+          {!rendered && !barcodeError && (
+            <CircularProgress size={28} sx={{ color: "#7C3AED", position: "absolute" }} />
+          )}
+        </Box>
 
-/* form */
-.f-card{background:#fff;border-radius:16px;border:1px solid #e2e8f0;padding:26px 28px 22px;margin-bottom:14px;}
-.f-card:hover{box-shadow:0 2px 16px rgba(33,150,243,.07);}
-.sec-head{display:flex;align-items:center;gap:11px;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #f1f5f9;}
-.sec-icon{width:34px;height:34px;background:#e3f2fd;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.sec-title{font-size:14px;font-weight:700;color:#1e293b;}
-.sec-sub{font-size:12px;color:#94a3b8;margin-top:2px;}
-.g2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
-.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
-@media(max-width:640px){.g2,.g3{grid-template-columns:1fr;}}
-@media(min-width:641px) and (max-width:860px){.g3{grid-template-columns:repeat(2,1fr);}}
-.f-field{display:flex;flex-direction:column;gap:6px;}
-.f-label{font-size:12px;font-weight:600;color:#334155;letter-spacing:.2px;}
-.f-input{border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 13px;font-size:14px;color:#1e293b;font-family:'Plus Jakarta Sans',sans-serif;outline:none;background:#fafbfc;width:100%;transition:border-color .18s,box-shadow .18s,background .18s;}
-.f-input:focus{border-color:#2196F3;background:#fff;box-shadow:0 0 0 3px rgba(33,150,243,.12);}
-.f-input::placeholder{color:#c4ccd8;}
-.f-textarea{width:100%;border:1.5px solid #e2e8f0;border-radius:10px;padding:11px 13px;font-size:14px;color:#1e293b;font-family:'Plus Jakarta Sans',sans-serif;outline:none;background:#fafbfc;resize:vertical;min-height:88px;line-height:1.65;transition:border-color .18s,box-shadow .18s;}
-.f-textarea:focus{border-color:#2196F3;background:#fff;box-shadow:0 0 0 3px rgba(33,150,243,.12);}
-.f-textarea::placeholder{color:#c4ccd8;}
-.photo-zone{border:2px dashed #bfdbfe;border-radius:14px;padding:26px 20px;display:flex;align-items:center;gap:20px;cursor:pointer;background:#f8fbff;flex-wrap:wrap;transition:border-color .2s,background .2s;}
-.photo-zone.drag,.photo-zone:hover{border-color:#2196F3;background:#eff6ff;}
-.f-avatar{width:88px;height:88px;border-radius:50%;border:3px solid #2196F3;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#dbeafe;flex-shrink:0;}
-.f-avatar img{width:100%;height:100%;object-fit:cover;}
-.photo-title{font-size:14px;font-weight:600;color:#334155;}
-.photo-sub{font-size:12px;color:#94a3b8;margin-top:4px;}
-.exp-badge{display:inline-flex;align-items:center;gap:7px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 13px;font-size:14px;font-weight:600;color:#1d4ed8;min-height:42px;}
-.exp-empty{font-size:13px;color:#c4ccd8;min-height:42px;display:flex;align-items:center;}
-.prog-wrap{background:#e2e8f0;border-radius:99px;height:6px;overflow:hidden;}
-.prog-bar{height:100%;background:linear-gradient(90deg,#2196F3,#42a5f5);border-radius:99px;transition:width .3s;}
-.form-error{background:#fef2f2;border:1.5px solid #fca5a5;border-radius:12px;padding:12px 16px;font-size:13px;color:#dc2626;margin-bottom:14px;display:flex;align-items:center;gap:8px;font-weight:500;}
-.form-actions{display:flex;gap:12px;margin-top:4px;}
-@keyframes spin{to{transform:rotate(360deg);}}
+        {/* Employee info below barcode */}
+        <Paper elevation={0} sx={{ background: "#F5F3FF", borderRadius: 2, p: 1.5, mb: 1 }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#5B21B6" }}>{employee.fullName}</Typography>
+          <Typography sx={{ fontSize: 11, color: "#7C3AED", mt: 0.3 }}>{employee.designation} · {employee.department}</Typography>
+        </Paper>
+        <Typography sx={{ fontSize: 12, color: "#94a3b8" }}>Scan barcode to identify employee</Typography>
+      </DialogContent>
 
-/* profile */
-.pr-nav{display:flex;align-items:center;gap:12px;margin-bottom:0;padding:0 0 16px;}
-.pr-nav-title{font-size:17px;font-weight:700;color:#1e293b;flex:1;}
-.pr-nav-badge{display:flex;align-items:center;gap:6px;background:#dcfce7;border:1px solid #86efac;border-radius:20px;padding:5px 14px;font-size:11px;font-weight:600;color:#166534;}
-.pr-dot{width:6px;height:6px;background:#22c55e;border-radius:50%;display:inline-block;animation:blink 1.5s infinite;}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
-.pr-hero{background:linear-gradient(140deg,#0052cc 0%,#0a3a7a 55%,#091e42 100%);border-radius:20px;padding:32px 20px 60px;position:relative;overflow:hidden;margin-bottom:-36px;}
-.pr-hero-deco{position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;border:40px solid rgba(255,255,255,.05);}
-.pr-hero-inner{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;}
-.pr-avatar-ring{width:92px;height:92px;border-radius:50%;border:3px solid rgba(255,255,255,.3);padding:3px;margin-bottom:14px;}
-.pr-avatar{width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#1e40af,#0052cc);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:30px;color:#fff;overflow:hidden;}
-.pr-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
-.pr-name{font-size:22px;font-weight:700;color:#fff;margin-bottom:4px;}
-.pr-desig{font-size:13px;color:rgba(255,255,255,.65);margin-bottom:12px;}
-.pr-pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
-.pr-pill{border-radius:20px;padding:4px 12px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:5px;}
-.pr-pill-green{background:rgba(34,197,94,.2);border:.5px solid rgba(34,197,94,.45);color:#4ade80;}
-.pr-pill-blue{background:rgba(255,255,255,.12);border:.5px solid rgba(255,255,255,.25);color:rgba(255,255,255,.85);}
-.pr-pill-gray{background:rgba(255,255,255,.1);border:.5px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);}
-.pr-body{padding:0 0 24px;}
-.verified-strip{background:#f0fdf4;border:1px solid #86efac;border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:13px;margin:48px 0 16px;position:relative;z-index:5;}
-.verified-shield{width:42px;height:42px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.verified-title{font-size:14px;font-weight:700;color:#166534;}
-.verified-sub{font-size:12px;color:#4ade80;margin-top:2px;}
-.verified-live{background:#dcfce7;color:#166534;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;}
-.pr-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
-.pr-stat{background:#fff;border:1px solid #e2e8f0;border-radius:13px;padding:14px;text-align:center;}
-.pr-stat-val{font-size:18px;font-weight:700;color:#2196F3;line-height:1;}
-.pr-stat-label{font-size:10px;color:#94a3b8;font-weight:600;margin-top:5px;text-transform:uppercase;letter-spacing:.5px;}
-.pr-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px 18px 10px;margin-bottom:12px;}
-.pr-emergency{background:#fff5f5;border-color:#fecaca;}
-.pr-card-title{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;}
-.pr-row{display:flex;align-items:flex-start;gap:11px;padding:9px 0;border-bottom:.5px solid #f8fafc;}
-.pr-row:last-child{border-bottom:none;}
-.pr-icon{width:30px;height:30px;background:#eff6ff;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#2196F3;flex-shrink:0;margin-top:1px;}
-.pr-label{font-size:10px;color:#94a3b8;font-weight:600;letter-spacing:.4px;text-transform:uppercase;line-height:1;margin-bottom:3px;}
-.pr-val{font-size:13px;color:#1e293b;font-weight:500;}
-.pr-qr-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:22px;display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:14px;}
-.pr-qr-title{font-size:13px;font-weight:600;color:#475569;}
-.pr-qr-img{width:180px;height:180px;border-radius:12px;border:3px solid #e3f2fd;}
-.pr-qr-url{font-size:10px;font-family:monospace;color:#2196F3;background:#eff6ff;border-radius:7px;padding:6px 10px;text-align:center;word-break:break-all;max-width:100%;}
-.pr-footer{background:linear-gradient(135deg,#0052cc,#091e42);border-radius:16px;padding:20px;text-align:center;}
-.pr-footer-logo{font-weight:700;font-size:15px;color:#fff;letter-spacing:1.5px;}
-.pr-footer-div{width:36px;height:1px;background:rgba(255,255,255,.2);margin:8px auto;}
-.pr-footer-tag{font-size:10px;color:rgba(255,255,255,.45);letter-spacing:1.5px;}
-input[type="date"]::-webkit-calendar-picker-indicator{opacity:.4;cursor:pointer;}
-`;
+      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+        <Button variant="outlined" onClick={onClose} sx={{ borderColor: "#E2E8F0", color: "#475569" }}>Close</Button>
+        <Button variant="contained" startIcon={<DownloadIcon />}
+          onClick={() => downloadBarcode(employee.employeeId, canvasRef.current)}
+          disabled={!rendered}
+          sx={{
+            background: "linear-gradient(135deg,#7C3AED,#5B21B6)",
+            "&:hover": { background: "linear-gradient(135deg,#6D28D9,#4C1D95)" },
+            boxShadow: "0 4px 14px rgba(124,58,237,0.35)",
+          }}>
+          Download PNG
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DELETE DIALOG
+// ══════════════════════════════════════════════════════════════════════════════
+function DeleteDialog({ open, employee, onClose, onSuccess }) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!employee) return;
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, "employees", employee.id));
+      onSuccess();
+    } catch (e) { console.error(e); }
+    finally { setDeleting(false); }
+  };
+
+  if (!employee) return null;
+
+  return (
+    <Dialog open={open} onClose={!deleting ? onClose : undefined}
+      TransitionComponent={SlideUp} maxWidth="xs" fullWidth>
+      <DialogContent sx={{ textAlign: "center", pt: 4, pb: 2, px: 3 }}>
+        <Box sx={{ width: 64, height: 64, borderRadius: "50%", background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 2 }}>
+          <DeleteIcon sx={{ color: "#dc2626", fontSize: 30 }} />
+        </Box>
+        <Typography variant="h6" sx={{ mb: 1 }}>Delete Employee?</Typography>
+        <Typography sx={{ fontSize: 13.5, color: "#64748b", lineHeight: 1.7 }}>
+          This will permanently remove{" "}
+          <strong style={{ color: "#0F172A" }}>{employee.fullName}</strong>{" "}
+          ({employee.employeeId}) from Firebase. This action cannot be undone.
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+        <Button variant="outlined" fullWidth onClick={onClose} disabled={deleting}
+          sx={{ borderColor: "#E2E8F0", color: "#475569" }}>Cancel</Button>
+        <Button variant="contained" fullWidth onClick={handleDelete} disabled={deleting} color="error"
+          startIcon={deleting ? <CircularProgress size={16} color="inherit" /> : <DeleteIcon />}
+          sx={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.3)" }}>
+          {deleting ? "Deleting…" : "Yes, Delete"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
