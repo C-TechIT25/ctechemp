@@ -6,7 +6,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 // MUI Core
 import {
   Box, Typography, Avatar, Chip, Paper, Grid,
-  CircularProgress, Container, Badge, Button,
+  CircularProgress, Container, Badge, Button, Modal, IconButton,
 } from "@mui/material";
 import { createTheme, alpha ,ThemeProvider} from "@mui/material/styles";
 
@@ -29,6 +29,8 @@ import HomeIcon           from "@mui/icons-material/Home";
 import CakeIcon           from "@mui/icons-material/Cake";
 import WcIcon             from "@mui/icons-material/Wc";
 import CallIcon           from "@mui/icons-material/Call";
+import ZoomInIcon         from "@mui/icons-material/ZoomIn";
+import CloseIcon          from "@mui/icons-material/Close";
 
 // Import logos from assets folder
 import ctechLogo from "../assets/ctech-logo.png"; // Adjust path as needed
@@ -115,7 +117,7 @@ function calcExperience(joiningDate) {
   if (months < 0) { years -= 1; months += 12; }
   if (years === 0 && months === 0) return "< 1 month";
   const p = [];
-  if (years  > 0) p.push(`${years} yr${years > 1 ? "s" : ""}`);
+  if (years  > 0) p.push(`${years} year${years > 1 ? "s" : ""}`);
   if (months > 0) p.push(`${months} mo`);
   return p.join(" ");
 }
@@ -136,32 +138,6 @@ const handlePhoneCall = (phoneNumber) => {
     window.location.href = `tel:${phoneNumber}`;
   }
 };
-
-// ── Full Width Company Logo ────────────────────────────────────────────
-function FullWidthCompanyLogo({ logoImage, alt = "Company Logo" }) {
-  return (
-    <Box sx={{
-      width: "100%",
-      backgroundColor: "#fff",
-      py: 2,
-      px: 2,
-      // borderBottom: "1px solid #E2E8F0",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-    }}>
-     <img 
-  src={logoImage} 
-  alt={alt}
-  style={{
-    width: window.innerWidth <= 768 ? "100%" : "40%",
-    height: "auto",
-    objectFit: "contain",
-  }}
-/>
-    </Box>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN
@@ -210,15 +186,16 @@ export default function Employeepublicprofile() {
 function ProfilePage({ emp, cfg }) {
   const experience = calcExperience(emp.joiningDate);
   const isActive   = emp.status === "Active";
+  const [openPhotoModal, setOpenPhotoModal] = useState(false);
+
+  const handleOpenPhotoModal = () => setOpenPhotoModal(true);
+  const handleClosePhotoModal = () => setOpenPhotoModal(false);
 
   return (
     <Box>
-      {/* ── Full Width Company Logo Only ── */}
-      <FullWidthCompanyLogo logoImage={cfg.logoImage} alt={`${emp.company} Logo`} />
-
       <Container maxWidth="sm" disableGutters sx={{ pb: 5 }}>
 
-        {/* ── Hero Banner ── */}
+        {/* ── Hero Banner (Logo Removed) ── */}
         <Box sx={{
           background: `linear-gradient(145deg,${cfg.heroStart} 0%,${cfg.heroMid} 58%,${cfg.heroEnd} 100%)`,
           position: "relative", overflow: "hidden",
@@ -229,22 +206,39 @@ function ProfilePage({ emp, cfg }) {
           <Box sx={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 70% 40%,${alpha(cfg.primary, 0.22)} 0%,transparent 65%)` }} />
 
           <Box sx={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-            <Badge overlap="circular" anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            <Badge 
+              overlap="circular" 
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
               badgeContent={
-                <Box sx={{
-                  width: 20, height: 20, borderRadius: "50%",
-                  background: isActive ? "#22c55e" : "#f59e0b",
-                  border: `2.5px solid ${cfg.heroEnd}`,
-                  boxShadow: `0 0 10px ${isActive ? "rgba(34,197,94,0.5)" : "rgba(245,158,11,0.5)"}`,
-                }} />
-              }>
-              <Avatar src={emp.photoURL}
+                <IconButton
+                  onClick={handleOpenPhotoModal}
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    bgcolor: cfg.primary,
+                    border: `2px solid ${cfg.heroEnd}`,
+                    '&:hover': { bgcolor: cfg.primaryDark },
+                    p: 0.5,
+                  }}
+                >
+                  <ZoomInIcon sx={{ fontSize: 14, color: "white" }} />
+                </IconButton>
+              }
+            >
+              <Avatar 
+                src={emp.photoURL}
+                onClick={handleOpenPhotoModal}
                 sx={{
                   width: 96, height: 96,
                   border: "3px solid rgba(255,255,255,0.3)",
                   background: `linear-gradient(135deg,${cfg.primaryDark},${cfg.primaryDeep})`,
                   fontSize: 34, fontWeight: 800, color: "#fff",
                   boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+                  cursor: "pointer",
+                  transition: "transform 0.2s",
+                  "&:hover": {
+                    transform: "scale(1.02)",
+                  },
                 }}>
                 {!emp.photoURL && (emp.fullName || "?")[0].toUpperCase()}
               </Avatar>
@@ -316,50 +310,116 @@ function ProfilePage({ emp, cfg }) {
             <Chip label="Live" size="small" sx={{ background: alpha(cfg.primary, 0.1), color: cfg.verifiedText, fontWeight: 800, fontSize: 11, border: `1px solid ${cfg.verifiedBorder}` }} />
           </Paper>
 
-          {/* Quick Stats */}
+          {/* Quick Stats - One row with 3 boxes */}
           <Grid container spacing={1.5} sx={{ mb: 2 }}>
-            {[
-              { label: "Experience", value: experience || "—",       color: cfg.primary,                          bg: alpha(cfg.primary, 0.08) },
-              { label: "Blood Group", value: emp.bloodGroup || "—",  color: "#dc2626",                            bg: alpha("#dc2626", 0.08) },
-              { label: "Status",      value: emp.status || "Active", color: isActive ? "#16a34a" : "#d97706",     bg: isActive ? alpha("#16a34a", 0.08) : alpha("#d97706", 0.08) },
-            ].map((s) => (
-              <Grid item xs={4} key={s.label} width={'100%'}>
-                <Paper elevation={0} sx={{
-                  borderRadius: "10px",
-                  background: s.bg,
-                  p: { xs: 2, sm: 2.5 },
-                  height: "100%",
-                  minHeight: { xs: 80, sm: 90 },
-                  width:'100%',
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textAlign: "center",
-                  transition: "transform .2s, box-shadow .2s",
-                  "&:hover": { transform: "translateY(-2px)", boxShadow: `0 6px 20px ${alpha(s.color, 0.12)}` },
+            <Grid item xs={4}sx={{width:{xs:'180px',sm:'180px'}}}>
+              <Paper elevation={0} sx={{
+                borderRadius: "10px",
+                background: alpha(cfg.primary, 0.08),
+                p: { xs: 2, sm: 2.5 },
+                height: "100%",
+                minHeight: { xs: 80, sm: 90 },
+                width: '100%',
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+                transition: "transform .2s, box-shadow .2s",
+                "&:hover": { transform: "translateY(-2px)", boxShadow: `0 6px 20px ${alpha(cfg.primary, 0.12)}` },
+              }}>
+                <Typography sx={{
+                  fontSize: { xs: 18, sm: 22 },
+                  fontWeight: 800,
+                  color: cfg.primary,
+                  lineHeight: 1.2,
+                  mb: 0.5
                 }}>
-                  <Typography sx={{
-                    fontSize: { xs: 18, sm: 22 },
-                    fontWeight: 800,
-                    color: s.color,
-                    lineHeight: 1.2,
-                    mb: 0.5
-                  }}>
-                    {s.value}
-                  </Typography>
-                  <Typography sx={{
-                    fontSize: { xs: 10, sm: 11 },
-                    color: "#64748b",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px"
-                  }}>
-                    {s.label}
-                  </Typography>
-                </Paper>
-              </Grid>
-            ))}
+                  {experience || "—"}
+                </Typography>
+                <Typography sx={{
+                  fontSize: { xs: 10, sm: 11 },
+                  color: "#64748b",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Experience
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={4}sx={{width:{xs:'180px',sm:'180px'}}}>
+              <Paper elevation={0} sx={{
+                borderRadius: "10px",
+                background: alpha("#dc2626", 0.08),
+                p: { xs: 2, sm: 2.5 },
+                height: "100%",
+                minHeight: { xs: 80, sm: 90 },
+                width: '100%',
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+                transition: "transform .2s, box-shadow .2s",
+                "&:hover": { transform: "translateY(-2px)", boxShadow: "0 6px 20px rgba(220,38,38,0.12)" },
+              }}>
+                <Typography sx={{
+                  fontSize: { xs: 18, sm: 22 },
+                  fontWeight: 800,
+                  color: "#dc2626",
+                  lineHeight: 1.2,
+                  mb: 0.5
+                }}>
+                  {emp.bloodGroup || "—"}
+                </Typography>
+                <Typography sx={{
+                  fontSize: { xs: 10, sm: 11 },
+                  color: "#64748b",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Blood Group
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={4}sx={{width:{xs:'180px',sm:'180px'}}}>
+              <Paper elevation={0} sx={{
+                borderRadius: "10px",
+                background: isActive ? alpha("#16a34a", 0.08) : alpha("#d97706", 0.08),
+                p: { xs: 2, sm: 2.5 },
+                height: "100%",
+                minHeight: { xs: 80, sm: 90 },
+                width: '100%',
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+                transition: "transform .2s, box-shadow .2s",
+                "&:hover": { transform: "translateY(-2px)", boxShadow: `0 6px 20px ${alpha(isActive ? "#16a34a" : "#d97706", 0.12)}` },
+              }}>
+                <Typography sx={{
+                  fontSize: { xs: 18, sm: 22 },
+                  fontWeight: 800,
+                  color: isActive ? "#16a34a" : "#d97706",
+                  lineHeight: 1.2,
+                  mb: 0.5
+                }}>
+                  {emp.status || "Active"}
+                </Typography>
+                <Typography sx={{
+                  fontSize: { xs: 10, sm: 11 },
+                  color: "#64748b",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px"
+                }}>
+                  Status
+                </Typography>
+              </Paper>
+            </Grid>
           </Grid>
 
           {/* Personal Information */}
@@ -510,6 +570,71 @@ function ProfilePage({ emp, cfg }) {
           </Box>
         </Box>
       </Container>
+
+      {/* Profile Picture Modal */}
+      <Modal
+        open={openPhotoModal}
+        onClose={handleClosePhotoModal}
+        aria-labelledby="profile-photo-modal"
+      >
+        <Box sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 'auto',
+          maxWidth: '90vw',
+          maxHeight: '90vh',
+          bgcolor: 'background.paper',
+          boxShadow: 24,
+          borderRadius: 3,
+          overflow: 'hidden',
+          outline: 'none',
+        }}>
+          <Box sx={{ position: 'relative' }}>
+            <IconButton
+              onClick={handleClosePhotoModal}
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                bgcolor: 'rgba(0,0,0,0.5)',
+                color: 'white',
+                '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' },
+                zIndex: 1,
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+            {emp.photoURL ? (
+              <img
+                src={emp.photoURL}
+                alt={emp.fullName}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  maxHeight: '90vh',
+                  objectFit: 'contain',
+                  display: 'block',
+                }}
+              />
+            ) : (
+              <Box sx={{
+                width: 400,
+                height: 400,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: cfg.primary,
+              }}>
+                <Typography sx={{ fontSize: 120, color: 'white', fontWeight: 'bold' }}>
+                  {(emp.fullName || "?")[0].toUpperCase()}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      </Modal>
     </Box>
   );
 }
