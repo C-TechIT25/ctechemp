@@ -4,7 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./layout/DashboardLayout";
 import EmployeeApp from "./Pages/CreateEmployee.jsx";
-import EmployeePublicProfile from "./Pages/EmployeePublicProfile"; // 👈 public page
+import Employeepublicprofile from './Pages/Employeepublicprofile.jsx' // 👈 public page
 
 // 🔹 Lazy loaded pages
 const Login            = lazy(() => import("./Pages/Login"));

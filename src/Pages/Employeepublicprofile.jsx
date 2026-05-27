@@ -35,7 +35,7 @@ async function downloadQR(emp, id) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-export default function EmployeePublicProfile() {
+export default function Employeepublicprofile() {
   const { id } = useParams();
   const [emp,    setEmp]    = useState(null);
   const [status, setStatus] = useState("loading"); // loading | found | notfound

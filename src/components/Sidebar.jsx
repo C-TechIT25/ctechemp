@@ -136,7 +136,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
       icon: <TimerIcon />,
     },
     {
-      label: "Create Employee",
+      label: "Employee Digital ID",
       path: "/admin/create-employee",
       icon: <PersonIcon />,
     }
