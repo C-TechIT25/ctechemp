@@ -14,9 +14,9 @@ import {
   TextField, Select, MenuItem, FormControl, InputLabel,
   Typography, Avatar, Chip, IconButton, InputAdornment,
   CircularProgress, LinearProgress, Paper, Grid,
-  Tooltip, Badge, Slide, Snackbar, Alert, Tab, Tabs,
+  Tooltip, Badge, Slide, Snackbar, Alert,
 } from "@mui/material";
-import { createTheme, alpha, ThemeProvider } from "@mui/material/styles";
+import { createTheme, ThemeProvider, alpha } from "@mui/material/styles";
 
 // MUI Icons
 import AddIcon            from "@mui/icons-material/Add";
@@ -47,7 +47,7 @@ import QrCodeScannerIcon  from "@mui/icons-material/QrCodeScanner";
 import ContentCopyIcon    from "@mui/icons-material/ContentCopy";
 import OpenInNewIcon      from "@mui/icons-material/OpenInNew";
 import LinkIcon           from "@mui/icons-material/Link";
-import QrCode2Icon        from "@mui/icons-material/QrCode2";
+import QrCodeIcon         from "@mui/icons-material/QrCode";
 
 // ── Theme ──────────────────────────────────────────────────────────────────────
 const theme = createTheme({
@@ -124,60 +124,26 @@ const BLANK = {
   joiningDate: "", location: "", workShift: "", status: "Active", notes: "",
 };
 
-// ── Barcode / QR helpers ───────────────────────────────────────────────────────
+// ── QR Code helpers ────────────────────────────────────────────────────────────
 function getProfileUrl(employeeId) {
   return `${window.location.origin}/#/employee/profile/${employeeId}`;
 }
 
-// Renders a CODE128 barcode with just the short employee ID (reliable)
-function renderBarcode(canvas, employeeId) {
-  if (!canvas || !employeeId) return false;
-  try {
-    JsBarcode(canvas, String(employeeId), {
-      format: "CODE128",
-      width: 2,
-      height: 70,
-      displayValue: true,
-      text: String(employeeId),
-      fontOptions: "bold",
-      font: "DM Sans, monospace",
-      textAlign: "center",
-      textPosition: "bottom",
-      textMargin: 8,
-      fontSize: 13,
-      background: "#ffffff",
-      lineColor: "#0F172A",
-      margin: 14,
-    });
-    return true;
-  } catch (error) {
-    console.error("Barcode error:", error);
-    return false;
-  }
+async function generateQRCode(employeeId) {
+  const url = getProfileUrl(employeeId);
+  const QRCodeModule = await import("qrcode");
+  return await QRCodeModule.default.toDataURL(url, {
+    width: 300,
+    margin: 2,
+    color: { dark: "#0052cc", light: "#ffffff" },
+  });
 }
 
-// Renders a QR code with the full profile URL (reliable for long URLs)
-async function renderQRCode(canvas, url) {
-  if (!canvas || !url) return false;
-  try {
-    await QRCode.toCanvas(canvas, url, {
-      width: 240,
-      margin: 2,
-      color: { dark: "#0F172A", light: "#ffffff" },
-      errorCorrectionLevel: "M",
-    });
-    return true;
-  } catch (error) {
-    console.error("QR Code error:", error);
-    return false;
-  }
-}
-
-function downloadCanvas(canvas, filename) {
-  if (!canvas) return;
+async function downloadQRCode(employeeId) {
+  const dataUrl = await generateQRCode(employeeId);
   const link = document.createElement("a");
-  link.download = filename;
-  link.href = canvas.toDataURL("image/png");
+  link.download = `QR_${employeeId}.png`;
+  link.href = dataUrl;
   link.click();
 }
 
@@ -193,7 +159,7 @@ export default function EmployeeApp() {
   const [employees, setEmployees] = useState([]);
   const [formDialog,   setFormDialog]   = useState({ open: false, employee: null });
   const [viewDialog,   setViewDialog]   = useState({ open: false, employee: null });
-  const [barcodeDialog,setBarcodeDialog]= useState({ open: false, employee: null });
+  const [qrDialog, setQrDialog] = useState({ open: false, employee: null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, employee: null });
   const [snack, setSnack] = useState({ open: false, message: "", severity: "success" });
 
@@ -216,7 +182,7 @@ export default function EmployeeApp() {
           onCreate={() => setFormDialog({ open: true, employee: null })}
           onEdit={(emp) => setFormDialog({ open: true, employee: emp })}
           onView={(emp) => setViewDialog({ open: true, employee: emp })}
-          onBarcode={(emp) => setBarcodeDialog({ open: true, employee: emp })}
+          onQR={(emp) => setQrDialog({ open: true, employee: emp })}
           onDelete={(emp) => setDeleteDialog({ open: true, employee: emp })}
         />
 
@@ -234,10 +200,10 @@ export default function EmployeeApp() {
           onEdit={(emp) => { setViewDialog({ open: false, employee: null }); setFormDialog({ open: true, employee: emp }); }}
         />
 
-        <BarcodeDialog
-          open={barcodeDialog.open}
-          employee={barcodeDialog.employee}
-          onClose={() => setBarcodeDialog({ open: false, employee: null })}
+        <QRCodeDialog
+          open={qrDialog.open}
+          employee={qrDialog.employee}
+          onClose={() => setQrDialog({ open: false, employee: null })}
           onSnack={showSnack}
         />
 
@@ -262,7 +228,7 @@ export default function EmployeeApp() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TABLE
 // ══════════════════════════════════════════════════════════════════════════════
-function EmployeeTable({ employees, onCreate, onEdit, onView, onBarcode, onDelete }) {
+function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) {
   const [search, setSearch] = useState("");
 
   const filtered = employees.filter((e) =>
@@ -424,10 +390,10 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onBarcode, onDelet
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="QR Code / Barcode" arrow>
-                        <IconButton size="small" onClick={() => onBarcode(emp)}
+                      <Tooltip title="QR Code" arrow>
+                        <IconButton size="small" onClick={() => onQR(emp)}
                           sx={{ background: alpha("#8b5cf6", 0.08), color: "#7C3AED", borderRadius: "8px", "&:hover": { background: alpha("#8b5cf6", 0.16) } }}>
-                          <QrCodeScannerIcon fontSize="small" />
+                          <QrCodeIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Delete" arrow>
@@ -776,7 +742,7 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             </Box>
             <Box sx={{ flex: 1 }}>
               <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: "#166534" }}>Identity Verified</Typography>
-              <Typography sx={{ fontSize: 11.5, color: "#4ade80" }}>Authenticated via C-Tech Barcode</Typography>
+              <Typography sx={{ fontSize: 11.5, color: "#4ade80", mt: 0.2 }}>Authenticated via C-Tech QR Code</Typography>
             </Box>
             <Chip label="Live" size="small" sx={{ background: "#DCFCE7", color: "#166534", fontWeight: 700, fontSize: 11 }} />
           </Paper>
@@ -852,62 +818,50 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// BARCODE DIALOG
-// — Tab 1: QR Code encodes the full profile URL → reliable redirect when scanned
-// — Tab 2: CODE128 barcode encodes the short employeeId → reliable rendering
+// QR CODE DIALOG - This will redirect when scanned
 // ══════════════════════════════════════════════════════════════════════════════
-function BarcodeDialog({ open, employee, onClose, onSnack }) {
-  const barcodeCanvasRef = useRef(null);
-  const qrCanvasRef      = useRef(null);
-  const [tab, setTab]             = useState(0); // 0 = QR, 1 = Barcode
-  const [qrReady, setQrReady]     = useState(false);
-  const [barReady, setBarReady]   = useState(false);
-  const [qrError, setQrError]     = useState(false);
-  const [barError, setBarError]   = useState(false);
+function QRCodeDialog({ open, employee, onClose, onSnack }) {
+  const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [profileUrl, setProfileUrl] = useState("");
 
-  // Reset and render on open
   useEffect(() => {
-    setQrReady(false);
-    setBarReady(false);
-    setQrError(false);
-    setBarError(false);
-    setTab(0);
-
     if (!open || !employee?.employeeId) return;
-
+    
+    // Set the profile URL using employeeId
     const url = getProfileUrl(employee.employeeId);
     setProfileUrl(url);
-
-    // QR renders on canvas — slight delay to let DOM mount
-    const t1 = setTimeout(async () => {
-      if (qrCanvasRef.current) {
-        const ok = await renderQRCode(qrCanvasRef.current, url);
-        if (ok) setQrReady(true); else setQrError(true);
+    
+    // Generate QR Code with the URL
+    const generateQR = async () => {
+      try {
+        const QRCodeModule = await import("qrcode");
+        const dataUrl = await QRCodeModule.default.toDataURL(url, {
+          width: 300,
+          margin: 2,
+          color: { dark: "#0052cc", light: "#ffffff" },
+        });
+        setQrCodeUrl(dataUrl);
+      } catch (error) {
+        console.error("QR generation error:", error);
       }
-    }, 80);
-
-    // Barcode renders on separate canvas
-    const t2 = setTimeout(() => {
-      if (barcodeCanvasRef.current) {
-        const ok = renderBarcode(barcodeCanvasRef.current, employee.employeeId);
-        if (ok) setBarReady(true); else setBarError(true);
-      }
-    }, 80);
-
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    };
+    generateQR();
   }, [open, employee]);
 
+  // Function to copy URL to clipboard
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(profileUrl);
-      onSnack?.("Profile link copied to clipboard!", "success");
-    } catch {
-      onSnack?.("Failed to copy link", "error");
+      if (onSnack) onSnack("Profile link copied to clipboard!", "success");
+    } catch (err) {
+      if (onSnack) onSnack("Failed to copy link", "error");
     }
   };
 
-  const openProfile = () => window.open(profileUrl, "_blank");
+  // Function to open profile in new tab
+  const openProfile = () => {
+    window.open(profileUrl, "_blank");
+  };
 
   if (!employee) return null;
 
@@ -915,20 +869,14 @@ function BarcodeDialog({ open, employee, onClose, onSnack }) {
     <Dialog open={open} onClose={onClose} TransitionComponent={SlideUp} maxWidth="sm" fullWidth>
 
       {/* Header */}
-      <Box sx={{
-        background: "linear-gradient(135deg,#7C3AED 0%,#5B21B6 100%)",
-        px: 3, py: 2.5,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
+      <Box sx={{ background: "linear-gradient(135deg,#7C3AED 0%,#5B21B6 100%)", px: 3, py: 2.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
           <Box sx={{ width: 36, height: 36, borderRadius: "9px", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <QrCodeScannerIcon sx={{ color: "#fff", fontSize: 20 }} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>ID Codes</Typography>
-            <Typography sx={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>
-              {employee.fullName} · {employee.employeeId}
-            </Typography>
+            <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>Employee QR Code</Typography>
+            <Typography sx={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>{employee.fullName} · {employee.employeeId}</Typography>
           </Box>
         </Box>
         <IconButton onClick={onClose} sx={{ color: "rgba(255,255,255,0.7)", "&:hover": { background: "rgba(255,255,255,0.1)" } }}>
@@ -936,176 +884,114 @@ function BarcodeDialog({ open, employee, onClose, onSnack }) {
         </IconButton>
       </Box>
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: "1px solid #E2E8F0", background: "#fff" }}>
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{
-            px: 2,
-            "& .MuiTab-root": { textTransform: "none", fontWeight: 600, fontSize: 13, minHeight: 46 },
-            "& .Mui-selected": { color: "#7C3AED" },
-            "& .MuiTabs-indicator": { backgroundColor: "#7C3AED", height: 3, borderRadius: "3px 3px 0 0" },
-          }}
-        >
-          <Tab icon={<QrCode2Icon sx={{ fontSize: 18 }} />} iconPosition="start" label="QR Code (scan to open)" />
-          <Tab icon={<QrCodeScannerIcon sx={{ fontSize: 18 }} />} iconPosition="start" label="Barcode (Employee ID)" />
-        </Tabs>
-      </Box>
-
-      <DialogContent sx={{ py: 3, px: 3, background: "#F8FAFC" }}>
-
-        {/* ── TAB 0: QR Code ── */}
-        {tab === 0 && (
-          <Box>
-            {/* Info banner */}
-            <Paper elevation={0} sx={{ p: 1.75, mb: 2.5, borderRadius: 2.5, border: "1px solid #86EFAC", background: "#F0FDF4", display: "flex", alignItems: "center", gap: 1.5 }}>
-              <QrCode2Icon sx={{ color: "#16a34a", fontSize: 22, flexShrink: 0 }} />
-              <Box>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>
-                  Scan to open employee profile
-                </Typography>
-                <Typography sx={{ fontSize: 11.5, color: "#15803d" }}>
-                  QR code encodes the full redirect URL — works with any phone camera
-                </Typography>
-              </Box>
-            </Paper>
-
-            {/* QR Canvas */}
-            <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: "1px solid #E2E8F0", background: "#fff", textAlign: "center" }}>
-              <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 260, position: "relative" }}>
-                {qrError ? (
-                  <Box sx={{ textAlign: "center" }}>
-                    <Typography sx={{ color: "#dc2626", fontWeight: 600, mb: 0.5 }}>QR generation failed</Typography>
-                    <Typography sx={{ color: "#94a3b8", fontSize: 12 }}>Please ensure the <code>qrcode</code> package is installed.</Typography>
-                  </Box>
-                ) : (
-                  <>
-                    {!qrReady && (
-                      <CircularProgress size={36} sx={{ color: "#7C3AED", position: "absolute" }} />
-                    )}
-                    <canvas
-                      ref={qrCanvasRef}
-                      style={{
-                        maxWidth: "100%",
-                        borderRadius: 8,
-                        opacity: qrReady ? 1 : 0,
-                        transition: "opacity 0.3s ease",
-                        border: "1px solid #E2E8F0",
-                      }}
-                    />
-                  </>
-                )}
-              </Box>
-              <Typography sx={{ fontSize: 12, color: "#64748b", mt: 2 }}>
-                Point any phone camera at this code — it will open directly in the browser
-              </Typography>
-            </Paper>
-
-            {/* URL pill */}
-            <Paper
-              elevation={0}
-              onClick={openProfile}
-              sx={{
-                mt: 2, p: "10px 14px", borderRadius: 2.5,
-                border: "1px solid #DDD6FE", background: "#F5F3FF",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 1,
-                transition: "all .15s",
-                "&:hover": { background: "#EDE9FE", transform: "translateY(-1px)" },
-              }}
-            >
-              <LinkIcon sx={{ color: "#7C3AED", fontSize: 16, flexShrink: 0 }} />
-              <Typography sx={{ fontSize: 11, fontFamily: "monospace", color: "#5B21B6", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {profileUrl}
-              </Typography>
-              <OpenInNewIcon sx={{ color: "#7C3AED", fontSize: 15, flexShrink: 0 }} />
-            </Paper>
+      <DialogContent sx={{ textAlign: "center", py: 3, px: 3, background: "#F8FAFC" }}>
+        
+        {/* QR Code Section - This will redirect when scanned */}
+        <Paper elevation={0} sx={{ p: 2.5, mb: 2.5, borderRadius: 3, border: "1px solid #E2E8F0", background: "#fff" }}>
+          <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#475569", mb: 1.5 }}>
+            📱 Scan this QR Code to Open Employee Profile
+          </Typography>
+          <Box sx={{
+            background: "#fff", 
+            border: "2px solid #EDE9FE", 
+            borderRadius: 2,
+            p: 2, 
+            display: "flex", 
+            justifyContent: "center",
+            alignItems: "center",
+          }}>
+            {qrCodeUrl ? (
+              <img 
+                src={qrCodeUrl} 
+                alt="Employee QR Code" 
+                style={{ width: 220, height: 220, display: "block" }}
+              />
+            ) : (
+              <CircularProgress size={50} sx={{ color: "#7C3AED" }} />
+            )}
           </Box>
-        )}
+          <Typography sx={{ fontSize: 12, color: "#64748b", mt: 2 }}>
+            Scan with your phone camera to instantly open the employee profile
+          </Typography>
+        </Paper>
 
-        {/* ── TAB 1: Barcode ── */}
-        {tab === 1 && (
-          <Box>
-            {/* Info banner */}
-            <Paper elevation={0} sx={{ p: 1.75, mb: 2.5, borderRadius: 2.5, border: "1px solid #BFDBFE", background: "#EFF6FF", display: "flex", alignItems: "center", gap: 1.5 }}>
-              <QrCodeScannerIcon sx={{ color: "#1565C0", fontSize: 22, flexShrink: 0 }} />
-              <Box>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#1D4ED8" }}>
-                  Employee ID barcode
-                </Typography>
-                <Typography sx={{ fontSize: 11.5, color: "#3B82F6" }}>
-                  CODE128 format · contains the short Employee ID only
-                </Typography>
-              </Box>
-            </Paper>
-
-            {/* Barcode Canvas */}
-            <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: "1px solid #E2E8F0", background: "#fff", textAlign: "center" }}>
-              <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 130, position: "relative" }}>
-                {barError ? (
-                  <Typography sx={{ color: "#dc2626", fontWeight: 600 }}>Barcode generation failed</Typography>
-                ) : (
-                  <>
-                    {!barReady && (
-                      <CircularProgress size={30} sx={{ color: "#1565C0", position: "absolute" }} />
-                    )}
-                    <canvas
-                      ref={barcodeCanvasRef}
-                      style={{
-                        maxWidth: "100%",
-                        opacity: barReady ? 1 : 0,
-                        transition: "opacity 0.3s ease",
-                      }}
-                    />
-                  </>
-                )}
-              </Box>
-              <Typography sx={{ fontSize: 12, color: "#64748b", mt: 1.5 }}>
-                Scan this with a barcode reader to retrieve the Employee ID
-              </Typography>
-            </Paper>
-
-            {/* Employee info card */}
-            <Paper elevation={0} sx={{ mt: 2, p: 2, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                <Avatar src={employee.photoURL}
-                  sx={{ width: 42, height: 42, border: "2px solid #E2E8F0", background: "#DBEAFE", color: "#1565C0", fontWeight: 700 }}>
-                  {!employee.photoURL && (employee.fullName || "?")[0]}
-                </Avatar>
-                <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: 14, color: "#0F172A" }}>{employee.fullName}</Typography>
-                  <Typography sx={{ fontSize: 12, color: "#64748b" }}>{employee.designation} · {employee.department}</Typography>
-                </Box>
-                <Chip label={employee.employeeId} size="small" sx={{ ml: "auto", fontFamily: "monospace", background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700, border: "1px solid #BFDBFE" }} />
-              </Box>
-            </Paper>
+        {/* URL Information */}
+        <Paper elevation={0} sx={{ 
+          p: 2, 
+          mb: 2.5, 
+          borderRadius: 3, 
+          border: "1px solid #86EFAC", 
+          background: "#F0FDF4",
+          cursor: "pointer",
+          "&:hover": { background: "#DCFCE7", transform: "translateY(-2px)" },
+          transition: "all 0.2s ease"
+        }} onClick={openProfile}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, mb: 1 }}>
+            <LinkIcon sx={{ color: "#16a34a", fontSize: 18 }} />
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>
+              Redirect URL (Click to Open)
+            </Typography>
           </Box>
-        )}
+          <Typography sx={{ 
+            fontSize: 11, 
+            fontFamily: "monospace", 
+            color: "#166534", 
+            wordBreak: "break-all",
+            background: "#fff",
+            p: 1.5,
+            borderRadius: 1,
+            mb: 1
+          }}>
+            {profileUrl}
+          </Typography>
+          <Typography sx={{ fontSize: 10, color: "#4ade80" }}>
+            The QR code above contains this URL. Scanning it will open the employee profile.
+          </Typography>
+        </Paper>
+
+        {/* Employee Info */}
+        <Paper elevation={0} sx={{ background: "#F5F3FF", borderRadius: 2, p: 1.5 }}>
+          <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#5B21B6" }}>{employee.fullName}</Typography>
+          <Typography sx={{ fontSize: 12, color: "#7C3AED", mt: 0.3 }}>{employee.designation} · {employee.department}</Typography>
+          <Typography sx={{ fontSize: 11, color: "#94a3b8", mt: 0.5 }}>
+            Employee ID: {employee.employeeId}
+          </Typography>
+        </Paper>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2, gap: 1, background: "#fff", borderTop: "1px solid #F1F5F9", flexWrap: "wrap" }}>
+      <DialogActions sx={{ px: 3, py: 2.5, gap: 1.5, background: "#fff", borderTop: "1px solid #F1F5F9", flexWrap: "wrap" }}>
         <Button variant="outlined" onClick={onClose} sx={{ borderColor: "#E2E8F0", color: "#475569" }}>
           Close
         </Button>
-        <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={copyToClipboard}
-          sx={{ borderColor: "#7C3AED", color: "#7C3AED" }}>
+        <Button 
+          variant="outlined" 
+          startIcon={<ContentCopyIcon />}
+          onClick={copyToClipboard}
+          sx={{ borderColor: "#7C3AED", color: "#7C3AED" }}
+        >
           Copy Link
         </Button>
-        <Button variant="outlined" startIcon={<OpenInNewIcon />} onClick={openProfile}
-          sx={{ borderColor: "#1565C0", color: "#1565C0" }}>
+        <Button 
+          variant="contained" 
+          startIcon={<OpenInNewIcon />}
+          onClick={openProfile}
+          sx={{
+            background: "linear-gradient(135deg,#7C3AED,#5B21B6)",
+            "&:hover": { background: "linear-gradient(135deg,#6D28D9,#4C1D95)" },
+          }}
+        >
           Open Profile
         </Button>
-        <Button
-          variant="contained"
+        <Button 
+          variant="contained" 
           startIcon={<DownloadIcon />}
-          disabled={tab === 0 ? !qrReady : !barReady}
-          onClick={() => {
-            if (tab === 0) downloadCanvas(qrCanvasRef.current, `QR_${employee.employeeId}.png`);
-            else downloadCanvas(barcodeCanvasRef.current, `Barcode_${employee.employeeId}.png`);
+          onClick={() => downloadQRCode(employee.employeeId)}
+          sx={{
+            background: "linear-gradient(135deg,#059669,#047857)",
+            "&:hover": { background: "linear-gradient(135deg,#047857,#065F46)" },
           }}
-          sx={{ background: "linear-gradient(135deg,#059669,#047857)", "&:hover": { background: "linear-gradient(135deg,#047857,#065F46)" } }}
         >
-          Download {tab === 0 ? "QR Code" : "Barcode"}
+          Download QR
         </Button>
       </DialogActions>
     </Dialog>
@@ -1149,7 +1035,7 @@ function DeleteDialog({ open, employee, onClose, onSuccess }) {
           sx={{ borderColor: "#E2E8F0", color: "#475569" }}>Cancel</Button>
         <Button variant="contained" fullWidth onClick={handleDelete} disabled={deleting} color="error"
           startIcon={deleting ? <CircularProgress size={16} color="inherit" /> : <DeleteIcon />}
-          sx={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)" }}>
+          sx={{ background: "linear-gradient(135deg,#dc2626,#b91c1c)", boxShadow: "0 4px 14px rgba(220,38,38,0.3)" }}>
           {deleting ? "Deleting…" : "Yes, Delete"}
         </Button>
       </DialogActions>
