@@ -276,26 +276,7 @@ function ProfilePage({ emp, cfg }) {
         ))}
 
         {/* Corner logo badge */}
-        <Box sx={{
-          position:"absolute", top:16, right:16,
-          background:"rgba(255,255,255,.1)",
-          backdropFilter:"blur(12px)",
-          borderRadius:"12px",
-          border:"1px solid rgba(255,255,255,.18)",
-          px:1.5, py:.75,
-          display:"flex", alignItems:"center", gap:.75,
-        }}>
-          <Box sx={{
-            width:20, height:20, borderRadius:"50%",
-            background: `linear-gradient(135deg, ${cfg.accent}, ${cfg.primary})`,
-            display:"flex", alignItems:"center", justifyContent:"center",
-          }}>
-            <EngineeringIcon sx={{ fontSize:12, color:"#fff" }} />
-          </Box>
-          <Typography sx={{ fontSize:10.5, fontWeight:700, color:"rgba(255,255,255,.85)", fontFamily:"'Poppins',sans-serif", letterSpacing:".5px" }}>
-            {cfg.companyLabel}
-          </Typography>
-        </Box>
+     
 
         {/* Avatar + identity */}
         <Container maxWidth="sm" disableGutters>
