@@ -655,15 +655,15 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
     setError(""); setImageFile(file); setImagePreview(URL.createObjectURL(file));
   };
 
-  const validate = () => {
-    const req = [
-      ["employeeId","Employee ID"],["fullName","Full Name"],["designation","Designation"],
-      ["department","Department"],["contactNumber","Contact Number"],["email","Email"],["joiningDate","Joining Date"],
-    ];
-    // for (const [k, l] of req) if (!form[k]?.trim()) return `"${l}" is required.`;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Enter a valid email.";
-    return null;
-  };
+const validate = () => {
+  const req = [
+    ["employeeId","Employee ID"],["fullName","Full Name"],["designation","Designation"],
+    ["department","Department"],["contactNumber","Contact Number"],["joiningDate","Joining Date"],
+  ];
+  for (const [k, l] of req) if (!form[k]?.trim()) return `"${l}" is required.`;
+  if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Enter a valid email.";
+  return null;
+};
 
   const handleSubmit = async () => {
     setError("");
