@@ -36,7 +36,7 @@ import preconLogo from "../assets/precon-logo.jpg";
 
 // ── Injected global styles ────────────────────────────────────────────────────
 const GLOBAL_STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -126,7 +126,7 @@ function buildTheme(cfg) {
       background: { default: "#F4F6FB", paper: "#ffffff" },
       text:       { primary: "#0A0F1E", secondary: "#64748B" },
     },
-    typography: { fontFamily: "'DM Sans', sans-serif" },
+    typography: { fontFamily: "'Poppins', sans-serif" },
     shape: { borderRadius: 14 },
     components: {
       MuiPaper:  { styleOverrides: { root: { backgroundImage: "none" } } },
@@ -292,7 +292,7 @@ function ProfilePage({ emp, cfg }) {
           }}>
             <EngineeringIcon sx={{ fontSize:12, color:"#fff" }} />
           </Box>
-          <Typography sx={{ fontSize:10.5, fontWeight:700, color:"rgba(255,255,255,.85)", fontFamily:"'Syne',sans-serif", letterSpacing:".5px" }}>
+          <Typography sx={{ fontSize:10.5, fontWeight:700, color:"rgba(255,255,255,.85)", fontFamily:"'Poppins',sans-serif", letterSpacing:".5px" }}>
             {cfg.companyLabel}
           </Typography>
         </Box>
@@ -350,7 +350,7 @@ function ProfilePage({ emp, cfg }) {
 
             {/* Name */}
             <Typography sx={{
-              fontFamily:"'Syne',sans-serif",
+              fontFamily:"'Poppins',sans-serif",
               fontSize:{ xs:24, sm:28 },
               fontWeight:800,
               color:"#fff",
@@ -395,7 +395,7 @@ function ProfilePage({ emp, cfg }) {
                     border:"1px solid rgba(255,255,255,.22)",
                     color:"rgba(255,255,255,.88)",
                     fontWeight:700, fontSize:11,
-                    fontFamily:"monospace",
+                    fontFamily:"'Poppins',monospace",
                     backdropFilter:"blur(8px)",
                   }}
                 />
@@ -434,7 +434,6 @@ function ProfilePage({ emp, cfg }) {
             mb:2,
             boxShadow:"0 8px 40px rgba(0,0,0,.08), 0 1px 0 rgba(255,255,255,.9)",
           }} className="profile-card">
-
             {/* Verified strip */}
             <Box sx={{
               px:2.5, py:1.5,
@@ -452,7 +451,7 @@ function ProfilePage({ emp, cfg }) {
                 <ShieldIcon sx={{ fontSize:18, color:"#fff" }} />
               </Box>
               <Box sx={{ flex:1 }}>
-                <Typography sx={{ fontSize:13, fontWeight:800, color:cfg.verifiedText, fontFamily:"'Syne',sans-serif" }}>
+                <Typography sx={{ fontSize:13, fontWeight:800, color:cfg.verifiedText, fontFamily:"'Poppins',sans-serif" }}>
                   Identity Verified
                 </Typography>
                 <Typography sx={{ fontSize:11, color:cfg.verifiedSub, mt:.15 }}>
@@ -487,7 +486,7 @@ function ProfilePage({ emp, cfg }) {
                   "&:hover":{ background: alpha(s.color,.1) },
                   cursor:"default",
                 }}>
-                  <Typography sx={{ fontSize:{ xs:17, sm:20 }, fontWeight:800, color:s.color, fontFamily:"'Syne',sans-serif", lineHeight:1.1 }}>
+                  <Typography sx={{ fontSize:{ xs:17, sm:20 }, fontWeight:800, color:s.color, fontFamily:"'Poppins',sans-serif", lineHeight:1.1 }}>
                     {s.val}
                   </Typography>
                   <Typography sx={{ fontSize:9.5, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"1px", mt:.5 }}>
@@ -555,18 +554,7 @@ function ProfilePage({ emp, cfg }) {
             background:"#fff",
             display:"flex", flexDirection:"column", alignItems:"center", gap:.5,
           }}>
-            <Box sx={{ display:"flex", alignItems:"center", gap:.75, mb:.25 }}>
-              <Box sx={{
-                width:20, height:20, borderRadius:"50%",
-                background:`linear-gradient(135deg,${cfg.primary},${cfg.primaryDark})`,
-                display:"flex", alignItems:"center", justifyContent:"center",
-              }}>
-                <StarIcon sx={{ fontSize:11, color:"#fff" }} />
-              </Box>
-              <Typography sx={{ fontSize:12, fontWeight:700, color:cfg.primary, fontFamily:"'Syne',sans-serif" }}>
-                {cfg.companyLabel}
-              </Typography>
-            </Box>
+           
             <Typography sx={{ fontSize:11, color:"#94a3b8", fontWeight:500 }}>
               © {new Date().getFullYear()} {cfg.companyLabel}. All rights reserved.
             </Typography>
@@ -607,7 +595,7 @@ function ProfilePage({ emp, cfg }) {
               display:"flex", alignItems:"center", justifyContent:"center",
               background:`linear-gradient(135deg,${cfg.heroStart},${cfg.heroEnd})`,
             }}>
-              <Typography sx={{ fontSize:130, color:"rgba(255,255,255,.9)", fontWeight:800, fontFamily:"'Syne',sans-serif" }}>
+              <Typography sx={{ fontSize:130, color:"rgba(255,255,255,.9)", fontWeight:800, fontFamily:"'Poppins',sans-serif" }}>
                 {(emp.fullName||"?")[0].toUpperCase()}
               </Typography>
             </Box>
@@ -652,7 +640,7 @@ function SectionCard({ title, icon, cfg, children, emergency, className }) {
           color: emergency ? "#991B1B" : cfg.primaryDeep,
           textTransform:"uppercase",
           letterSpacing:"1.5px",
-          fontFamily:"'Syne',sans-serif",
+          fontFamily:"'Poppins',sans-serif",
         }}>
           {title}
         </Typography>
@@ -690,7 +678,7 @@ function InfoRow({ icon, label, value, cfg, emergency }) {
         <Typography sx={{ fontSize:9.5, fontWeight:800, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"1px", lineHeight:1, mb:.45 }}>
           {label}
         </Typography>
-        <Typography sx={{ fontSize:13.5, color:"#0A0F1E", fontWeight:500, lineHeight:1.3, fontFamily:"'DM Sans',sans-serif" }}>
+        <Typography sx={{ fontSize:13.5, color:"#0A0F1E", fontWeight:500, lineHeight:1.3, fontFamily:"'Poppins',sans-serif" }}>
           {value}
         </Typography>
       </Box>
@@ -768,7 +756,7 @@ function LoaderScreen() {
       </Box>
       <CircularProgress size={28} thickness={4} sx={{ color:"#1A56DB" }} />
       <Box sx={{ textAlign:"center" }}>
-        <Typography sx={{ fontSize:17, fontWeight:800, color:"#0A0F1E", mb:.5, fontFamily:"'Syne',sans-serif" }}>
+        <Typography sx={{ fontSize:17, fontWeight:800, color:"#0A0F1E", mb:.5, fontFamily:"'Poppins',sans-serif" }}>
           Loading Profile
         </Typography>
         <Typography sx={{ fontSize:13, color:"#94a3b8" }}>Please wait a moment…</Typography>
@@ -794,12 +782,12 @@ function NotFoundScreen({ employeeId }) {
       }}>
         <SearchOffIcon sx={{ fontSize:40, color:"#E63946" }} />
       </Box>
-      <Typography sx={{ fontSize:22, fontWeight:800, color:"#0A0F1E", mb:1, fontFamily:"'Syne',sans-serif" }}>
+      <Typography sx={{ fontSize:22, fontWeight:800, color:"#0A0F1E", mb:1, fontFamily:"'Poppins',sans-serif" }}>
         Employee Not Found
       </Typography>
       <Typography sx={{ fontSize:13.5, color:"#64748b", lineHeight:1.8, maxWidth:320 }}>
         No record exists for ID{" "}
-        <Box component="span" sx={{ fontWeight:700, color:"#0A0F1E", fontFamily:"monospace", background:"#F1F5F9", px:.85, py:.3, borderRadius:1 }}>
+        <Box component="span" sx={{ fontWeight:700, color:"#0A0F1E", fontFamily:"'Poppins',monospace", background:"#F1F5F9", px:.85, py:.3, borderRadius:1 }}>
           {employeeId}
         </Box>.{" "}Verify the QR code or contact HR.
       </Typography>
