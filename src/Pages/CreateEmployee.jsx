@@ -950,7 +950,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
             <Grid container spacing={{ xs: 1.5, md: 2.5 }}>
               {[
                 { label: "Mobile Number", name: "contactNumber", placeholder: "+91 98400 55123", required: true },
-                { label: "Work Email", name: "email", placeholder: "name@ctech-engg.in", required: true },
+                { label: "Work Email", name: "email", placeholder: "name@ctech-engg.in" },
                 { label: "Work Location", name: "location", placeholder: "Chennai, Tamil Nadu" },
               ].map((f) => (
                 <Grid item xs={12} sm={6} md={4} key={f.name}>
