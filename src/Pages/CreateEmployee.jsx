@@ -660,7 +660,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
       ["employeeId","Employee ID"],["fullName","Full Name"],["designation","Designation"],
       ["department","Department"],["contactNumber","Contact Number"],["email","Email"],["joiningDate","Joining Date"],
     ];
-    for (const [k, l] of req) if (!form[k]?.trim()) return `"${l}" is required.`;
+    // for (const [k, l] of req) if (!form[k]?.trim()) return `"${l}" is required.`;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Enter a valid email.";
     return null;
   };
