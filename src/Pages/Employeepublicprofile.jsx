@@ -30,6 +30,9 @@ import ZoomInIcon        from "@mui/icons-material/ZoomIn";
 import CloseIcon         from "@mui/icons-material/Close";
 import StarIcon          from "@mui/icons-material/Star";
 import ShieldIcon        from "@mui/icons-material/Shield";
+import NumbersIcon       from "@mui/icons-material/Numbers";
+import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
+import GroupIcon         from "@mui/icons-material/Group";
 
 import ctechLogo  from "../assets/ctech-logo.png";
 import preconLogo from "../assets/precon-logo.jpg";
@@ -59,6 +62,7 @@ const GLOBAL_STYLES = `
   .info-section:nth-child(2){ animation-delay:.22s }
   .info-section:nth-child(3){ animation-delay:.29s }
   .info-section:nth-child(4){ animation-delay:.36s }
+  .info-section:nth-child(5){ animation-delay:.43s }
 
   .info-row-hover { transition: background .18s, padding-left .18s; }
   .info-row-hover:hover { background: rgba(0,0,0,.025); padding-left: 6px; border-radius: 8px; }
@@ -236,6 +240,9 @@ function ProfilePage({ emp, cfg }) {
   const isActive       = emp.status === "Active";
   const [openPhoto, setOpenPhoto] = useState(false);
 
+  // Check if any benefits/insurance info exists
+  const hasBenefits = emp.esiNumber || emp.pfNumber || emp.insuranceNumber || emp.groupInsuranceNumber;
+
   return (
     <Box>
       <style>{`
@@ -274,9 +281,6 @@ function ProfilePage({ emp, cfg }) {
             pointerEvents:"none",
           }} />
         ))}
-
-        {/* Corner logo badge */}
-     
 
         {/* Avatar + identity */}
         <Container maxWidth="sm" disableGutters>
@@ -527,6 +531,35 @@ function ProfilePage({ emp, cfg }) {
             </SectionCard>
           )}
 
+          {/* ── NEW SECTION: Benefits & Insurance ── */}
+          {hasBenefits && (
+            <SectionCard title="Benefits & Insurance" icon={<ShieldIcon />} cfg={cfg} className="info-section" benefits>
+              {emp.esiNumber && (
+                <InfoRow icon={<NumbersIcon />} label="ESI Number" value={emp.esiNumber} cfg={cfg} benefits />
+              )}
+              {emp.pfNumber && (
+                <InfoRow icon={<NumbersIcon />} label="PF Number" value={emp.pfNumber} cfg={cfg} benefits />
+              )}
+              {emp.insuranceNumber && (
+                <InfoRow icon={<HealthAndSafetyIcon />} label="Insurance Number" value={emp.insuranceNumber} cfg={cfg} benefits />
+              )}
+              {emp.groupInsuranceNumber && (
+                <InfoRow icon={<GroupIcon />} label="Group Insurance Number" value={emp.groupInsuranceNumber} cfg={cfg} benefits />
+              )}
+            </SectionCard>
+          )}
+
+          {/* ── Notes Section ── */}
+          {emp.notes && (
+            <SectionCard title="Additional Notes" icon={<NoteAltIcon />} cfg={cfg} className="info-section">
+              <Box sx={{ py: 1.5 }}>
+                <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.7, fontFamily: "'Poppins', sans-serif" }}>
+                  {emp.notes}
+                </Typography>
+              </Box>
+            </SectionCard>
+          )}
+
           {/* ── Footer ── */}
           <Box sx={{
             mt:1, py:2.5, px:2,
@@ -535,7 +568,6 @@ function ProfilePage({ emp, cfg }) {
             background:"#fff",
             display:"flex", flexDirection:"column", alignItems:"center", gap:.5,
           }}>
-           
             <Typography sx={{ fontSize:11, color:"#94a3b8", fontWeight:500 }}>
               © {new Date().getFullYear()} {cfg.companyLabel}. All rights reserved.
             </Typography>
@@ -588,13 +620,25 @@ function ProfilePage({ emp, cfg }) {
 }
 
 // ── Section Card ──────────────────────────────────────────────────────────────
-function SectionCard({ title, icon, cfg, children, emergency, className }) {
-  const accent = emergency ? "#E63946" : cfg.primary;
+function SectionCard({ title, icon, cfg, children, emergency, benefits, className }) {
+  let accent = cfg.primary;
+  let bgColor = "";
+  
+  if (emergency) {
+    accent = "#E63946";
+    bgColor = "#FFF8F8";
+  } else if (benefits) {
+    accent = "#0891B2";
+    bgColor = "#F0FDFA";
+  } else {
+    bgColor = "#fff";
+  }
+  
   return (
     <Paper elevation={0} className={className} sx={{
       borderRadius:"18px",
-      border:`1px solid ${emergency ? "#FECACA" : "#E9EEF5"}`,
-      background: emergency ? "#FFF8F8" : "#fff",
+      border:`1px solid ${emergency ? "#FECACA" : (benefits ? "#A5F3FC" : "#E9EEF5")}`,
+      background: bgColor,
       overflow:"hidden",
       mb:2,
       boxShadow:"0 2px 16px rgba(0,0,0,.04)",
@@ -604,13 +648,17 @@ function SectionCard({ title, icon, cfg, children, emergency, className }) {
         px:2.25, py:1.4,
         background: emergency
           ? "linear-gradient(135deg,#FFF0F0,#FFF5F5)"
+          : benefits
+          ? "linear-gradient(135deg,#ECFEFF,#F0FDFA)"
           : `linear-gradient(135deg,${alpha(cfg.primary,.06)},${alpha(cfg.primary,.02)})`,
-        borderBottom:`1px solid ${emergency ? "#FEE2E2" : "#F1F5F9"}`,
+        borderBottom:`1px solid ${emergency ? "#FEE2E2" : (benefits ? "#CFFAFE" : "#F1F5F9")}`,
         display:"flex", alignItems:"center", gap:1.25,
       }}>
         <Box sx={{
           width:32, height:32, borderRadius:"9px",
-          background:`linear-gradient(135deg,${accent},${emergency ? "#C62831" : cfg.primaryDark})`,
+          background: benefits 
+            ? "linear-gradient(135deg,#0891B2,#06B6D4)"
+            : `linear-gradient(135deg,${accent},${emergency ? "#C62831" : cfg.primaryDark})`,
           display:"flex", alignItems:"center", justifyContent:"center",
           boxShadow:`0 3px 10px ${alpha(accent,.3)}`,
         }}>
@@ -618,7 +666,7 @@ function SectionCard({ title, icon, cfg, children, emergency, className }) {
         </Box>
         <Typography sx={{
           fontSize:11, fontWeight:800,
-          color: emergency ? "#991B1B" : cfg.primaryDeep,
+          color: emergency ? "#991B1B" : (benefits ? "#0F766E" : cfg.primaryDeep),
           textTransform:"uppercase",
           letterSpacing:"1.5px",
           fontFamily:"'Poppins',sans-serif",
@@ -636,15 +684,27 @@ function SectionCard({ title, icon, cfg, children, emergency, className }) {
 }
 
 // ── Info Row ──────────────────────────────────────────────────────────────────
-function InfoRow({ icon, label, value, cfg, emergency }) {
+function InfoRow({ icon, label, value, cfg, emergency, benefits }) {
   if (!value) return null;
-  const iconBg    = emergency ? "#FFF0F0" : (cfg?.infoIconBg    || "#EFF6FF");
-  const iconColor = emergency ? "#E63946" : (cfg?.infoIconColor || "#1A56DB");
+  
+  let iconBg, iconColor;
+  
+  if (emergency) {
+    iconBg = "#FFF0F0";
+    iconColor = "#E63946";
+  } else if (benefits) {
+    iconBg = "#ECFEFF";
+    iconColor = "#0891B2";
+  } else {
+    iconBg = cfg?.infoIconBg || "#EFF6FF";
+    iconColor = cfg?.infoIconColor || "#1A56DB";
+  }
+  
   return (
     <Box className="info-row-hover" sx={{
       display:"flex", alignItems:"center", gap:1.5,
       py:1.4,
-      borderBottom:`1px solid ${emergency ? "#FFF0F0" : "#F7F9FC"}`,
+      borderBottom:`1px solid ${emergency ? "#FFF0F0" : (benefits ? "#E6FFFA" : "#F7F9FC")}`,
       "&:last-child":{ borderBottom:"none" },
     }}>
       <Box sx={{
@@ -659,7 +719,7 @@ function InfoRow({ icon, label, value, cfg, emergency }) {
         <Typography sx={{ fontSize:9.5, fontWeight:800, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"1px", lineHeight:1, mb:.45 }}>
           {label}
         </Typography>
-        <Typography sx={{ fontSize:13.5, color:"#0A0F1E", fontWeight:500, lineHeight:1.3, fontFamily:"'Poppins',sans-serif" }}>
+        <Typography sx={{ fontSize:13.5, color:"#0A0F1E", fontWeight:500, lineHeight:1.3, fontFamily:"'Poppins',sans-serif", wordBreak:"break-word" }}>
           {value}
         </Typography>
       </Box>
@@ -719,6 +779,9 @@ function CallRow({ phone, label, cfg, emergency }) {
     </Box>
   );
 }
+
+// NoteAltIcon component - add this import at the top with other icons
+import NoteAltIcon from "@mui/icons-material/NoteAlt";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LOADER

@@ -55,6 +55,10 @@ import BusinessIcon       from "@mui/icons-material/Business";
 import CheckIcon          from "@mui/icons-material/Check";
 import MoreVertIcon       from "@mui/icons-material/MoreVert";
 import Menu               from "@mui/material/Menu";
+import NumbersIcon        from "@mui/icons-material/Numbers";
+import ShieldIcon         from "@mui/icons-material/Shield";
+import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
+import GroupIcon          from "@mui/icons-material/Group";
 
 // ── Theme ──────────────────────────────────────────────────────────────────────
 const theme = createTheme({
@@ -150,6 +154,8 @@ const BLANK = {
   emergencyContact: "", emergencyPhone: "",
   joiningDate: "", location: "", workShift: "", status: "Active", notes: "",
   residencyAddress: "", dob: "", gender: "", company: "C-Tech",
+  // New fields
+  esiNumber: "", pfNumber: "", insuranceNumber: "", groupInsuranceNumber: "",
 };
 
 // ── QR Code helpers ────────────────────────────────────────────────────────────
@@ -490,7 +496,8 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
                       letterSpacing: "0.6px", textTransform: "uppercase", whiteSpace: "nowrap",
                     }}>{h}</th>
                   ))}
-                </tr>
+                </tr
+                >
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
@@ -543,7 +550,7 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
                       <td style={{ padding: cellPad }}>
                         <Chip label={co.label} size="small"
                           sx={{ background: co.bg, color: co.color, border: `1px solid ${co.border}`, fontWeight: 600, fontSize: isTablet ? 9.5 : 11 }} />
-                      </td>
+                       </td>
                       {!isTablet && (
                         <td style={{ padding: cellPad, color: "#64748b", fontSize: fs }}>{emp.contactNumber}</td>
                       )}
@@ -560,11 +567,11 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
                             "& .MuiChip-icon": { color: emp.status === "Active" ? "#16a34a" : "#d97706" },
                           }}
                         />
-                      </td>
+                       </td>
                       {!isTablet && (
                         <td style={{ padding: cellPad, color: "#64748b", fontSize: fs }}>
                           {calcExperience(emp.joiningDate) || "—"}
-                        </td>
+                         </td>
                       )}
                       <td style={{ padding: cellPad }}>
                         <Box sx={{ display: "flex", gap: isTablet ? 0.5 : 0.75, justifyContent: "center" }}>
@@ -593,7 +600,7 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
                             </IconButton>
                           </Tooltip>
                         </Box>
-                      </td>
+                       </td>
                     </tr>
                   );
                 })}
@@ -985,6 +992,42 @@ const validate = () => {
             </Grid>
           </Paper>
 
+          {/* Benefits & Insurance - NEW SECTION */}
+          <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0", background: "#F8FBFF" }}>
+            <SectionLabel icon={<ShieldIcon />} title="Benefits & Insurance" subtitle="Optional - ESI, PF, Insurance details" />
+            <Grid container spacing={{ xs: 1.5, md: 2.5 }}>
+              {[
+                { label: "ESI Number", name: "esiNumber", placeholder: "ESI-1234567890", icon: <NumbersIcon />, helper: "Employees' State Insurance number" },
+                { label: "PF Number", name: "pfNumber", placeholder: "PF/123456/7890", icon: <NumbersIcon />, helper: "Provident Fund account number" },
+                { label: "Insurance Number", name: "insuranceNumber", placeholder: "INS-2024-123456", icon: <HealthAndSafetyIcon />, helper: "Personal health insurance policy number" },
+                { label: "Group Insurance Number", name: "groupInsuranceNumber", placeholder: "GRP-CTECH-001", icon: <GroupIcon />, helper: "Company group insurance policy number" },
+              ].map((f) => (
+                <Grid item xs={12} sm={6} md={6} key={f.name}>
+                  <TextField 
+                    fullWidth 
+                    size="small" 
+                    label={f.label} 
+                    name={f.name}
+                    placeholder={f.placeholder} 
+                    value={form[f.name] || ""} 
+                    onChange={set} 
+                    sx={fieldSx}
+                    InputProps={{ 
+                      sx: { fontSize: { xs: 13, md: 14 } },
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          {React.cloneElement(f.icon, { sx: { color: "#1565C0", fontSize: 18 } })}
+                        </InputAdornment>
+                      )
+                    }}
+                    InputLabelProps={{ sx: { fontSize: { xs: 12.5, md: 14 } } }}
+                    helperText={f.helper}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
+
           {/* Notes */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<NoteAltIcon />} title="Additional Notes" subtitle="Certifications, remarks or special instructions" />
@@ -1044,6 +1087,9 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
   if (!emp) return null;
   const isActive = emp.status === "Active";
   const co = COMPANY_OPTIONS.find(c => c.value === emp.company) || COMPANY_OPTIONS[0];
+
+  // Check if any insurance/benefits info exists
+  const hasBenefits = emp.esiNumber || emp.pfNumber || emp.insuranceNumber || emp.groupInsuranceNumber;
 
   return (
     <Dialog open={open} onClose={onClose} TransitionComponent={SlideUp}
@@ -1152,12 +1198,26 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             <InfoRow icon={<AccessTimeIcon />}     label="Work Experience" value={calcExperience(emp.joiningDate)} />
           </Paper>
 
+          {/* Medical & Emergency */}
           {(emp.bloodGroup || emp.emergencyContact) && (
             <Paper elevation={0} sx={{ px: { xs: 1.75, md: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #FECACA", background: "#FFF5F5" }}>
               <Typography sx={{ fontSize: { xs: 9.5, md: 10.5 }, fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Medical & Emergency</Typography>
               <InfoRow icon={<FavoriteIcon />}label="Blood Group"       value={emp.bloodGroup} />
               <InfoRow icon={<PersonIcon />}  label="Emergency Contact" value={emp.emergencyContact} />
               <InfoRow icon={<PhoneIcon />}   label="Emergency Phone"   value={emp.emergencyPhone} />
+            </Paper>
+          )}
+
+          {/* Benefits & Insurance - NEW SECTION */}
+          {hasBenefits && (
+            <Paper elevation={0} sx={{ px: { xs: 1.75, md: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #DBEAFE", background: "#F0F9FF" }}>
+              <Typography sx={{ fontSize: { xs: 9.5, md: 10.5 }, fontWeight: 700, color: "#1e40af", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>
+                Benefits & Insurance
+              </Typography>
+              {emp.esiNumber && <InfoRow icon={<NumbersIcon />} label="ESI Number" value={emp.esiNumber} />}
+              {emp.pfNumber && <InfoRow icon={<NumbersIcon />} label="PF Number" value={emp.pfNumber} />}
+              {emp.insuranceNumber && <InfoRow icon={<HealthAndSafetyIcon />} label="Insurance Number" value={emp.insuranceNumber} />}
+              {emp.groupInsuranceNumber && <InfoRow icon={<GroupIcon />} label="Group Insurance Number" value={emp.groupInsuranceNumber} />}
             </Paper>
           )}
 
