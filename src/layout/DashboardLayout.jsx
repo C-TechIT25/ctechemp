@@ -12,7 +12,7 @@ const DashboardLayout = () => {
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar />
       <Header user={user} />
-      <Box component="main" sx={{ flexGrow: 1, p: 3 ,mt: 8, ml: -5}}>
+      <Box component="main" sx={{ flexGrow: 1, p: 0 ,mt: 8, ml: -5}}>
         <Outlet />
       </Box>
     </Box>

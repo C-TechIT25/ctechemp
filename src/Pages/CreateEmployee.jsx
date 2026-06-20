@@ -7,6 +7,10 @@ import {
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import autoTable from "jspdf-autotable";
+import * as XLSX from 'xlsx';
 
 // MUI Core
 import {
@@ -59,6 +63,8 @@ import NumbersIcon        from "@mui/icons-material/Numbers";
 import ShieldIcon         from "@mui/icons-material/Shield";
 import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
 import GroupIcon          from "@mui/icons-material/Group";
+import PictureAsPdfIcon   from "@mui/icons-material/PictureAsPdf";
+import TableChartIcon     from "@mui/icons-material/TableChart";
 
 // ── Theme ──────────────────────────────────────────────────────────────────────
 const theme = createTheme({
@@ -154,24 +160,18 @@ const BLANK = {
   emergencyContact: "", emergencyPhone: "",
   joiningDate: "", location: "", workShift: "", status: "Active", notes: "",
   residencyAddress: "", dob: "", gender: "", company: "C-Tech",
-  // New fields
   esiNumber: "", pfNumber: "", insuranceNumber: "", groupInsuranceNumber: "",
 };
 
 // ── QR Code helpers ────────────────────────────────────────────────────────────
 function getProfileUrl(employeeId) {
-  // Clean the employee ID first
   const cleanId = String(employeeId).trim();
-  
-  // Return the correct hash-based URL
   return `${window.location.origin}/#/${cleanId}`;
 }
 
 async function generateQRCode(employeeId) {
-  // Clean the employeeId before generating QR
   const cleanEmployeeId = String(employeeId).trim();
   const url = getProfileUrl(cleanEmployeeId);
-  
   const QRCodeModule = await import("qrcode");
   return await QRCodeModule.default.toDataURL(url, {
     width: 300,
@@ -225,6 +225,7 @@ export default function EmployeeApp() {
           onView={(emp) => setViewDialog({ open: true, employee: emp })}
           onQR={(emp) => setQrDialog({ open: true, employee: emp })}
           onDelete={(emp) => setDeleteDialog({ open: true, employee: emp })}
+          onSnack={showSnack}
         />
 
         <EmployeeFormDialog
@@ -356,8 +357,9 @@ function EmployeeMobileCard({ emp, onView, onEdit, onQR, onDelete }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TABLE
 // ══════════════════════════════════════════════════════════════════════════════
-function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) {
+function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete, onSnack }) {
   const [search, setSearch] = useState("");
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const isMobile = useMediaQuery("(max-width:640px)");
   const isTablet = useMediaQuery("(max-width:960px)");
 
@@ -372,13 +374,338 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
     { label: "Inactive",        value: employees.filter(e => e.status !== "Active").length,  icon: <PauseCircleIcon />, color: "#d97706", border: "#d97706" },
   ];
 
-  // Columns shown on tablet (hide some)
-  const tabletHiddenCols = ["Contact", "Experience"];
-  // Columns shown on desktop
-  const allCols = ["Photo","Employee ID","Full Name","Designation","Department","Company","Contact","Status","Experience","Actions"];
-  const visibleCols = isTablet
-    ? allCols.filter(c => !tabletHiddenCols.includes(c))
-    : allCols;
+  const visibleCols = ["Photo","Employee ID","Full Name","Designation","Department","Company","Contact","Status","Experience","Actions"];
+
+  // ── EXPORT FUNCTIONS ──
+  
+  // Export to PDF (Landscape)
+const exportToPDF = () => {
+  try {
+    const exportData = filtered.length > 0 ? filtered : employees;
+    
+    if (exportData.length === 0) {
+      if (onSnack) onSnack('No employees to export!', 'warning');
+      return;
+    }
+
+    const doc = new jsPDF('landscape', 'mm', 'a4');
+    
+    // ===== COLOR PALETTE =====
+    const COLORS = {
+      primary: [37, 99, 235],         // Bright blue #2563EB
+      text: [45, 45, 45],             // Dark gray
+      lightText: [107, 114, 128],     // Medium gray
+      border: [229, 231, 235],        // Light gray
+      rowAlt: [249, 250, 251],        // Very light gray
+      white: [255, 255, 255],
+      active: [34, 197, 94],          // Green #22C55E
+      inactive: [239, 68, 68],        // Red #EF4444
+    };
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const MARGIN = { top: 12, right: 12, bottom: 15, left: 12 };
+    const CONTENT_WIDTH = pageWidth - MARGIN.left - MARGIN.right;
+
+    // ===== HEADER SECTION =====
+    let currentY = MARGIN.top;
+
+    // Main title
+    doc.setFontSize(18);
+    doc.setTextColor(...COLORS.text);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Employee Management Report', MARGIN.left, currentY);
+
+    // Subtitle
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.lightText);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Employee Directory and Active Status Overview', MARGIN.left, currentY + 5);
+
+    // Header metadata (right aligned)
+    doc.setFontSize(9);
+    doc.setTextColor(...COLORS.lightText);
+    const currentDate = new Date().toLocaleString();
+    doc.text(`Generated: ${currentDate}`, pageWidth - MARGIN.right, currentY, { align: 'right' });
+    doc.text(`Total Records: ${exportData.length}`, pageWidth - MARGIN.right, currentY + 5, { align: 'right' });
+
+    currentY += 14;
+
+    // ===== SUMMARY STATISTICS =====
+    const activeCount = exportData.filter(e => e.status && e.status.toLowerCase() === 'active').length;
+    const inactiveCount = exportData.length - activeCount;
+
+    const stats = [
+      { 
+        label: 'Active Employees', 
+        value: activeCount.toString(),
+        borderColor: COLORS.active
+      },
+      { 
+        label: 'Inactive', 
+        value: inactiveCount.toString(),
+        borderColor: COLORS.inactive
+      },
+      { 
+        label: 'Total Employees', 
+        value: exportData.length.toString(),
+        borderColor: COLORS.primary
+      },
+    ];
+
+    const statBoxWidth = (CONTENT_WIDTH / 3) - 1.5;
+    const statBoxHeight = 16;
+    const statBoxY = currentY;
+
+    stats.forEach((stat, index) => {
+      const boxX = MARGIN.left + (index * (statBoxWidth + 2));
+
+      // White background with border
+      doc.setFillColor(...COLORS.white);
+      doc.setDrawColor(...COLORS.border);
+      doc.setLineWidth(0.3);
+      doc.rect(boxX, statBoxY, statBoxWidth, statBoxHeight, 'FD');
+
+      // Left colored border (thick)
+      doc.setDrawColor(...stat.borderColor);
+      doc.setLineWidth(0.8);
+      doc.line(boxX, statBoxY, boxX, statBoxY + statBoxHeight);
+
+      // Label
+      doc.setFontSize(7);
+      doc.setTextColor(...COLORS.lightText);
+      doc.setFont('helvetica', 'normal');
+      doc.text(stat.label, boxX + 3, statBoxY + 3.5);
+
+      // Value
+      doc.setFontSize(12);
+      doc.setTextColor(...stat.borderColor);
+      doc.setFont('helvetica', 'bold');
+      doc.text(stat.value, boxX + 3, statBoxY + 11);
+    });
+
+    currentY = statBoxY + statBoxHeight + 7;
+
+    // ===== TABLE SECTION =====
+    const tableColumn = ["S.No", "Emp ID", "Name", "Email", "Department", "Designation", "Status", "Company", "Mobile", "Experience"];
+    const tableRows = [];
+
+    exportData.forEach((emp, index) => {
+      const co = COMPANY_OPTIONS.find(c => c.value === emp.company) || COMPANY_OPTIONS[0];
+      tableRows.push([
+        (index + 1).toString(),
+        emp.employeeId || '-',
+        emp.fullName || '-',
+        emp.email || '-',
+        emp.department || '-',
+        emp.designation || '-',
+        emp.status || 'Active',
+        co.label,
+        emp.contactNumber || '-',
+        calcExperience(emp.joiningDate) || '-'
+      ]);
+    });
+
+    // Generate table
+    autoTable(doc,{
+      startY: currentY,
+      head: [tableColumn],
+      body: tableRows,
+      theme: 'grid',
+      
+      // Column styles
+      columnStyles: {
+        0: { cellWidth: 12, halign: 'center' },      // S.No
+        1: { cellWidth: 22, halign: 'center' },      // Emp ID
+        2: { cellWidth: 31, halign: 'left' },        // Name
+        3: { cellWidth: 46, halign: 'left' },        // Email
+        4: { cellWidth: 25, halign: 'left' },        // Department
+        5: { cellWidth: 40, halign: 'left' },        // Designation
+        6: { cellWidth: 20, halign: 'center' },      // Status
+        7: { cellWidth: 32, halign: 'left' },        // Company
+        8: { cellWidth: 20, halign: 'center' },      // Mobile
+        9: { cellWidth: 25, halign: 'center' },      // Experience
+      },
+
+      // Header styling
+      headStyles: {
+        fillColor: COLORS.primary,
+        textColor: COLORS.white,
+        fontSize: 8,
+        fontStyle: 'bold',
+        cellPadding: 2,
+        halign: 'center',
+        valign: 'middle',
+        lineColor: COLORS.primary,
+        lineWidth: 0.1
+      },
+
+      // Body styling
+      bodyStyles: {
+        fontSize: 8,
+        textColor: COLORS.text,
+        cellPadding: 2,
+        lineColor: COLORS.border,
+        lineWidth: 0.1,
+        valign: 'middle'
+      },
+
+      // Alternating row colors
+      alternateRowStyles: {
+        fillColor: COLORS.rowAlt,
+        textColor: COLORS.text,
+        cellPadding: 2,
+        lineColor: COLORS.border,
+        lineWidth: 0.1,
+        valign: 'middle'
+      },
+
+      // Dynamic status coloring - CASE INSENSITIVE
+      didParseCell: function (data) {
+        // Color the Status column (index 6)
+        if (data.column.index === 6) {
+          const cellText = data.cell.text[0] || '';
+          const statusLower = cellText.toLowerCase().trim();
+          
+          if (statusLower === 'inactive') {
+            // Inactive - Red highlight
+            data.cell.textColor = COLORS.inactive;
+            data.cell.fontStyle = 'normal';
+          } else if (statusLower === 'active') {
+            // Active status - use normal text color, no highlighting
+            data.cell.textColor = COLORS.text;
+            data.cell.fontStyle = 'normal';
+          }
+        }
+      },
+
+      // Page management
+      margin: MARGIN,
+      rowPageBreak: 'avoid',
+
+      // Footer with page numbers
+      didDrawPage: function (data) {
+        const pageCount = doc.internal.getNumberOfPages();
+        
+        // Bottom border
+        doc.setDrawColor(...COLORS.primary);
+        doc.setLineWidth(0.5);
+        doc.line(MARGIN.left, pageHeight - MARGIN.bottom - 5, pageWidth - MARGIN.right, pageHeight - MARGIN.bottom - 5);
+
+        // Page number and footer
+        doc.setFontSize(7);
+        doc.setTextColor(...COLORS.lightText);
+        doc.setFont('helvetica', 'normal');
+
+        doc.text(
+          `Page ${data.pageNumber} of ${pageCount}`,
+          pageWidth / 2,
+          pageHeight - MARGIN.bottom + 3,
+          { align: 'center' }
+        );
+
+        // Footer text
+        doc.setFontSize(6);
+        doc.text(
+          '© C-Tech Engineering - Confidential',
+          MARGIN.left,
+          pageHeight - MARGIN.bottom + 3
+        );
+      }
+    });
+
+    // ===== SAVE DOCUMENT =====
+    const fileName = `Employee_Management_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    
+    if (onSnack) onSnack('PDF exported successfully!', 'success');
+    handleExportMenuClose();
+
+  } catch (error) {
+    console.error('Error exporting PDF:', error);
+    if (onSnack) onSnack('Error exporting PDF: ' + error.message, 'error');
+  }
+};
+
+  // Export to Excel
+  const exportToExcel = () => {
+    try {
+      const exportData = filtered.length > 0 ? filtered : employees;
+      
+      if (exportData.length === 0) {
+        if (onSnack) onSnack('No employees to export!', 'warning');
+        return;
+      }
+
+      const excelData = exportData.map((emp, index) => {
+        const co = COMPANY_OPTIONS.find(c => c.value === emp.company) || COMPANY_OPTIONS[0];
+        return {
+          'S.No': index + 1,
+          'Employee ID': emp.employeeId || '-',
+          'Full Name': emp.fullName || '-',
+          'Email': emp.email || '-',
+          'Gender': emp.gender || '-',
+          'Date of Birth': emp.dob || '-',
+          'Age': calculateAge(emp.dob) || '-',
+          'Department': emp.department || '-',
+          'Designation': emp.designation || '-',
+          'Company': co.label,
+          'Status': emp.status || 'Active',
+          'Mobile': emp.contactNumber || '-',
+          'Work Location': emp.location || '-',
+          'Work Shift': emp.workShift || '-',
+          'Date of Joining': emp.joiningDate || '-',
+          'Experience': calcExperience(emp.joiningDate) || '-',
+          'Blood Group': emp.bloodGroup || '-',
+          'Emergency Contact': emp.emergencyContact || '-',
+          'Emergency Phone': emp.emergencyPhone || '-',
+          'Residency Address': emp.residencyAddress || '-',
+          'ESI Number': emp.esiNumber || '-',
+          'PF Number': emp.pfNumber || '-',
+          'Insurance Number': emp.insuranceNumber || '-',
+          'Group Insurance Number': emp.groupInsuranceNumber || '-',
+          'Notes': emp.notes || '-'
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      const wscols = [
+        { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 30 }, { wch: 12 },
+        { wch: 15 }, { wch: 8 }, { wch: 20 }, { wch: 25 }, { wch: 20 },
+        { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 },
+        { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 15 }, { wch: 30 },
+        { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 25 }
+      ];
+      ws['!cols'] = wscols;
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Employees');
+
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'employee_management_report.xlsx';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      if (onSnack) onSnack('Excel exported successfully!', 'success');
+      handleExportMenuClose();
+    } catch (error) {
+      console.error('Error exporting Excel:', error);
+      if (onSnack) onSnack('Error exporting Excel: ' + error.message, 'error');
+    }
+  };
+
+  const handleExportMenuOpen = (event) => {
+    setExportMenuAnchor(event.currentTarget);
+  };
+
+  const handleExportMenuClose = () => {
+    setExportMenuAnchor(null);
+  };
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2.5, md: 3.5 }, maxWidth: 1400, mx: "auto" }}>
@@ -406,17 +733,60 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
             </Typography>
           </Box>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={onCreate}
-          size={isMobile ? "small" : "large"}
-          sx={{ px: { xs: 2, md: 3 }, py: { xs: 1, md: 1.3 }, fontSize: { xs: 12, md: 14 } }}>
-          {isMobile ? "Add" : "Create Employee"}
-        </Button>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          {/* Export Button */}
+          <Button
+            variant="outlined"
+            startIcon={<PictureAsPdfIcon />}
+            onClick={handleExportMenuOpen}
+            size={isMobile ? "small" : "medium"}
+            sx={{
+              borderColor: "#1565C0",
+              color: "#1565C0",
+              borderRadius: "10px",
+              "&:hover": { background: alpha("#1565C0", 0.06) },
+              fontSize: { xs: 12, md: 13 }
+            }}
+          >
+            Export
+          </Button>
+
+          {/* Export Menu */}
+          <Menu
+            anchorEl={exportMenuAnchor}
+            open={Boolean(exportMenuAnchor)}
+            onClose={handleExportMenuClose}
+            PaperProps={{
+              sx: {
+                borderRadius: "12px",
+                mt: 1,
+                minWidth: 200,
+                boxShadow: "0 8px 32px rgba(21,101,192,0.15)",
+              }
+            }}
+          >
+            <MenuItem onClick={exportToPDF} sx={{ py: 1.5 }}>
+              <PictureAsPdfIcon sx={{ mr: 2, color: "#f44336" }} />
+              <Typography>Export to PDF (Landscape)</Typography>
+            </MenuItem>
+            <MenuItem onClick={exportToExcel} sx={{ py: 1.5 }}>
+              <TableChartIcon sx={{ mr: 2, color: "#1565C0" }} />
+              <Typography>Export to Excel</Typography>
+            </MenuItem>
+          </Menu>
+
+          <Button variant="contained" startIcon={<AddIcon />} onClick={onCreate}
+            size={isMobile ? "small" : "large"}
+            sx={{ px: { xs: 2, md: 3 }, py: { xs: 1, md: 1.3 }, fontSize: { xs: 12, md: 14 } }}>
+            {isMobile ? "Add" : "Create Employee"}
+          </Button>
+        </Box>
       </Box>
 
       {/* Stat Cards */}
       <Grid container spacing={{ xs: 1, sm: 1.5, md: 2 }} sx={{ mb: { xs: 2, md: 3 } }}>
         {stats.map((s) => (
-          <Grid item xs={4} key={s.label}minWidth={'250px'}>
+          <Grid item xs={4} key={s.label} minWidth={'250px'}>
             <Paper elevation={0} sx={{
               borderRadius: { xs: 2, md: 1 },
               border: "1px solid #E2E8F0",
@@ -496,8 +866,7 @@ function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete }) 
                       letterSpacing: "0.6px", textTransform: "uppercase", whiteSpace: "nowrap",
                     }}>{h}</th>
                   ))}
-                </tr
-                >
+                </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
@@ -629,7 +998,7 @@ const selectSx = {
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
-// FORM DIALOG
+// FORM DIALOG (unchanged)
 // ══════════════════════════════════════════════════════════════════════════════
 function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
   const isEdit = !!employee;
@@ -662,15 +1031,15 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
     setError(""); setImageFile(file); setImagePreview(URL.createObjectURL(file));
   };
 
-const validate = () => {
-  const req = [
-    ["employeeId","Employee ID"],["fullName","Full Name"],["designation","Designation"],
-    ["department","Department"],["contactNumber","Contact Number"],["joiningDate","Joining Date"],
-  ];
-  for (const [k, l] of req) if (!form[k]?.trim()) return `"${l}" is required.`;
-  if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Enter a valid email.";
-  return null;
-};
+  const validate = () => {
+    const req = [
+      ["employeeId","Employee ID"],["fullName","Full Name"],["designation","Designation"],
+      ["department","Department"],["contactNumber","Contact Number"],["joiningDate","Joining Date"],
+    ];
+    for (const [k, l] of req) if (!form[k]?.trim()) return `"${l}" is required.`;
+    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "Enter a valid email.";
+    return null;
+  };
 
   const handleSubmit = async () => {
     setError("");
@@ -720,7 +1089,6 @@ const validate = () => {
       fullScreen={isMobile}
       scroll="paper">
 
-      {/* Dialog Header */}
       <Box sx={{ background: "linear-gradient(135deg,#1565C0 0%,#0D47A1 100%)", px: { xs: 2, md: 3.5 }, py: { xs: 2, md: 2.5 }, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
           <Box sx={{ width: { xs: 32, md: 38 }, height: { xs: 32, md: 38 }, borderRadius: "10px", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -756,7 +1124,6 @@ const validate = () => {
             </Alert>
           )}
 
-          {/* Photo Upload */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<PersonIcon />} title="Employee Photo" subtitle="Upload a clear passport-size photo" />
             <Box
@@ -799,7 +1166,6 @@ const validate = () => {
             )}
           </Paper>
 
-          {/* Company Select */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<BusinessIcon />} title="Company" subtitle="Select the company this employee belongs to" />
             <Box sx={{ display: "flex", gap: { xs: 1.5, md: 2 }, flexWrap: "wrap" }}>
@@ -852,7 +1218,6 @@ const validate = () => {
             </Box>
           </Paper>
 
-          {/* Identity & Role */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<BadgeIcon />} title="Identity & Role" subtitle="Employee ID, designation and department" />
             <Grid container spacing={{ xs: 1.5, md: 2.5 }}>
@@ -870,7 +1235,7 @@ const validate = () => {
                   />
                 </Grid>
               ))}
-              <Grid item xs={12} sm={6} md={4}minWidth={'200px'}>
+              <Grid item xs={12} sm={6} md={4} minWidth={'200px'}>
                 <FormControl fullWidth size="small" sx={selectSx}>
                   <InputLabel sx={{ fontSize: { xs: 12.5, md: 14 } }}>Employment Status</InputLabel>
                   <Select name="status" value={form.status} label="Employment Status" onChange={set}
@@ -883,7 +1248,6 @@ const validate = () => {
             </Grid>
           </Paper>
 
-          {/* Personal Information */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<PersonIcon />} title="Personal Information" subtitle="Date of birth, gender and residency address" />
             <Grid container spacing={{ xs: 1.5, md: 2.5 }}>
@@ -895,7 +1259,7 @@ const validate = () => {
                   helperText={form.dob ? `Age: ${calculateAge(form.dob)} years` : " "}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={4}minWidth={'200px'}>
+              <Grid item xs={12} sm={6} md={4} minWidth={'200px'}>
                 <FormControl fullWidth size="small" sx={selectSx}>
                   <InputLabel sx={{ fontSize: { xs: 12.5, md: 14 } }}>Gender</InputLabel>
                   <Select name="gender" value={form.gender} label="Gender" onChange={set}
@@ -907,7 +1271,7 @@ const validate = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12}minWidth={'500px'}>
+              <Grid item xs={12} minWidth={'500px'}>
                 <TextField fullWidth size="small" label="Residency Address" name="residencyAddress"
                   multiline rows={2}
                   placeholder="House No, Street, City, State, Pincode"
@@ -920,7 +1284,6 @@ const validate = () => {
             </Grid>
           </Paper>
 
-          {/* Joining & Experience */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<CalendarTodayIcon />} title="Joining & Work Experience" subtitle="Experience auto-calculated from joining date" />
             <Grid container spacing={{ xs: 1.5, md: 2.5 }} alignItems="flex-start">
@@ -951,7 +1314,6 @@ const validate = () => {
             </Grid>
           </Paper>
 
-          {/* Contact */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<PhoneIcon />} title="Contact Information" subtitle="Mobile, email and site location" />
             <Grid container spacing={{ xs: 1.5, md: 2.5 }}>
@@ -972,7 +1334,6 @@ const validate = () => {
             </Grid>
           </Paper>
 
-          {/* Medical & Emergency */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #FEE2E2", background: "#FFFBFB" }}>
             <SectionLabel icon={<FavoriteIcon />} title="Medical & Emergency" subtitle="Blood group and emergency contact" />
             <Grid container spacing={{ xs: 1.5, md: 2.5 }}>
@@ -992,7 +1353,6 @@ const validate = () => {
             </Grid>
           </Paper>
 
-          {/* Benefits & Insurance - NEW SECTION */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0", background: "#F8FBFF" }}>
             <SectionLabel icon={<ShieldIcon />} title="Benefits & Insurance" subtitle="Optional - ESI, PF, Insurance details" />
             <Grid container spacing={{ xs: 1.5, md: 2.5 }}>
@@ -1028,7 +1388,6 @@ const validate = () => {
             </Grid>
           </Paper>
 
-          {/* Notes */}
           <Paper elevation={0} sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #E2E8F0" }}>
             <SectionLabel icon={<NoteAltIcon />} title="Additional Notes" subtitle="Certifications, remarks or special instructions" />
             <TextField fullWidth multiline minRows={3} name="notes" label="Notes"
@@ -1060,7 +1419,7 @@ const validate = () => {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// VIEW PROFILE DIALOG
+// VIEW PROFILE DIALOG (unchanged)
 // ══════════════════════════════════════════════════════════════════════════════
 function ViewProfileDialog({ open, employee, onClose, onEdit }) {
   const emp = employee;
@@ -1087,15 +1446,12 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
   if (!emp) return null;
   const isActive = emp.status === "Active";
   const co = COMPANY_OPTIONS.find(c => c.value === emp.company) || COMPANY_OPTIONS[0];
-
-  // Check if any insurance/benefits info exists
   const hasBenefits = emp.esiNumber || emp.pfNumber || emp.insuranceNumber || emp.groupInsuranceNumber;
 
   return (
     <Dialog open={open} onClose={onClose} TransitionComponent={SlideUp}
       fullWidth maxWidth="sm" fullScreen={isMobile} scroll="paper">
 
-      {/* Hero */}
       <Box sx={{ background: "linear-gradient(145deg,#0052CC 0%,#0A3A7A 55%,#091E42 100%)", position: "relative", overflow: "hidden" }}>
         <Box sx={{ position: "absolute", top: -40, right: -40, width: 160, height: 160, borderRadius: "50%", border: "40px solid rgba(255,255,255,0.05)" }} />
         <Box sx={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 80% 50%,rgba(255,255,255,0.05) 0%,transparent 60%)" }} />
@@ -1138,7 +1494,6 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
       <DialogContent sx={{ p: 0, background: "#F8FAFC" }}>
         <Box sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.5, md: 2 }, display: "flex", flexDirection: "column", gap: { xs: 1.5, md: 2 } }}>
 
-          {/* Verified strip */}
           <Paper elevation={0} sx={{ p: { xs: 1.5, md: 1.75 }, borderRadius: 2.5, border: "1px solid #86EFAC", background: "#F0FDF4", display: "flex", alignItems: "center", gap: 1.5 }}>
             <Box sx={{ width: { xs: 32, md: 38 }, height: { xs: 32, md: 38 }, borderRadius: "50%", background: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <VerifiedUserIcon sx={{ color: "#16a34a", fontSize: { xs: 17, md: 20 } }} />
@@ -1150,7 +1505,6 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             <Chip label="Live" size="small" sx={{ background: "#DCFCE7", color: "#166534", fontWeight: 700, fontSize: 11 }} />
           </Paper>
 
-          {/* Quick stats */}
           <Grid container spacing={1.25}>
             {[
               { label: "Experience", value: calcExperience(emp.joiningDate) || "—", color: "#1565C0", border: "#1565C0" },
@@ -1166,7 +1520,6 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             ))}
           </Grid>
 
-          {/* Personal Information */}
           {(emp.dob || emp.gender || emp.residencyAddress) && (
             <Paper elevation={0} sx={{ px: { xs: 1.75, md: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
               <Typography sx={{ fontSize: { xs: 9.5, md: 10.5 }, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>
@@ -1179,7 +1532,6 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             </Paper>
           )}
 
-          {/* Contact */}
           <Paper elevation={0} sx={{ px: { xs: 1.75, md: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
             <Typography sx={{ fontSize: { xs: 9.5, md: 10.5 }, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Contact Information</Typography>
             <InfoRow icon={<PhoneIcon />}     label="Mobile"     value={emp.contactNumber} />
@@ -1188,7 +1540,6 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             <InfoRow icon={<AccessTimeIcon />}label="Work Shift" value={emp.workShift} />
           </Paper>
 
-          {/* Employment */}
           <Paper elevation={0} sx={{ px: { xs: 1.75, md: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #E2E8F0", background: "#fff" }}>
             <Typography sx={{ fontSize: { xs: 9.5, md: 10.5 }, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Employment Details</Typography>
             <InfoRow icon={<BusinessIcon />}      label="Company"         value={co.label} />
@@ -1198,7 +1549,6 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             <InfoRow icon={<AccessTimeIcon />}     label="Work Experience" value={calcExperience(emp.joiningDate)} />
           </Paper>
 
-          {/* Medical & Emergency */}
           {(emp.bloodGroup || emp.emergencyContact) && (
             <Paper elevation={0} sx={{ px: { xs: 1.75, md: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #FECACA", background: "#FFF5F5" }}>
               <Typography sx={{ fontSize: { xs: 9.5, md: 10.5 }, fontWeight: 700, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>Medical & Emergency</Typography>
@@ -1208,7 +1558,6 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             </Paper>
           )}
 
-          {/* Benefits & Insurance - NEW SECTION */}
           {hasBenefits && (
             <Paper elevation={0} sx={{ px: { xs: 1.75, md: 2 }, py: 1.5, borderRadius: 2.5, border: "1px solid #DBEAFE", background: "#F0F9FF" }}>
               <Typography sx={{ fontSize: { xs: 9.5, md: 10.5 }, fontWeight: 700, color: "#1e40af", textTransform: "uppercase", letterSpacing: "1.2px", mb: 1 }}>
@@ -1228,7 +1577,6 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
             </Paper>
           )}
 
-          {/* Footer brand */}
           <Box sx={{ background: "linear-gradient(135deg,#0052cc,#091e42)", borderRadius: 3, p: { xs: 2, md: 2.5 }, textAlign: "center" }}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, mb: 0.75 }}>
               <EngineeringIcon sx={{ color: "#fff", fontSize: { xs: 15, md: 18 } }} />
@@ -1252,7 +1600,7 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// QR CODE DIALOG
+// QR CODE DIALOG (unchanged)
 // ══════════════════════════════════════════════════════════════════════════════
 function QRCodeDialog({ open, employee, onClose, onSnack }) {
   const [qrCodeUrl, setQrCodeUrl] = useState("");
@@ -1302,7 +1650,6 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
     <Dialog open={open} onClose={onClose} TransitionComponent={SlideUp}
       maxWidth="xs" fullWidth fullScreen={isMobile}>
 
-      {/* Header */}
       <Box sx={{
         background: "linear-gradient(135deg,#4F46E5 0%,#7C3AED 100%)",
         px: { xs: 2, md: 3 }, py: { xs: 2, md: 2.5 },
@@ -1324,7 +1671,6 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
 
       <DialogContent sx={{ p: 0, background: "#F8FAFC" }}>
 
-        {/* Employee identity strip */}
         <Box sx={{ px: { xs: 2, md: 2.5 }, pt: { xs: 2, md: 2.5 }, pb: 0 }}>
           <Paper elevation={0} sx={{
             p: { xs: "12px 14px", md: "14px 18px" }, borderRadius: 2.5,
@@ -1352,7 +1698,6 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
           </Paper>
         </Box>
 
-        {/* QR Code card */}
         <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 2, pb: 0 }}>
           <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #E2E8F0", background: "#fff", overflow: "hidden" }}>
             <Box sx={{ px: 2.5, pt: 2, pb: 1, borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1425,7 +1770,7 @@ function QRCodeDialog({ open, employee, onClose, onSnack }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DELETE DIALOG
+// DELETE DIALOG (unchanged)
 // ══════════════════════════════════════════════════════════════════════════════
 function DeleteDialog({ open, employee, onClose, onSuccess }) {
   const [deleting, setDeleting] = useState(false);

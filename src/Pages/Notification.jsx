@@ -67,13 +67,13 @@ import {
   ArrowBack as ArrowBackIcon,
   MoreVert as MoreVertIcon,
   Archive as ArchiveIcon,
-  Unarchive as UnarchiveIcon,
   Download as DownloadIcon,
   Print as PrintIcon,
   Share as ShareIcon,
   Block as BlockIcon,
   AddAlert as AddAlertIcon,
-  NotificationImportant as NotificationImportantIcon
+  NotificationImportant as NotificationImportantIcon,
+  ErrorOutline as ErrorOutlineIcon
 } from '@mui/icons-material';
 import { DatePicker } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -81,6 +81,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { format, parseISO, differenceInHours, differenceInDays, startOfDay, endOfDay } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../Config';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { API_BASE_URL } from '../Config';
@@ -132,8 +134,13 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
   boxShadow: "0 8px 32px rgba(46, 125, 50, 0.08)",
 }));
 
-const NotificationCard = styled(Card)(({ theme, read, type }) => {
+const NotificationCard = styled(Card)(({ theme, read, type, stage }) => {
   const getTypeColor = () => {
+    // Handle notification stages (early_warning, final)
+    if (stage === 'final') return '#F44336';      // Red for CRITICAL
+    if (stage === 'early_warning') return '#FF9800'; // Orange for reminder
+    
+    // Handle notification types
     switch(type) {
       case 'timesheet_missing': return '#FF9800';
       case 'approval_required': return '#F44336';
@@ -156,8 +163,13 @@ const NotificationCard = styled(Card)(({ theme, read, type }) => {
   };
 });
 
-const TypeChip = styled(Chip)(({ theme, type }) => {
+const TypeChip = styled(Chip)(({ theme, type, stage }) => {
   const getColor = () => {
+    // Handle stages first
+    if (stage === 'final') return '#F44336';      // Red
+    if (stage === 'early_warning') return '#FF9800'; // Orange
+    
+    // Then handle types
     switch(type) {
       case 'timesheet_missing': return '#FF9800';
       case 'approval_required': return '#F44336';
@@ -218,6 +230,10 @@ const NotificationsPage = () => {
   const [notificationMenuAnchor, setNotificationMenuAnchor] = useState(null);
   const [selectedNotification, setSelectedNotification] = useState(null);
   
+  // User Info
+  const [userRole, setUserRole] = useState('User');
+  const [empId, setEmpId] = useState('');
+  
   // Filter States
   const [filters, setFilters] = useState({
     type: 'all',
@@ -252,7 +268,8 @@ const NotificationsPage = () => {
     unread: 0,
     today: 0,
     timesheet_alerts: 0,
-    approval_alerts: 0
+    approval_alerts: 0,
+    critical_alerts: 0
   });
   
   // Date range options
@@ -281,23 +298,74 @@ const NotificationsPage = () => {
     { label: 'Archive Selected', icon: <ArchiveIcon />, action: 'archive' }
   ];
   
-  // Fetch notifications from backend
-  const fetchNotifications = async () => {
+  // Fetch user info from Firebase
+  const fetchUserInfo = async () => {
     if (!user?.uid) return;
     
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/user/${user.uid}`);
+      const userRef = doc(db, 'users', user.uid);
+      const snap = await getDoc(userRef);
+      
+      if (snap.exists()) {
+        const userData = snap.data();
+        setEmpId(userData.empId || user.uid);
+        setUserRole(userData.role || 'User');
+        console.log(`✅ User info loaded: Role=${userData.role}, EmpId=${userData.empId}`);
+      }
+    } catch (err) {
+      console.error('Failed to fetch user info:', err);
+      setUserRole('User');
+    }
+  };
+  
+  // Fetch notifications from backend with role-based filtering
+  const fetchNotifications = async () => {
+    if (!user?.uid) return;
+    
+    setRefreshing(true);
+    try {
+      // Build query parameters
+      const params = new URLSearchParams();
+      
+      // Add role and empId for role-based filtering
+      if (userRole === 'Admin') {
+        params.append('userRole', 'Admin');
+        console.log('📋 Fetching: ALL notifications (Admin)');
+      } else {
+        params.append('userRole', 'User');
+        params.append('empId', empId);
+        console.log(`📋 Fetching: Notifications for employee ${empId}`);
+      }
+      
+      // Add pagination
+      params.append('page', '1');
+      params.append('limit', '100');
+      
+      // Add filters if any
+      if (filters.type !== 'all') params.append('type', filters.type);
+      if (filters.readStatus !== 'all') params.append('unread_only', filters.readStatus === 'unread');
+      if (searchTerm) params.append('search', searchTerm);
+      
+      const response = await fetch(`${API_BASE_URL}notifications?${params.toString()}`);
       
       if (response.ok) {
         const data = await response.json();
+        console.log(`✅ Received ${data.notifications?.length || 0} notifications`);
+        
         setNotifications(data.notifications || []);
         calculateStats(data.notifications || []);
+        
+        if (data.notifications?.length > 0) {
+          toast.success(`Loaded ${data.notifications.length} notifications`);
+        }
       } else {
         const errorData = await response.json();
+        console.error('❌ API Error:', errorData);
         setError(errorData.error || 'Failed to fetch notifications');
         toast.error(errorData.error || 'Failed to fetch notifications');
       }
     } catch (err) {
+      console.error('❌ Network Error:', err);
       setError('Network error. Please try again.');
       toast.error('Network error. Please try again.');
     } finally {
@@ -334,7 +402,8 @@ const NotificationsPage = () => {
         return notifDate >= todayStart;
       }).length,
       timesheet_alerts: notificationList.filter(n => n.type === 'timesheet_missing').length,
-      approval_alerts: notificationList.filter(n => n.type === 'approval_required').length
+      approval_alerts: notificationList.filter(n => n.type === 'approval_required').length,
+      critical_alerts: notificationList.filter(n => n.metadata?.notification_stage === 'final').length
     };
     
     setStats(stats);
@@ -345,7 +414,11 @@ const NotificationsPage = () => {
     try {
       const response = await fetch(
         `${API_BASE_URL}notifications/${notificationId}/read`,
-        { method: 'PUT' }
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ empId, userRole })
+        }
       );
       
       if (response.ok) {
@@ -365,8 +438,11 @@ const NotificationsPage = () => {
         calculateStats(notifications.map(n => 
           n.id === notificationId ? { ...n, is_read: true } : n
         ));
+        
+        toast.success('Notification marked as read');
       }
     } catch (err) {
+      console.error('Error:', err);
       toast.error('Failed to mark notification as read');
     }
   };
@@ -374,10 +450,13 @@ const NotificationsPage = () => {
   // Mark notification as unread
   const markAsUnread = async (notificationId) => {
     try {
-      // This endpoint needs to be created in backend
       const response = await fetch(
         `${API_BASE_URL}notifications/${notificationId}/unread`,
-        { method: 'PUT' }
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ empId, userRole })
+        }
       );
       
       if (response.ok) {
@@ -392,8 +471,11 @@ const NotificationsPage = () => {
         calculateStats(notifications.map(n => 
           n.id === notificationId ? { ...n, is_read: false } : n
         ));
+        
+        toast.success('Notification marked as unread');
       }
     } catch (err) {
+      console.error('Error:', err);
       toast.error('Failed to mark notification as unread');
     }
   };
@@ -403,20 +485,23 @@ const NotificationsPage = () => {
     try {
       const response = await fetch(
         `${API_BASE_URL}notifications/${notificationId}`,
-        { method: 'DELETE' }
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ empId, userRole })
+        }
       );
       
       if (response.ok) {
         setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
         setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
         
-        // Show success message
         toast.success('Notification deleted successfully');
         
-        // Recalculate stats
         calculateStats(notifications.filter(n => n.id !== notificationId));
       }
     } catch (err) {
+      console.error('Error:', err);
       toast.error('Failed to delete notification');
     }
   };
@@ -428,7 +513,11 @@ const NotificationsPage = () => {
     try {
       const response = await fetch(
         `${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`,
-        { method: 'PUT' }
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ empId, userRole })
+        }
       );
       
       if (response.ok) {
@@ -443,6 +532,7 @@ const NotificationsPage = () => {
         toast.success('All notifications marked as read');
       }
     } catch (err) {
+      console.error('Error:', err);
       toast.error('Failed to mark all notifications as read');
     }
   };
@@ -471,13 +561,13 @@ const NotificationsPage = () => {
           break;
           
         case 'archive':
-          // Implement archive functionality
           toast.info('Archive functionality coming soon');
           break;
       }
       
       setBulkActionMenuAnchor(null);
     } catch (err) {
+      console.error('Error:', err);
       toast.error('Failed to perform bulk action');
     }
   };
@@ -489,6 +579,7 @@ const NotificationsPage = () => {
       setSelectedNotifications([]);
       setDeleteDialogOpen(false);
     } catch (err) {
+      console.error('Error:', err);
       toast.error('Failed to delete notifications');
     }
   };
@@ -534,24 +625,38 @@ const NotificationsPage = () => {
     }
   };
   
-  // Get notification icon based on type
-  const getNotificationIcon = (type, isRead) => {
-    const iconStyle = { color: isRead ? '#757575' : getTypeColor(type) };
+  // Get notification icon based on type and stage
+  const getNotificationIcon = (type, stage, isRead) => {
+    let iconColor = isRead ? '#757575' : getTypeColor(type, stage);
     
+    // Handle stages
+    if (stage === 'final') {
+      iconColor = isRead ? '#757575' : '#F44336';
+      return <ErrorOutlineIcon style={{ color: iconColor }} />;
+    }
+    if (stage === 'early_warning') {
+      iconColor = isRead ? '#757575' : '#FF9800';
+      return <WarningIcon style={{ color: iconColor }} />;
+    }
+    
+    // Handle types
     switch(type) {
       case 'timesheet_missing':
-        return <WarningIcon style={iconStyle} />;
+        return <WarningIcon style={{ color: iconColor }} />;
       case 'approval_required':
-        return <NotificationImportantIcon style={iconStyle} />;
+        return <NotificationImportantIcon style={{ color: iconColor }} />;
       case 'system_alert':
-        return <InfoIcon style={iconStyle} />;
+        return <InfoIcon style={{ color: iconColor }} />;
       default:
-        return <NotificationsIcon style={iconStyle} />;
+        return <NotificationsIcon style={{ color: iconColor }} />;
     }
   };
   
   // Get type color
-  const getTypeColor = (type) => {
+  const getTypeColor = (type, stage) => {
+    if (stage === 'final') return '#F44336';
+    if (stage === 'early_warning') return '#FF9800';
+    
     switch(type) {
       case 'timesheet_missing': return '#FF9800';
       case 'approval_required': return '#F44336';
@@ -654,6 +759,7 @@ const NotificationsPage = () => {
       });
       toast.success('Preferences updated successfully');
     } catch (err) {
+      console.error('Error:', err);
       toast.error('Failed to update preferences');
     }
   };
@@ -676,21 +782,31 @@ const NotificationsPage = () => {
   // Initialize
   useEffect(() => {
     if (user?.uid) {
+      console.log('🔄 Initializing: Fetching user info...');
+      fetchUserInfo();
+    }
+  }, [user?.uid]);
+  
+  // Fetch notifications when user info is available
+  useEffect(() => {
+    if (user?.uid && (userRole || empId)) {
+      console.log('🔄 Fetching notifications...');
       fetchNotifications();
       fetchPreferences();
     }
-  }, [user?.uid]);
+  }, [user?.uid, userRole, empId]);
   
   // Refresh notifications every 5 minutes
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
+        console.log('🔄 Auto-refreshing notifications...');
         fetchNotifications();
       }
     }, 5 * 60 * 1000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [userRole, empId]);
   
   // Handle tab change
   const handleTabChange = (event, newValue) => {
@@ -705,7 +821,11 @@ const NotificationsPage = () => {
         setFilters(prev => ({ ...prev, readStatus: 'unread' }));
         break;
       case 2: // Timesheet Alerts
-        setFilters(prev => ({ ...prev, type: 'timesheet_missing' }));
+        setFilters(prev => ({ ...prev, type: 'timesheet_missing', readStatus: 'all' }));
+        break;
+      case 3: // Critical Alerts
+        // For critical alerts, filter by stage in frontend
+        setFilters(prev => ({ ...prev, type: 'all', readStatus: 'all' }));
         break;
     }
   };
@@ -754,6 +874,9 @@ const NotificationsPage = () => {
               >
                 Loading Notifications...
               </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                {userRole === 'Admin' ? 'Fetching all notifications' : `Fetching your notifications (${empId})`}
+              </Typography>
             </Box>
           </Fade>
         </Box>
@@ -792,8 +915,14 @@ const NotificationsPage = () => {
                 Notifications Center
               </GradientTypography>
               <Typography variant="body2" color="text.secondary">
-                Manage your alerts, reminders, and system notifications
+                {userRole === 'Admin' ? 'View all system notifications' : 'Manage your alerts, reminders, and system notifications'}
               </Typography>
+              <Chip
+                label={userRole === 'Admin' ? '👑 Admin - All Notifications' : `👤 Employee - Your Notifications (${empId})`}
+                color={userRole === 'Admin' ? 'error' : 'primary'}
+                variant="outlined"
+                sx={{ mt: 1 }}
+              />
             </Box>
             
             <Stack direction="row" spacing={1}>
@@ -803,6 +932,7 @@ const NotificationsPage = () => {
                     setRefreshing(true);
                     fetchNotifications();
                   }}
+                  disabled={refreshing}
                   sx={{
                     bgcolor: "rgba(46, 125, 50, 0.1)",
                     border: "1px solid rgba(46, 125, 50, 0.2)",
@@ -815,20 +945,7 @@ const NotificationsPage = () => {
                 </IconButton>
               </Tooltip>
               
-              <Tooltip title="Notification Settings">
-                <IconButton 
-                  onClick={() => setSettingsDialogOpen(true)}
-                  sx={{
-                    bgcolor: "rgba(46, 125, 50, 0.1)",
-                    border: "1px solid rgba(46, 125, 50, 0.2)",
-                    "&:hover": {
-                      bgcolor: "rgba(46, 125, 50, 0.2)"
-                    }
-                  }}
-                >
-                  <SettingsIcon />
-                </IconButton>
-              </Tooltip>
+         
               
               <GradientButton
                 startIcon={<MarkEmailReadIcon />}
@@ -842,7 +959,7 @@ const NotificationsPage = () => {
           
           {/* Stats Cards */}
           <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={2.4}minWidth={'250px'}>
+            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
               <StatCard color={greenTheme.gradient}>
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -860,7 +977,7 @@ const NotificationsPage = () => {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={2.4}minWidth={'250px'}>
+            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
               <StatCard color="#FF9800">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -878,7 +995,7 @@ const NotificationsPage = () => {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={2.4}minWidth={'250px'}>
+            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
               <StatCard color="#2196F3">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -896,7 +1013,7 @@ const NotificationsPage = () => {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={2.4}minWidth={'250px'}>
+            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
               <StatCard color="#FF5722">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
@@ -914,19 +1031,19 @@ const NotificationsPage = () => {
               </StatCard>
             </Grid>
             
-            <Grid item xs={12} sm={6} md={2.4}minWidth={'250px'}>
+            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
               <StatCard color="#F44336">
                 <CardContent>
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
                     <Typography variant="h4" fontWeight="bold">
-                      {stats.approval_alerts}
+                      {stats.critical_alerts}
                     </Typography>
                     <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <NotificationImportantIcon />
+                      <ErrorOutlineIcon />
                     </Avatar>
                   </Box>
                   <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Approval Required
+                    Critical Alerts
                   </Typography>
                 </CardContent>
               </StatCard>
@@ -955,31 +1072,7 @@ const NotificationsPage = () => {
               }}
             />
             
-            <Button
-              variant="outlined"
-              startIcon={<FilterListIcon />}
-              onClick={(e) => setFilterMenuAnchor(e.currentTarget)}
-              sx={{
-                borderColor: "rgba(46, 125, 50, 0.3)",
-                color: "#2196F3",
-                borderRadius: "12px",
-                minWidth: '120px',
-                "&:hover": {
-                  borderColor: "#2E7D32",
-                  bgcolor: "rgba(46, 125, 50, 0.05)"
-                }
-              }}
-            >
-              Filters
-              {(filters.type !== 'all' || filters.dateRange !== 'all' || filters.readStatus !== 'all') && (
-                <Chip 
-                  label="Active" 
-                  size="small" 
-                  color="success" 
-                  sx={{ ml: 1, height: '20px' }}
-                />
-              )}
-            </Button>
+          
             
             <Button
               variant="outlined"
@@ -999,108 +1092,7 @@ const NotificationsPage = () => {
               Clear
             </Button>
           </Box>
-          
-          {/* Filter Menu */}
-          <Menu
-            anchorEl={filterMenuAnchor}
-            open={Boolean(filterMenuAnchor)}
-            onClose={() => setFilterMenuAnchor(null)}
-            PaperProps={{
-              sx: {
-                width: 300,
-                p: 2,
-                borderRadius: '12px',
-              }
-            }}
-          >
-            <Typography variant="subtitle1" fontWeight="bold" color="#2E7D32" gutterBottom>
-              Filter Notifications
-            </Typography>
-            
-            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-              <InputLabel>Notification Type</InputLabel>
-              <Select
-                value={filters.type}
-                label="Notification Type"
-                onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))}
-              >
-                {notificationTypes.map((type) => (
-                  <MenuItem key={type.value} value={type.value}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {type.icon}
-                      {type.label}
-                    </Box>
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-              <InputLabel>Date Range</InputLabel>
-              <Select
-                value={filters.dateRange}
-                label="Date Range"
-                onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value }))}
-              >
-                {dateRangeOptions.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            {filters.dateRange === 'custom' && (
-              <Box sx={{ mb: 2 }}>
-                <DatePicker
-                  label="Start Date"
-                  value={filters.startDate}
-                  onChange={(newValue) => setFilters(prev => ({ ...prev, startDate: newValue }))}
-                  slotProps={{ 
-                    textField: { 
-                      size: "small", 
-                      fullWidth: true,
-                      sx: { mb: 1 }
-                    } 
-                  }}
-                />
-                <DatePicker
-                  label="End Date"
-                  value={filters.endDate}
-                  onChange={(newValue) => setFilters(prev => ({ ...prev, endDate: newValue }))}
-                  slotProps={{ 
-                    textField: { 
-                      size: "small", 
-                      fullWidth: true 
-                    } 
-                  }}
-                />
-              </Box>
-            )}
-            
-            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-              <InputLabel>Read Status</InputLabel>
-              <Select
-                value={filters.readStatus}
-                label="Read Status"
-                onChange={(e) => setFilters(prev => ({ ...prev, readStatus: e.target.value }))}
-              >
-                <MenuItem value="all">All</MenuItem>
-                <MenuItem value="read">Read</MenuItem>
-                <MenuItem value="unread">Unread</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={applyFilters}
-              sx={{ bgcolor: greenTheme.gradient, borderRadius: '8px' }}
-            >
-              Apply Filters
-            </Button>
-          </Menu>
-          
+   
           {/* Tabs */}
           <Tabs 
             value={selectedTab} 
@@ -1135,8 +1127,12 @@ const NotificationsPage = () => {
               iconPosition="start"
             />
             <Tab 
-              label="System Alerts" 
-              icon={<InfoIcon />}
+              label={
+                <Badge badgeContent={stats.critical_alerts} color="error">
+                  <span>Critical</span>
+                </Badge>
+              }
+              icon={<ErrorOutlineIcon />}
               iconPosition="start"
             />
           </Tabs>
@@ -1214,142 +1210,165 @@ const NotificationsPage = () => {
             </Box>
           ) : filteredNotifications.length > 0 ? (
             <List sx={{ p: 0 }}>
-              {filteredNotifications.map((notification) => (
-                <NotificationCard
-                  key={notification.id}
-                  read={notification.is_read}
-                  type={notification.type}
-                >
-                  <ListItem
-                    alignItems="flex-start"
-                    sx={{
-                      py: 2,
-                      px: 3,
-                      cursor: 'pointer',
-                      '&:hover': {
-                        backgroundColor: 'rgba(46, 125, 50, 0.02)'
-                      }
-                    }}
-                    onClick={() => {
-                      if (!notification.is_read) {
-                        markAsRead(notification.id);
-                      }
-                      setSelectedNotification(notification);
-                      setNotificationDetailsOpen(true);
-                    }}
-                    secondaryAction={
-                      <Stack direction="row" spacing={0.5}>
-                        <Tooltip title={notification.is_read ? "Mark as unread" : "Mark as read"}>
-                          <IconButton
-                            edge="end"
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (notification.is_read) {
-                                markAsUnread(notification.id);
-                              } else {
-                                markAsRead(notification.id);
-                              }
-                            }}
-                          >
-                            {notification.is_read ? <NotificationsActiveIcon /> : <MarkEmailReadIcon />}
-                          </IconButton>
-                        </Tooltip>
-                        
-                        <Tooltip title="More options">
-                          <IconButton
-                            edge="end"
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedNotification(notification);
-                              setNotificationMenuAnchor(e.currentTarget);
-                            }}
-                          >
-                            <MoreVertIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    }
+              {filteredNotifications.map((notification) => {
+                // Filter for critical alerts tab
+                const isCritical = notification.metadata?.notification_stage === 'final';
+                if (selectedTab === 3 && !isCritical) return null;
+                
+                return (
+                  <NotificationCard
+                    key={notification.id}
+                    read={notification.is_read}
+                    type={notification.type}
+                    stage={notification.metadata?.notification_stage}
                   >
-                    <ListItemIcon sx={{ minWidth: 48, mt: 1 }}>
-                      <Box sx={{ position: 'relative' }}>
-                        {getNotificationIcon(notification.type, notification.is_read)}
-                        {!notification.is_read && (
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              top: -4,
-                              right: -4,
-                              width: 8,
-                              height: 8,
-                              borderRadius: '50%',
-                              backgroundColor: getTypeColor(notification.type)
-                            }}
-                          />
-                        )}
-                      </Box>
-                    </ListItemIcon>
-                    
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                          <Typography
-                            variant="subtitle1"
-                            sx={{
-                              fontWeight: notification.is_read ? 'normal' : 'bold',
-                              color: notification.is_read ? 'text.primary' : getTypeColor(notification.type)
-                            }}
-                          >
-                            {notification.message}
-                          </Typography>
-                          <TypeChip label={notification.type.replace('_', ' ')} type={notification.type} />
-                        </Box>
+                    <ListItem
+                      alignItems="flex-start"
+                      sx={{
+                        py: 2,
+                        px: 3,
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: 'rgba(46, 125, 50, 0.02)'
+                        }
+                      }}
+                      onClick={() => {
+                        if (!notification.is_read) {
+                          markAsRead(notification.id);
+                        }
+                        setSelectedNotification(notification);
+                        setNotificationDetailsOpen(true);
+                      }}
+                      secondaryAction={
+                        <Stack direction="row" spacing={0.5}>
+                          <Tooltip title={notification.is_read ? "Mark as unread" : "Mark as read"}>
+                            <IconButton
+                              edge="end"
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (notification.is_read) {
+                                  markAsUnread(notification.id);
+                                } else {
+                                  markAsRead(notification.id);
+                                }
+                              }}
+                            >
+                              {notification.is_read ? <NotificationsActiveIcon /> : <MarkEmailReadIcon />}
+                            </IconButton>
+                          </Tooltip>
+                          
+                          <Tooltip title="More options">
+                            <IconButton
+                              edge="end"
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedNotification(notification);
+                                setNotificationMenuAnchor(e.currentTarget);
+                              }}
+                            >
+                              <MoreVertIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
                       }
-                      secondary={
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            {formatNotificationTime(notification.created_at)}
-                          </Typography>
-                          {notification.metadata && (
-                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                              {notification.metadata.date && (
-                                <Chip
-                                  size="small"
-                                  icon={<CalendarIcon />}
-                                  label={notification.metadata.date}
-                                  variant="outlined"
-                                />
-                              )}
-                              {notification.metadata.employee_name && (
-                                <Chip
-                                  size="small"
-                                  icon={<PersonIcon />}
-                                  label={notification.metadata.employee_name}
-                                  variant="outlined"
-                                />
-                              )}
-                            </Box>
+                    >
+                      <ListItemIcon sx={{ minWidth: 48, mt: 1 }}>
+                        <Box sx={{ position: 'relative' }}>
+                          {getNotificationIcon(notification.type, notification.metadata?.notification_stage, notification.is_read)}
+                          {!notification.is_read && (
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                top: -4,
+                                right: -4,
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                backgroundColor: getTypeColor(notification.type, notification.metadata?.notification_stage)
+                              }}
+                            />
                           )}
                         </Box>
-                      }
-                    />
-                    
-                    <Box sx={{ position: 'absolute', right: 80, top: 16 }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedNotifications.includes(notification.id)}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          toggleNotificationSelection(notification.id);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ width: '18px', height: '18px' }}
+                      </ListItemIcon>
+                      
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                            <Typography
+                              variant="subtitle1"
+                              sx={{
+                                fontWeight: notification.is_read ? 'normal' : 'bold',
+                                color: notification.is_read ? 'text.primary' : getTypeColor(notification.type, notification.metadata?.notification_stage)
+                              }}
+                            >
+                              {notification.message}
+                            </Typography>
+                            <TypeChip 
+                              label={notification.metadata?.notification_stage === 'final' 
+                                ? '🚨 CRITICAL' 
+                                : notification.metadata?.notification_stage === 'early_warning' 
+                                  ? '⏰ REMINDER' 
+                                  : notification.type.replace('_', ' ')} 
+                              type={notification.type}
+                              stage={notification.metadata?.notification_stage}
+                            />
+                          </Box>
+                        }
+                        secondary={
+                          <Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                              {formatNotificationTime(notification.created_at)}
+                            </Typography>
+                            {notification.metadata && (
+                              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                {notification.metadata.date && (
+                                  <Chip
+                                    size="small"
+                                    icon={<CalendarIcon />}
+                                    label={notification.metadata.date}
+                                    variant="outlined"
+                                  />
+                                )}
+                                {notification.metadata.employee_name && (
+                                  <Chip
+                                    size="small"
+                                    icon={<PersonIcon />}
+                                    label={notification.metadata.employee_name}
+                                    variant="outlined"
+                                  />
+                                )}
+                                {notification.metadata.status && (
+                                  <Chip
+                                    size="small"
+                                    label={notification.metadata.status}
+                                    variant="outlined"
+                                    color={notification.metadata.status === 'OVERDUE' ? 'error' : 'default'}
+                                  />
+                                )}
+                              </Box>
+                            )}
+                          </Box>
+                        }
                       />
-                    </Box>
-                  </ListItem>
-                </NotificationCard>
-              ))}
+                      
+                      <Box sx={{ position: 'absolute', right: 80, top: 16 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedNotifications.includes(notification.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleNotificationSelection(notification.id);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ width: '18px', height: '18px' }}
+                        />
+                      </Box>
+                    </ListItem>
+                  </NotificationCard>
+                );
+              })}
             </List>
           ) : (
             <Box sx={{ p: 8, textAlign: 'center' }}>
@@ -1388,18 +1407,13 @@ const NotificationsPage = () => {
               borderTop: "1px solid rgba(46, 125, 50, 0.1)"
             }}>
               <Typography variant="body2" color="#2196F3" fontWeight="medium">
-                Showing {filteredNotifications.length} of {notifications.length} notifications
+                Showing {filteredNotifications.filter(n => selectedTab !== 3 || n.metadata?.notification_stage === 'final').length} of {notifications.length} notifications
               </Typography>
               
               <Stack direction="row" spacing={1}>
                 <Tooltip title="Export Notifications">
                   <IconButton size="small" onClick={exportNotifications}>
                     <DownloadIcon />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Print">
-                  <IconButton size="small">
-                    <PrintIcon />
                   </IconButton>
                 </Tooltip>
               </Stack>
@@ -1424,8 +1438,8 @@ const NotificationsPage = () => {
           <>
             <DialogTitle
               sx={{
-                background: getTypeColor(selectedNotification.type) + '20',
-                color: getTypeColor(selectedNotification.type),
+                background: getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage) + '20',
+                color: getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage),
                 fontWeight: "bold",
                 py: 2,
                 display: 'flex',
@@ -1433,7 +1447,7 @@ const NotificationsPage = () => {
                 gap: 1
               }}
             >
-              {getNotificationIcon(selectedNotification.type, selectedNotification.is_read)}
+              {getNotificationIcon(selectedNotification.type, selectedNotification.metadata?.notification_stage, selectedNotification.is_read)}
               Notification Details
             </DialogTitle>
             
@@ -1445,36 +1459,24 @@ const NotificationsPage = () => {
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   {format(new Date(selectedNotification.created_at), 'PPpp')}
                 </Typography>
-                <TypeChip 
-                  label={selectedNotification.type.replace('_', ' ')} 
-                  type={selectedNotification.type}
-                  sx={{ mt: 1 }}
-                />
+                <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <TypeChip 
+                    label={selectedNotification.type.replace('_', ' ')} 
+                    type={selectedNotification.type}
+                    stage={selectedNotification.metadata?.notification_stage}
+                  />
+                  {selectedNotification.metadata?.notification_stage && (
+                    <TypeChip 
+                      label={selectedNotification.metadata.notification_stage === 'final' ? '🚨 CRITICAL' : '⏰ REMINDER'} 
+                      type={selectedNotification.type}
+                      stage={selectedNotification.metadata.notification_stage}
+                    />
+                  )}
+                </Box>
               </Box>
               
-              {selectedNotification.metadata && (
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>
-                    Additional Information
-                  </Typography>
-                  <Paper elevation={0} sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.02)', borderRadius: 2 }}>
-                    <pre style={{ 
-                      margin: 0, 
-                      fontSize: '0.875rem',
-                      whiteSpace: 'pre-wrap',
-                      wordWrap: 'break-word'
-                    }}>
-                      {JSON.stringify(selectedNotification.metadata, null, 2)}
-                    </pre>
-                  </Paper>
-                </Box>
-              )}
-              
-              <Divider sx={{ my: 2 }} />
-              
-              <Typography variant="caption" color="text.secondary">
-                Notification ID: {selectedNotification.id}
-              </Typography>
+        
+           
             </DialogContent>
             
             <DialogActions sx={{ p: 3, borderTop: "1px solid rgba(0,0,0,0.1)" }}>
@@ -1487,7 +1489,7 @@ const NotificationsPage = () => {
                   }
                 }}
                 startIcon={selectedNotification.is_read ? <NotificationsActiveIcon /> : <MarkEmailReadIcon />}
-                sx={{ color: getTypeColor(selectedNotification.type) }}
+                sx={{ color: getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage) }}
               >
                 {selectedNotification.is_read ? 'Mark as Unread' : 'Mark as Read'}
               </Button>
@@ -1615,202 +1617,9 @@ const NotificationsPage = () => {
         </DialogActions>
       </Dialog>
       
-      {/* Settings Dialog */}
-      <Dialog
-        open={settingsDialogOpen}
-        onClose={() => setSettingsDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: "16px",
-          }
-        }}
-      >
-        <DialogTitle
-          sx={{
-            background: greenTheme.gradient,
-            color: "white",
-            fontWeight: "bold",
-            py: 2,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1
-          }}
-        >
-          <SettingsIcon />
-          Notification Settings
-        </DialogTitle>
-        
-        <DialogContent sx={{ mt: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            Notification Preferences
-          </Typography>
-          
-          <Stack spacing={2} sx={{ mb: 3 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.in_app_notifications}
-                  onChange={(e) => updatePreferences('in_app_notifications', e.target.checked)}
-                  color="success"
-                />
-              }
-              label="In-app notifications"
-              labelPlacement="start"
-              sx={{ justifyContent: 'space-between', ml: 0 }}
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.email_notifications}
-                  onChange={(e) => updatePreferences('email_notifications', e.target.checked)}
-                  color="success"
-                />
-              }
-              label="Email notifications"
-              labelPlacement="start"
-              sx={{ justifyContent: 'space-between', ml: 0 }}
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.push_notifications}
-                  onChange={(e) => updatePreferences('push_notifications', e.target.checked)}
-                  color="success"
-                />
-              }
-              label="Push notifications"
-              labelPlacement="start"
-              sx={{ justifyContent: 'space-between', ml: 0 }}
-            />
-          </Stack>
-          
-          <Divider sx={{ my: 2 }} />
-          
-          <Typography variant="h6" gutterBottom>
-            Alert Types
-          </Typography>
-          
-          <Stack spacing={2} sx={{ mb: 3 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.timesheet_reminders}
-                  onChange={(e) => updatePreferences('timesheet_reminders', e.target.checked)}
-                  color="success"
-                />
-              }
-              label="Timesheet reminders"
-              labelPlacement="start"
-              sx={{ justifyContent: 'space-between', ml: 0 }}
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.approval_alerts}
-                  onChange={(e) => updatePreferences('approval_alerts', e.target.checked)}
-                  color="success"
-                />
-              }
-              label="Approval required alerts"
-              labelPlacement="start"
-              sx={{ justifyContent: 'space-between', ml: 0 }}
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.system_alerts}
-                  onChange={(e) => updatePreferences('system_alerts', e.target.checked)}
-                  color="success"
-                />
-              }
-              label="System alerts"
-              labelPlacement="start"
-              sx={{ justifyContent: 'space-between', ml: 0 }}
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={preferences.daily_summary}
-                  onChange={(e) => updatePreferences('daily_summary', e.target.checked)}
-                  color="success"
-                />
-              }
-              label="Daily summary"
-              labelPlacement="start"
-              sx={{ justifyContent: 'space-between', ml: 0 }}
-            />
-          </Stack>
-          
-          <Divider sx={{ my: 2 }} />
-          
-          <Typography variant="h6" gutterBottom>
-            Quiet Hours
-          </Typography>
-          
-          <FormControlLabel
-            control={
-              <Switch
-                checked={preferences.quiet_hours}
-                onChange={(e) => updatePreferences('quiet_hours', e.target.checked)}
-                color="success"
-              />
-            }
-            label="Enable quiet hours"
-            labelPlacement="start"
-            sx={{ justifyContent: 'space-between', ml: 0, mb: 2 }}
-          />
-          
-          {preferences.quiet_hours && (
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-              <TextField
-                label="Start Time"
-                type="time"
-                value={preferences.quiet_start}
-                onChange={(e) => updatePreferences('quiet_start', e.target.value)}
-                size="small"
-                InputLabelProps={{ shrink: true }}
-              />
-              <Typography>to</Typography>
-              <TextField
-                label="End Time"
-                type="time"
-                value={preferences.quiet_end}
-                onChange={(e) => updatePreferences('quiet_end', e.target.value)}
-                size="small"
-                InputLabelProps={{ shrink: true }}
-              />
-            </Box>
-          )}
-        </DialogContent>
-        
-        <DialogActions sx={{ p: 3, borderTop: "1px solid rgba(0,0,0,0.1)" }}>
-          <Button
-            onClick={() => setSettingsDialogOpen(false)}
-            variant="outlined"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={() => setSettingsDialogOpen(false)}
-            variant="contained"
-            sx={{ bgcolor: greenTheme.gradient }}
-          >
-            Save Preferences
-          </Button>
-        </DialogActions>
-      </Dialog>
+
     </LocalizationProvider>
   );
 };
 
 export default NotificationsPage;
-
-
-

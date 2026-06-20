@@ -189,17 +189,26 @@ export default function Login() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Function to get user role from Firestore
-  const getUserRole = async (uid) => {
+  // Function to get user role and status from Firestore
+  const getUserData = async (uid) => {
     try {
       const userDoc = await getDoc(doc(db, "users", uid));
       if (userDoc.exists()) {
-        return userDoc.data().role || "Employee"; // Default to Employee if role not found
+        return {
+          role: userDoc.data().role || "Employee", // Default to Employee if role not found
+          status: userDoc.data().status || "active" // Default to active if status not found
+        };
       }
-      return "Employee"; // Default role
+      return {
+        role: "Employee", // Default role
+        status: "active" // Default status
+      };
     } catch (error) {
-      console.error("Error fetching user role:", error);
-      return "Employee"; // Default role on error
+      console.error("Error fetching user data:", error);
+      return {
+        role: "Employee", // Default role on error
+        status: "active" // Default status on error
+      };
     }
   };
 
@@ -213,13 +222,22 @@ export default function Login() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // 2. Get user role from Firestore
-      const userRole = await getUserRole(user.uid);
+      // 2. Get user role and status from Firestore
+      const userData = await getUserData(user.uid);
+      
+      // 3. Check if user account is inactive
+      if (userData.status === "inactive") {
+        setLoading(false);
+        setError(
+          "Your account is inactive. Please contact the administrator to activate your account."
+        );
+        return; // Stop execution - don't redirect
+      }
       
       setLoading(false);
       
-      // 3. Redirect based on role (NO DASHBOARD)
-      if (userRole === "Admin") {
+      // 4. Redirect based on role (only if account is active)
+      if (userData.role === "Admin") {
         navigate("/admin/users"); // Admin goes directly to User Management
       } else {
         // Employee, TeamLead, or any other role

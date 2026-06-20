@@ -85,7 +85,8 @@ import {
   NotificationImportant as NotificationImportantIcon,
   Close as CloseIcon,
   Warning as WarningIcon,
-  CheckCircleOutline as CheckCircleOutlineIcon
+  CheckCircleOutline as CheckCircleOutlineIcon,
+  ErrorOutline as ErrorOutlineIcon
 } from '@mui/icons-material';
 import { DatePicker } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -289,6 +290,7 @@ const TimesheetPage = () => {
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [todayTimesheetStatus, setTodayTimesheetStatus] = useState(null);
   const [showTodayAlert, setShowTodayAlert] = useState(false);
+  const [criticalAlertVisible, setCriticalAlertVisible] = useState(false);
   const [notificationPreferences, setNotificationPreferences] = useState({
     email_notifications: true,
     in_app_notifications: true,
@@ -413,19 +415,25 @@ const TimesheetPage = () => {
         message: 'Timesheet submitted for today'
       });
       setShowTodayAlert(false);
+      setCriticalAlertVisible(false);
     } else {
       const currentHour = new Date().getHours();
       const isAfter6PM = currentHour >= 18;
+      const isAfter11PM = currentHour >= 23;
       
       setTodayTimesheetStatus({
         exists: false,
         isAfter6PM,
-        message: isAfter6PM 
-          ? 'Timesheet missing for today (after 6 PM)' 
-          : 'Timesheet not yet submitted for today'
+        isAfter11PM,
+        message: isAfter11PM 
+          ? 'Timesheet OVERDUE - Day completed without submission' 
+          : isAfter6PM 
+            ? 'Timesheet not yet submitted for today'
+            : 'Timesheet pending for today'
       });
       
       setShowTodayAlert(isAfter6PM);
+      setCriticalAlertVisible(isAfter11PM);
     }
   };
 
@@ -544,43 +552,6 @@ const TimesheetPage = () => {
     }
   };
 
-  // Check for missing timesheet and create notification
-  const checkAndNotifyMissingTimesheet = async () => {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const currentHour = new Date().getHours();
-    
-    if (currentHour < 18) return;
-    
-    const todayTimesheet = timesheets.find(ts => ts.date === today);
-    
-    if (!todayTimesheet && empId) {
-      try {
-        const response = await fetch(`${API_BASE_URL}notifications`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.uid,
-            empId: empId,
-            message: `Timesheet missing for ${today}. Please submit your timesheet before end of day.`,
-            type: 'timesheet_missing',
-            metadata: {
-              date: today,
-              reminder_time: '18:00',
-              action_required: true
-            }
-          })
-        });
-        
-        if (response.ok) {
-          showToast('Reminder: Please submit today\'s timesheet', 'warning');
-          fetchNotifications();
-        }
-      } catch (err) {
-        console.error('Error creating timesheet notification:', err);
-      }
-    }
-  };
-
   // Handle notification menu
   const handleNotificationMenuOpen = (event) => {
     setNotificationMenuAnchorEl(event.currentTarget);
@@ -613,13 +584,21 @@ const TimesheetPage = () => {
       return notifications;
     } else if (notificationTab === 1) {
       return notifications.filter(n => !n.is_read);
+    } else if (notificationTab === 2) {
+      return notifications.filter(n => n.metadata?.notification_stage === 'early_warning');
     } else {
-      return notifications.filter(n => n.type === 'timesheet_missing');
+      return notifications.filter(n => n.metadata?.notification_stage === 'final');
     }
   };
 
-  // Get notification icon based on type
-  const getNotificationIcon = (type) => {
+  // Get notification icon based on type and stage
+  const getNotificationIcon = (type, stage) => {
+    if (stage === 'final') {
+      return <ErrorOutlineIcon sx={{ color: '#F44336' }} />;
+    }
+    if (stage === 'early_warning') {
+      return <WarningIcon sx={{ color: '#FF9800' }} />;
+    }
     switch (type) {
       case 'timesheet_missing':
         return <WarningIcon color="warning" />;
@@ -645,6 +624,14 @@ const TimesheetPage = () => {
     } else {
       return format(notifTime, 'MMM dd, HH:mm');
     }
+  };
+
+  // Get notification severity color
+  const getNotificationSeverityColor = (stage, priority) => {
+    if (stage === 'final') return '#F44336'; // Red for critical
+    if (priority === 'critical') return '#F44336';
+    if (stage === 'early_warning') return '#FF9800'; // Orange for warning
+    return '#2196F3'; // Blue for info
   };
 
   // Update notification preferences
@@ -677,26 +664,15 @@ const TimesheetPage = () => {
       fetchTimesheets();
       fetchNotifications();
       
+      // Refresh every 30 minutes
       const interval = setInterval(() => {
-        checkAndNotifyMissingTimesheet();
+        fetchTimesheets();
+        fetchNotifications();
       }, 30 * 60 * 1000);
       
       return () => clearInterval(interval);
     }
   }, [empId]);
-
-  // Check every hour after 6 PM
-  useEffect(() => {
-    const checkHourly = () => {
-      const currentHour = new Date().getHours();
-      if (currentHour >= 18) {
-        checkAndNotifyMissingTimesheet();
-      }
-    };
-
-    const hourlyInterval = setInterval(checkHourly, 60 * 60 * 1000);
-    return () => clearInterval(hourlyInterval);
-  }, [empId, timesheets]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -858,6 +834,8 @@ const TimesheetPage = () => {
         
         if (dateStr === format(new Date(), 'yyyy-MM-dd')) {
           fetchNotifications();
+          checkTodayTimesheetStatus([...timesheets, data]);
+          setCriticalAlertVisible(false);
         }
       } else {
         const errorData = await response.json();
@@ -1042,9 +1020,54 @@ const TimesheetPage = () => {
         theme="colored"
       />
       
-      {/* Today's Timesheet Alert */}
+      {/* CRITICAL END-OF-DAY ALERT (11:59 PM) */}
       <Snackbar
-        open={showTodayAlert}
+        open={criticalAlertVisible}
+        autoHideDuration={0}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <MuiAlert
+          elevation={8}
+          variant="filled"
+          severity="error"
+          onClose={() => setCriticalAlertVisible(false)}
+          action={
+            <Button 
+              color="inherit" 
+              size="small"
+              onClick={() => {
+                handleOpenAddDialog();
+                setCriticalAlertVisible(false);
+              }}
+            >
+              Submit Now
+            </Button>
+          }
+          sx={{ 
+            borderRadius: '12px',
+            alignItems: 'center',
+            fontSize: '0.95rem',
+            background: 'linear-gradient(135deg, #F44336 0%, #D32F2F 100%)',
+            boxShadow: '0 8px 24px rgba(244, 67, 54, 0.4)'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <ErrorOutlineIcon sx={{ mr: 1, fontSize: '1.4rem' }} />
+            <Box>
+              <Typography variant="body1" fontWeight="bold">
+                🚨 CRITICAL: Timesheet Not Submitted!
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.95 }}>
+                It's past 11:59 PM and your timesheet is OVERDUE. This is required for your attendance record. Submit immediately.
+              </Typography>
+            </Box>
+          </Box>
+        </MuiAlert>
+      </Snackbar>
+
+      {/* Today's Timesheet Early Warning Alert (7:00 PM) */}
+      <Snackbar
+        open={showTodayAlert && !todayTimesheetStatus?.exists && !todayTimesheetStatus?.isAfter11PM}
         autoHideDuration={10000}
         onClose={() => setShowTodayAlert(false)}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
@@ -1069,17 +1092,18 @@ const TimesheetPage = () => {
           sx={{ 
             borderRadius: '12px',
             alignItems: 'center',
-            fontSize: '0.9rem'
+            fontSize: '0.9rem',
+            background: 'linear-gradient(135deg, #FF9800 0%, #F57C00 100%)'
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <WarningIcon sx={{ mr: 1 }} />
             <Box>
               <Typography variant="body1" fontWeight="bold">
-                Timesheet Missing for Today!
+                ⏰ Timesheet Reminder!
               </Typography>
               <Typography variant="body2">
-                It's past 6 PM and you haven't submitted today's timesheet.
+                You haven't submitted today's timesheet yet. Please submit before 11:59 PM.
               </Typography>
             </Box>
           </Box>
@@ -1107,148 +1131,28 @@ const TimesheetPage = () => {
               
               {/* Today's Status Badge */}
               {todayTimesheetStatus && (
-                <Chip
-                  label={todayTimesheetStatus.message}
-                  color={todayTimesheetStatus.exists ? "success" : "warning"}
-                  variant="outlined"
-                  size="small"
-                  icon={todayTimesheetStatus.exists ? <CheckCircleOutlineIcon /> : <WarningIcon />}
-                  sx={{ mt: 1 }}
-                />
+                <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Chip
+                    label={todayTimesheetStatus.message}
+                    color={todayTimesheetStatus.exists ? "success" : (todayTimesheetStatus.isAfter11PM ? "error" : "warning")}
+                    variant="outlined"
+                    size="small"
+                    icon={todayTimesheetStatus.exists ? <CheckCircleOutlineIcon /> : (todayTimesheetStatus.isAfter11PM ? <ErrorOutlineIcon /> : <WarningIcon />)}
+                  />
+                  {todayTimesheetStatus.isAfter11PM && (
+                    <Chip
+                      label="OVERDUE - Immediate Action Required"
+                      color="error"
+                      variant="filled"
+                      size="small"
+                      icon={<ErrorOutlineIcon />}
+                    />
+                  )}
+                </Box>
               )}
             </Box>
             
             <Box sx={{ display: "flex", gap: 1, alignItems: 'center' }}>
-              {/* Notification Bell */}
-              <Tooltip title={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}>
-                <IconButton 
-                  onClick={handleNotificationMenuOpen}
-                  sx={{ 
-                    position: 'relative',
-                    bgcolor: "rgba(46, 125, 50, 0.1)",
-                    border: "1px solid rgba(46, 125, 50, 0.2)",
-                    "&:hover": {
-                      bgcolor: "rgba(46, 125, 50, 0.2)"
-                    }
-                  }}
-                >
-                  <NotificationBadge badgeContent={unreadCount} color="error">
-                    <NotificationsIcon />
-                  </NotificationBadge>
-                </IconButton>
-              </Tooltip>
-              
-              {/* Notification Menu */}
-              <Menu
-                anchorEl={notificationMenuAnchorEl}
-                open={Boolean(notificationMenuAnchorEl)}
-                onClose={handleNotificationMenuClose}
-                PaperProps={{
-                  sx: {
-                    width: 350,
-                    maxHeight: 400,
-                    borderRadius: '12px',
-                    mt: 1,
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
-                  }
-                }}
-              >
-                <Box sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="h6" color="#2E7D32" fontWeight="bold">
-                      Notifications
-                      {unreadCount > 0 && (
-                        <Chip 
-                          label={`${unreadCount} new`} 
-                          size="small" 
-                          color="error" 
-                          sx={{ ml: 1, fontSize: '0.7rem' }}
-                        />
-                      )}
-                    </Typography>
-                    <Button
-                      size="small"
-                      onClick={() => {
-                        openNotificationDrawer();
-                        handleNotificationMenuClose();
-                      }}
-                      sx={{ color: '#2E7D32' }}
-                    >
-                      View All
-                    </Button>
-                  </Box>
-                </Box>
-                
-                {notificationLoading ? (
-                  <Box sx={{ p: 3, textAlign: 'center' }}>
-                    <CircularProgress size={24} sx={{ color: '#2E7D32' }} />
-                  </Box>
-                ) : notifications.length > 0 ? (
-                  <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-                    {notifications.slice(0, 5).map((notification) => (
-                      <MenuItem 
-                        key={notification.id}
-                        onClick={() => {
-                          markNotificationAsRead(notification.id);
-                          handleNotificationMenuClose();
-                        }}
-                        sx={{ 
-                          borderBottom: '1px solid rgba(0,0,0,0.05)',
-                          bgcolor: notification.is_read ? 'transparent' : 'rgba(46, 125, 50, 0.05)',
-                          '&:hover': {
-                            bgcolor: 'rgba(46, 125, 50, 0.1)'
-                          }
-                        }}
-                      >
-                        <ListItem disablePadding sx={{ width: '100%' }}>
-                          <ListItemIcon>
-                            {getNotificationIcon(notification.type)}
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={
-                              <Typography variant="body2" sx={{ fontWeight: notification.is_read ? 'normal' : 'bold' }}>
-                                {notification.message}
-                              </Typography>
-                            }
-                            secondary={formatNotificationTime(notification.created_at)}
-                            secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                          />
-                          {!notification.is_read && (
-                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#2E7D32', ml: 1 }} />
-                          )}
-                        </ListItem>
-                      </MenuItem>
-                    ))}
-                  </Box>
-                ) : (
-                  <Box sx={{ p: 3, textAlign: 'center' }}>
-                    <NotificationsIcon sx={{ fontSize: 48, color: 'rgba(0,0,0,0.2)', mb: 1 }} />
-                    <Typography color="text.secondary">No notifications</Typography>
-                  </Box>
-                )}
-                
-                <Box sx={{ p: 2, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    onClick={markAllNotificationsAsRead}
-                    disabled={unreadCount === 0}
-                    sx={{ 
-                      color: '#2E7D32',
-                      borderColor: 'rgba(46, 125, 50, 0.3)',
-                      '&:hover': {
-                        borderColor: '#2E7D32',
-                        bgcolor: 'rgba(46, 125, 50, 0.05)'
-                      }
-                    }}
-                  >
-                    <MarkEmailReadIcon sx={{ mr: 1, fontSize: '1rem' }} />
-                    Mark All as Read
-                  </Button>
-                </Box>
-              </Menu>
-              
               <Tooltip title="Toggle filters">
                 <IconButton 
                   onClick={() => setShowFilters(!showFilters)}
@@ -1280,6 +1184,25 @@ const TimesheetPage = () => {
                   }}
                 >
                   <RefreshIcon />
+                </IconButton>
+              </Tooltip>
+
+              {/* Notification Bell with Badge */}
+              <Tooltip title="Notifications">
+                <IconButton
+                  onClick={openNotificationDrawer}
+                  sx={{
+                    bgcolor: "rgba(46, 125, 50, 0.1)",
+                    border: "1px solid rgba(46, 125, 50, 0.2)",
+                    position: 'relative',
+                    "&:hover": {
+                      bgcolor: "rgba(46, 125, 50, 0.2)"
+                    }
+                  }}
+                >
+                  <NotificationBadge badgeContent={unreadCount} color="error">
+                    <NotificationsIcon />
+                  </NotificationBadge>
                 </IconButton>
               </Tooltip>
               
@@ -1348,26 +1271,7 @@ const TimesheetPage = () => {
                 </CardContent>
               </StatCard>
             </Grid>
-            
-            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
-              <StatCard color={unreadCount > 0 ? "#FF9800" : "#2E7D32"}>
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <NotificationBadge badgeContent={unreadCount} color="error">
-                      <Typography variant="h4" fontWeight="bold">
-                        {unreadCount}
-                      </Typography>
-                    </NotificationBadge>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <NotificationsIcon />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Unread Alerts
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
+         
           </Grid>
 
           {/* SEARCH BAR */}
@@ -1558,8 +1462,8 @@ const TimesheetPage = () => {
                 <Typography variant="body2" color="text.secondary">
                   Employee ID: {empId} • {timesheets.length} timesheet entries
                   {todayTimesheetStatus && !todayTimesheetStatus.exists && (
-                    <span style={{ color: '#FF9800', marginLeft: '8px' }}>
-                      • Today's timesheet pending
+                    <span style={{ color: todayTimesheetStatus.isAfter11PM ? '#F44336' : '#FF9800', marginLeft: '8px', fontWeight: 'bold' }}>
+                      • {todayTimesheetStatus.isAfter11PM ? '🚨 OVERDUE - URGENT' : '⏰ Pending submission'}
                     </span>
                   )}
                 </Typography>
@@ -1573,7 +1477,7 @@ const TimesheetPage = () => {
               {unreadCount > 0 && (
                 <Chip
                   label={`${unreadCount} alerts`}
-                  color="warning"
+                  color={unreadCount > 0 ? "error" : "warning"}
                   variant="filled"
                   icon={<NotificationsIcon />}
                   onClick={openNotificationDrawer}
@@ -1599,7 +1503,6 @@ const TimesheetPage = () => {
                   <TableCell sx={{ color: "#ffffffff", fontWeight: "bold",backgroundColor:"#2196F3" }}>Work Mode</TableCell>
                   <TableCell sx={{ color: "#ffffffff", fontWeight: "bold",backgroundColor:"#2196F3" }}>Description</TableCell>
                   <TableCell sx={{ color: "#ffffffff", fontWeight: "bold" ,backgroundColor:"#2196F3"}}>Hours</TableCell>
-                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold" ,backgroundColor:"#2196F3"}}>Status</TableCell>
                   <TableCell sx={{ color: "#ffffffff", fontWeight: "bold",backgroundColor:"#2196F3", width: 180 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -1694,15 +1597,7 @@ const TimesheetPage = () => {
                             </Typography>
                           </Box>
                         </TableCell>
-                        
-                        <TableCell>
-                          <StatusChip
-                            label={row.remark || "Pending"}
-                            size="small"
-                            status={row.remark}
-                          />
-                        </TableCell>
-                        
+              
                         <TableCell>
                           <Stack direction="row" spacing={1}>
                             <Tooltip title="Edit">
@@ -1737,26 +1632,7 @@ const TimesheetPage = () => {
                                 <DeleteIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            {row.remark && (
-                              <Tooltip title="View Remark">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => {
-                                    showToast(`Remark: ${row.remark}`, 'info');
-                                  }}
-                                  sx={{
-                                    backgroundColor: "rgba(33, 150, 243, 0.1)",
-                                    color: "#2196F3",
-                                    "&:hover": {
-                                      backgroundColor: "rgba(33, 150, 243, 0.2)",
-                                    },
-                                    borderRadius: "8px",
-                                  }}
-                                >
-                                  <CommentIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            )}
+            
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -2005,8 +1881,13 @@ const TimesheetPage = () => {
               iconPosition="start"
             />
             <Tab 
-              label="Timesheet Alerts" 
+              label="Early Warning" 
               icon={<WarningIcon />} 
+              iconPosition="start"
+            />
+            <Tab 
+              label="Critical" 
+              icon={<ErrorOutlineIcon />} 
               iconPosition="start"
             />
           </Tabs>
@@ -2024,6 +1905,7 @@ const TimesheetPage = () => {
                     sx={{
                       borderBottom: '1px solid rgba(0,0,0,0.05)',
                       bgcolor: notification.is_read ? 'transparent' : 'rgba(46, 125, 50, 0.05)',
+                      borderLeft: `4px solid ${getNotificationSeverityColor(notification.metadata?.notification_stage, notification.priority)}`,
                       '&:hover': {
                         bgcolor: 'rgba(46, 125, 50, 0.1)'
                       }
@@ -2052,7 +1934,7 @@ const TimesheetPage = () => {
                     }
                   >
                     <ListItemIcon>
-                      {getNotificationIcon(notification.type)}
+                      {getNotificationIcon(notification.type, notification.metadata?.notification_stage)}
                     </ListItemIcon>
                     <ListItemText
                       primary={
@@ -2060,7 +1942,7 @@ const TimesheetPage = () => {
                           variant="body1" 
                           sx={{ 
                             fontWeight: notification.is_read ? 'normal' : 'bold',
-                            color: notification.type === 'timesheet_missing' ? '#FF9800' : 'inherit'
+                            color: notification.metadata?.notification_stage === 'final' ? '#F44336' : 'inherit'
                           }}
                         >
                           {notification.message}
@@ -2071,14 +1953,29 @@ const TimesheetPage = () => {
                           <Typography variant="caption" color="text.secondary">
                             {formatNotificationTime(notification.created_at)}
                           </Typography>
-                          {notification.metadata?.date && (
-                            <Chip 
-                              label={notification.metadata.date} 
-                              size="small" 
-                              variant="outlined"
-                              sx={{ ml: 1, fontSize: '0.6rem' }}
-                            />
-                          )}
+                          <Box sx={{ mt: 0.5 }}>
+                            {notification.metadata?.notification_stage && (
+                              <Chip 
+                                label={notification.metadata.notification_stage === 'final' ? '🚨 CRITICAL' : '⏰ REMINDER'} 
+                                size="small" 
+                                variant="outlined"
+                                sx={{ 
+                                  mr: 0.5,
+                                  fontSize: '0.65rem',
+                                  borderColor: getNotificationSeverityColor(notification.metadata?.notification_stage, notification.priority),
+                                  color: getNotificationSeverityColor(notification.metadata?.notification_stage, notification.priority)
+                                }}
+                              />
+                            )}
+                            {notification.metadata?.date && (
+                              <Chip 
+                                label={notification.metadata.date} 
+                                size="small" 
+                                variant="outlined"
+                                sx={{ fontSize: '0.65rem' }}
+                              />
+                            )}
+                          </Box>
                         </Box>
                       }
                     />
@@ -2111,61 +2008,7 @@ const TimesheetPage = () => {
               >
                 Mark All as Read
               </Button>
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<SettingsIcon />}
-                onClick={() => {
-                  showToast('Notification settings would open here', 'info');
-                }}
-                sx={{ 
-                  borderColor: 'rgba(46, 125, 50, 0.3)',
-                  color: greenTheme.primary
-                }}
-              >
-                Settings
-              </Button>
             </Stack>
-            
-            {/* Notification Preferences */}
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(46, 125, 50, 0.05)', borderRadius: 2 }}>
-              <Typography variant="subtitle2" fontWeight="bold" color={greenTheme.primary} gutterBottom>
-                <SettingsIcon sx={{ mr: 1, fontSize: '1rem', verticalAlign: 'middle' }} />
-                Notification Preferences
-              </Typography>
-              <Stack spacing={1}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={notificationPreferences.in_app_notifications}
-                      onChange={(e) => updateNotificationPreferences('in_app_notifications', e.target.checked)}
-                      color="success"
-                    />
-                  }
-                  label="In-app notifications"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={notificationPreferences.email_notifications}
-                      onChange={(e) => updateNotificationPreferences('email_notifications', e.target.checked)}
-                      color="success"
-                    />
-                  }
-                  label="Email notifications"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={notificationPreferences.daily_summary}
-                      onChange={(e) => updateNotificationPreferences('daily_summary', e.target.checked)}
-                      color="success"
-                    />
-                  }
-                  label="Daily summary"
-                />
-              </Stack>
-            </Box>
           </Box>
         </Drawer>
 
@@ -2196,7 +2039,7 @@ const TimesheetPage = () => {
           <form onSubmit={handleSubmit}>
             <DialogContent sx={{ mt: 3 }}>
               <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}minWidth={'250px'}>
+                <Grid item xs={12} sm={6}width={'31%'}>
                   <DatePicker
                     label="Date *"
                     value={formData.date}
@@ -2218,7 +2061,7 @@ const TimesheetPage = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}minWidth={'250px'}maxWidth={'250px'}>
+                <Grid item xs={12} sm={6}width={'31%'}>
                   <TextField
                     select
                     fullWidth
@@ -2247,7 +2090,7 @@ const TimesheetPage = () => {
 
                 {/* Work Mode - Only show for non-minimal activities */}
                 {!isMinimalActivity(formData.activity_category) && (
-                  <Grid item xs={12} sm={6}minWidth={'250px'}maxWidth={'250px'}>
+                  <Grid item xs={12} sm={6}width={'31%'}>
                     <TextField
                       select
                       fullWidth
@@ -2274,8 +2117,6 @@ const TimesheetPage = () => {
                     </TextField>
                   </Grid>
                 )}
-
-             
 
                 {/* Time Tracking Section - Only for time tracking activities */}
                 {requiresTimeTracking(formData.activity_category) && (
@@ -2394,9 +2235,10 @@ const TimesheetPage = () => {
                     </Alert>
                   </Grid>
                 )}
-   {/* Permission Hours - Only show for Productive Effort */}
+
+                {/* Permission Hours - Only show for Productive Effort */}
                 {formData.activity_category === 'Productive Effort' && (
-                  <Grid item xs={12} sm={6}>
+                  <Grid item xs={12} sm={6}width={'100%'}>
                     <TextField
                       fullWidth
                       type="number"
@@ -2424,9 +2266,10 @@ const TimesheetPage = () => {
                     />
                   </Grid>
                 )}
+
                 {/* Description - Only show for non-minimal activities */}
                 {!isMinimalActivity(formData.activity_category) && (
-                  <Grid item xs={12}minWidth={'450px'}>
+                  <Grid item xs={12}width={'100%'}>
                     <TextField
                       fullWidth
                       multiline
