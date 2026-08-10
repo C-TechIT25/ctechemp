@@ -1,16 +1,45 @@
-# React + Vite
+# C-Tech Sheet
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite desktop app packaged with Electron and electron-builder.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+## Windows build
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Run this on Windows:
 
-## Expanding the ESLint configuration
+```bash
+npm run electron:build
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+The installer is created in `release/`.
+
+## macOS build
+
+Build macOS packages on a Mac. electron-builder can target macOS with `dmg` and `zip`, but macOS signing and notarization require macOS.
+
+```bash
+npm install
+npm run electron:build:mac
+```
+
+Architecture-specific builds:
+
+```bash
+npm run electron:build:mac:x64
+npm run electron:build:mac:arm64
+npm run electron:build:mac:universal
+```
+
+The output is created in `release/`.
+
+For a custom macOS app icon, add an ICNS icon at `public/icon.icns` and set this in `package.json` under `build.mac`:
+
+```json
+"icon": "public/icon.icns"
+```

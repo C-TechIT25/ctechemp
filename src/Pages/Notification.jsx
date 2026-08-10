@@ -1,66 +1,47 @@
 // src/pages/NotificationsPage.js
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
-  Paper,
-  Typography,
   Box,
-  Grid,
-  Card,
-  CardContent,
+  Typography,
+  Paper,
   IconButton,
   Button,
   Chip,
-  Avatar,
   Divider,
   List,
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemAvatar,
-  ListItemSecondaryAction,
   CircularProgress,
   Alert,
-  Tabs,
-  Tab,
   Menu,
   MenuItem,
   TextField,
   InputAdornment,
   Badge,
   Stack,
-  FormControl,
-  InputLabel,
-  Select,
-  Switch,
-  FormControlLabel,
+  Checkbox,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Tooltip,
   Fade,
-  Zoom,
   alpha,
-  styled
+  styled,
+  GlobalStyles,
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
   NotificationsActive as NotificationsActiveIcon,
   NotificationsOff as NotificationsOffIcon,
   Delete as DeleteIcon,
-  DeleteOutline as DeleteOutlineIcon,
   MarkEmailRead as MarkEmailReadIcon,
-  FilterList as FilterListIcon,
   Search as SearchIcon,
   Clear as ClearIcon,
-  Settings as SettingsIcon,
   Refresh as RefreshIcon,
   Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon,
   Info as InfoIcon,
-  Error as ErrorIcon,
-  Email as EmailIcon,
   AccessTime as AccessTimeIcon,
   CalendarToday as CalendarIcon,
   Person as PersonIcon,
@@ -68,17 +49,12 @@ import {
   MoreVert as MoreVertIcon,
   Archive as ArchiveIcon,
   Download as DownloadIcon,
-  Print as PrintIcon,
-  Share as ShareIcon,
-  Block as BlockIcon,
-  AddAlert as AddAlertIcon,
   NotificationImportant as NotificationImportantIcon,
-  ErrorOutline as ErrorOutlineIcon
+  ErrorOutline as ErrorOutlineIcon,
 } from '@mui/icons-material';
-import { DatePicker } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { format, parseISO, differenceInHours, differenceInDays, startOfDay, endOfDay } from 'date-fns';
+import { format, differenceInHours, differenceInDays, startOfDay, endOfDay } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
@@ -87,136 +63,193 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { API_BASE_URL } from '../Config';
 
-// Green Gradient Theme
-const greenTheme = {
-  primary: "#2196F3",
-  secondary: "#2196F3",
-  lightGreen: "#2196F3",
-  warning: "#FF9800",
-  error: "#F44336",
-  info: "#2196F3",
-  gradient: "linear-gradient(135deg, #2196F3 0%, #0c4879ff 100%)",
-  lightGradient: "linear-gradient(135deg, #2196F3 0%, #064172ff 100%)"
+// ---------------------------------------------------------------------------
+// Shared design tokens — same palette/type used across Todo, Timesheet,
+// Header and Sidebar. Worth lifting into a single `theme/tokens.js` file.
+// ---------------------------------------------------------------------------
+const COLORS = {
+  primary: "#0EA5E9",
+  primaryDark: "#0EA5E9",
+  primarySoft: "#EEF2FF",
+  ink: "#1E1B2E",
+  muted: "#6B7280",
+  faint: "#9CA3AF",
+  surface: "#FFFFFF",
+  bg: "#F6F7FB",
+  border: "rgba(30,27,46,0.08)",
+  success: "#10B981",
+  warning: "#F59E0B",
+  danger: "#EF4444",
+  info: "#0EA5E9",
+  orange: "#F97316",
 };
 
-// Styled Components
-const GradientTypography = styled(Typography)(({ theme }) => ({
-  background: greenTheme.gradient,
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  backgroundClip: "text",
-  fontWeight: 700,
-}));
+const fontImport = `
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+`;
 
-const GradientButton = styled(Button)(({ theme }) => ({
-  background: greenTheme.gradient,
-  color: "white",
-  border: "none",
-  borderRadius: "10px",
-  padding: "10px 24px",
+const Shell = styled(Box)({ fontFamily: "'Inter', sans-serif" });
+const Display = styled('span')({ fontFamily: "'Outfit', sans-serif" });
+
+const Surface = styled(Paper)({
+  borderRadius: 20,
+  border: `1px solid ${COLORS.border}`,
+  background: COLORS.surface,
+  boxShadow: '0 1px 2px rgba(16,24,40,0.04), 0 8px 24px rgba(16,24,40,0.04)',
+});
+
+const GradientButton = styled(Button)({
+  background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryDark} 100%)`,
+  color: 'white',
+  borderRadius: 12,
+  padding: '10px 22px',
   fontWeight: 600,
-  textTransform: "none",
-  "&:hover": {
-    background: greenTheme.lightGradient,
-    transform: "translateY(-2px)",
-    boxShadow: "0 6px 12px rgba(46, 122, 125, 0.25)",
+  textTransform: 'none',
+  boxShadow: '0 4px 14px rgba(79,70,229,0.30)',
+  '&:hover': {
+    background: `linear-gradient(135deg, ${COLORS.primaryDark} 0%, ${COLORS.primaryDark} 100%)`,
+    boxShadow: '0 6px 18px rgba(79,70,229,0.40)',
   },
-  "&:disabled": {
-    background: "rgba(0, 0, 0, 0.12)",
-  }
-}));
-
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  borderRadius: "16px",
-  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85))",
-  backdropFilter: "blur(10px)",
-  border: "1px solid rgba(46, 125, 50, 0.1)",
-  boxShadow: "0 8px 32px rgba(46, 125, 50, 0.08)",
-}));
-
-const NotificationCard = styled(Card)(({ theme, read, type, stage }) => {
-  const getTypeColor = () => {
-    // Handle notification stages (early_warning, final)
-    if (stage === 'final') return '#F44336';      // Red for CRITICAL
-    if (stage === 'early_warning') return '#FF9800'; // Orange for reminder
-    
-    // Handle notification types
-    switch(type) {
-      case 'timesheet_missing': return '#FF9800';
-      case 'approval_required': return '#F44336';
-      case 'system_alert': return '#2196F3';
-      default: return '#0e5996ff';
-    }
-  };
-  
-  return {
-    borderRadius: "12px",
-    marginBottom: "12px",
-    borderLeft: `4px solid ${getTypeColor()}`,
-    backgroundColor: read ? '#ffffff' : 'rgba(46, 125, 121, 0.05)',
-    border: `1px solid ${read ? 'rgba(0, 0, 0, 0.1)' : getTypeColor() + '30'}`,
-    transition: 'all 0.2s ease',
-    '&:hover': {
-      transform: 'translateY(-2px)',
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-    }
-  };
+  '&.Mui-disabled': { color: 'rgba(255,255,255,0.7)' },
 });
 
-const TypeChip = styled(Chip)(({ theme, type, stage }) => {
-  const getColor = () => {
-    // Handle stages first
-    if (stage === 'final') return '#F44336';      // Red
-    if (stage === 'early_warning') return '#FF9800'; // Orange
-    
-    // Then handle types
-    switch(type) {
-      case 'timesheet_missing': return '#FF9800';
-      case 'approval_required': return '#F44336';
-      case 'system_alert': return '#2196F3';
-      default: return '#044377ff';
-    }
-  };
-  
-  const color = getColor();
-  return {
-    borderRadius: "8px",
-    fontWeight: 600,
-    backgroundColor: `${color}20`,
-    color: color,
-    border: `1px solid ${color}40`,
-    fontSize: '0.75rem',
-    height: '24px',
-  };
-});
+// Pill-shaped segmented control — same pattern as the Todo/Timesheet pages.
+const Segmented = ({ value, onChange, options, size = 'medium' }) => (
+  <Box sx={{ display: 'inline-flex', p: 0.5, borderRadius: 14, bgcolor: COLORS.bg, border: `1px solid ${COLORS.border}`, gap: 0.5, flexWrap: 'wrap' }}>
+    {options.map((opt) => {
+      const active = opt.value === value;
+      return (
+        <Button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          startIcon={opt.icon}
+          size={size}
+          sx={{
+            textTransform: 'none',
+            fontWeight: 600,
+            borderRadius: 11,
+            px: 1.75,
+            color: active ? '#fff' : COLORS.muted,
+            bgcolor: active ? COLORS.primary : 'transparent',
+            boxShadow: active ? '0 2px 8px rgba(79,70,229,0.35)' : 'none',
+            '&:hover': { bgcolor: active ? COLORS.primaryDark : alpha(COLORS.primary, 0.08) },
+          }}
+        >
+          {opt.label}
+          {!!opt.badge && (
+            <Box
+              component="span"
+              sx={{
+                ml: 0.75,
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                px: 0.75,
+                borderRadius: 8,
+                bgcolor: active ? 'rgba(255,255,255,0.25)' : alpha(COLORS.danger, 0.12),
+                color: active ? '#fff' : COLORS.danger,
+              }}
+            >
+              {opt.badge}
+            </Box>
+          )}
+        </Button>
+      );
+    })}
+  </Box>
+);
 
-const StatCard = styled(Card)(({ theme, color }) => ({
-  borderRadius: "12px",
-  height: "100%",
-  background: color || greenTheme.gradient,
-  color: "white",
-  position: "relative",
-  overflow: "hidden",
-  "&::before": {
-    content: '""',
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "4px",
-    background: "rgba(255, 255, 255, 0.3)",
-  },
-  "&:hover": {
-    transform: "translateY(-2px)",
-    transition: "transform 0.2s",
-    boxShadow: "0 8px 24px rgba(46, 125, 121, 0.2)",
+// Radial progress ring — same signature visual as the Todo/Timesheet dashboards.
+const RadialProgress = ({ value = 0, size = 116, stroke = 12, color = COLORS.primary }) => {
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (Math.min(100, Math.max(0, value)) / 100) * circumference;
+  return (
+    <Box sx={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={alpha(color, 0.12)} strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.7s cubic-bezier(.4,0,.2,1)' }}
+        />
+      </svg>
+      <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography sx={{ fontWeight: 800, fontSize: '1.4rem', color: COLORS.ink, lineHeight: 1 }}>
+          <Display>{Math.round(value)}%</Display>
+        </Typography>
+        <Typography variant="caption" sx={{ color: COLORS.muted, fontSize: '0.68rem' }}>
+          read
+        </Typography>
+      </Box>
+    </Box>
+  );
+};
+
+const StatTile = ({ label, value, color, icon }) => (
+  <Box sx={{ p: 1.75, borderRadius: '14px', bgcolor: alpha(color, 0.06), borderLeft: `3px solid ${color}`, minWidth: 132, flex: 1 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Typography sx={{ fontWeight: 800, fontSize: '1.45rem', color }}>
+        <Display>{value}</Display>
+      </Typography>
+      <Box sx={{ color, opacity: 0.85, display: 'flex' }}>{icon}</Box>
+    </Box>
+    <Typography variant="caption" sx={{ color: COLORS.muted, fontWeight: 500 }}>
+      {label}
+    </Typography>
+  </Box>
+);
+
+// Severity colors for a notification — used by the card border, icon, and chip.
+const getTypeColor = (type, stage) => {
+  if (stage === 'final') return COLORS.danger;
+  if (stage === 'early_warning') return COLORS.warning;
+
+  switch (type) {
+    case 'timesheet_missing':
+      return COLORS.warning;
+    case 'approval_required':
+      return COLORS.danger;
+    case 'system_alert':
+      return COLORS.info;
+    default:
+      return COLORS.primary;
   }
+};
+
+const NotificationCard = styled(Box)(({ read, color }) => ({
+  borderRadius: 16,
+  marginBottom: 12,
+  borderLeft: `4px solid ${color}`,
+  border: `1px solid ${read ? COLORS.border : alpha(color, 0.3)}`,
+  backgroundColor: read ? COLORS.surface : alpha(color, 0.04),
+  transition: 'all 0.2s ease',
+  overflow: 'hidden',
+  '&:hover': {
+    boxShadow: '0 6px 18px rgba(16,24,40,0.08)',
+  },
+}));
+
+const TypeChip = styled(Chip)(({ color }) => ({
+  borderRadius: 8,
+  fontWeight: 600,
+  backgroundColor: alpha(color, 0.12),
+  color,
+  border: `1px solid ${alpha(color, 0.3)}`,
+  fontSize: '0.72rem',
+  height: 24,
 }));
 
 const NotificationsPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  
+
   // State Management
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -229,25 +262,26 @@ const NotificationsPage = () => {
   const [bulkActionMenuAnchor, setBulkActionMenuAnchor] = useState(null);
   const [notificationMenuAnchor, setNotificationMenuAnchor] = useState(null);
   const [selectedNotification, setSelectedNotification] = useState(null);
-  
+
   // User Info
   const [userRole, setUserRole] = useState('User');
   const [empId, setEmpId] = useState('');
-  
+  const [userInfoLoaded, setUserInfoLoaded] = useState(false);
+
   // Filter States
   const [filters, setFilters] = useState({
     type: 'all',
     dateRange: 'all',
     startDate: null,
     endDate: null,
-    readStatus: 'all'
+    readStatus: 'all',
   });
-  
+
   // Dialog States
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notificationDetailsOpen, setNotificationDetailsOpen] = useState(false);
-  
+
   // Notification Preferences
   const [preferences, setPreferences] = useState({
     email_notifications: true,
@@ -259,9 +293,9 @@ const NotificationsPage = () => {
     daily_summary: true,
     quiet_hours: false,
     quiet_start: '22:00',
-    quiet_end: '07:00'
+    quiet_end: '07:00',
   });
-  
+
   // Stats
   const [stats, setStats] = useState({
     total: 0,
@@ -269,103 +303,103 @@ const NotificationsPage = () => {
     today: 0,
     timesheet_alerts: 0,
     approval_alerts: 0,
-    critical_alerts: 0
+    critical_alerts: 0,
   });
-  
-  // Date range options
-  const dateRangeOptions = [
-    { value: 'all', label: 'All Time' },
-    { value: 'today', label: 'Today' },
-    { value: 'yesterday', label: 'Yesterday' },
-    { value: 'last7', label: 'Last 7 Days' },
-    { value: 'last30', label: 'Last 30 Days' },
-    { value: 'custom', label: 'Custom Range' }
-  ];
-  
-  // Notification types
-  const notificationTypes = [
-    { value: 'all', label: 'All Types', icon: <NotificationsIcon /> },
-    { value: 'timesheet_missing', label: 'Timesheet Alerts', icon: <WarningIcon /> },
-    { value: 'approval_required', label: 'Approval Required', icon: <NotificationImportantIcon /> },
-    { value: 'system_alert', label: 'System Alerts', icon: <InfoIcon /> }
-  ];
-  
+
   // Bulk actions
   const bulkActions = [
-    { label: 'Mark as Read', icon: <MarkEmailReadIcon />, action: 'mark_read' },
-    { label: 'Mark as Unread', icon: <NotificationsActiveIcon />, action: 'mark_unread' },
-    { label: 'Delete Selected', icon: <DeleteIcon />, action: 'delete', color: 'error' },
-    { label: 'Archive Selected', icon: <ArchiveIcon />, action: 'archive' }
+    { label: 'Mark as read', icon: <MarkEmailReadIcon />, action: 'mark_read' },
+    { label: 'Mark as unread', icon: <NotificationsActiveIcon />, action: 'mark_unread' },
+    { label: 'Delete selected', icon: <DeleteIcon />, action: 'delete', color: 'error' },
+    { label: 'Archive selected', icon: <ArchiveIcon />, action: 'archive' },
   ];
-  
+
   // Fetch user info from Firebase
   const fetchUserInfo = async () => {
     if (!user?.uid) return;
-    
+
+    setUserInfoLoaded(false);
+
     try {
       const userRef = doc(db, 'users', user.uid);
       const snap = await getDoc(userRef);
-      
+
       if (snap.exists()) {
         const userData = snap.data();
-        setEmpId(userData.empId || user.uid);
-        setUserRole(userData.role || 'User');
-        console.log(`✅ User info loaded: Role=${userData.role}, EmpId=${userData.empId}`);
+        const employeeId = userData.empId || userData.emp_id || userData.employeeId || userData.uid || '';
+
+        setEmpId(employeeId);
+        setUserRole(userData.role || 'Employee');
+        console.log(`User info loaded: Role=${userData.role}, EmpId=${employeeId}`);
+        return;
       }
+
+      if (user.email) {
+        const encodedEmail = encodeURIComponent(user.email);
+        const response = await fetch(`${API_BASE_URL}profile/${encodedEmail}`);
+
+        if (response.ok) {
+          const result = await response.json();
+          setEmpId(result?.data?.emp_id || '');
+        }
+      }
+
+      setUserRole('Employee');
     } catch (err) {
       console.error('Failed to fetch user info:', err);
-      setUserRole('User');
+      setUserRole('Employee');
+    } finally {
+      setUserInfoLoaded(true);
     }
   };
-  
+
   // Fetch notifications from backend with role-based filtering
   const fetchNotifications = async () => {
-    if (!user?.uid) return;
-    
+    if (!user?.uid || !userInfoLoaded) return;
+
     setRefreshing(true);
+    setError('');
+
     try {
-      // Build query parameters
       const params = new URLSearchParams();
-      
-      // Add role and empId for role-based filtering
+      let requestUrl = '';
+
       if (userRole === 'Admin') {
         params.append('userRole', 'Admin');
-        console.log('📋 Fetching: ALL notifications (Admin)');
+        params.append('page', '1');
+        params.append('limit', '100');
+        requestUrl = `${API_BASE_URL}notifications?${params.toString()}`;
+        console.log('Fetching all notifications for admin');
       } else {
-        params.append('userRole', 'User');
-        params.append('empId', empId);
-        console.log(`📋 Fetching: Notifications for employee ${empId}`);
+        if (!empId) {
+          setError('Employee ID not found. Please refresh the page.');
+          return;
+        }
+
+        requestUrl = `${API_BASE_URL}notifications/user/${user.uid}`;
+        console.log(`Fetching notifications for employee ${empId}`);
       }
-      
-      // Add pagination
-      params.append('page', '1');
-      params.append('limit', '100');
-      
-      // Add filters if any
-      if (filters.type !== 'all') params.append('type', filters.type);
-      if (filters.readStatus !== 'all') params.append('unread_only', filters.readStatus === 'unread');
-      if (searchTerm) params.append('search', searchTerm);
-      
-      const response = await fetch(`${API_BASE_URL}notifications?${params.toString()}`);
-      
+
+      const response = await fetch(requestUrl);
+
       if (response.ok) {
         const data = await response.json();
-        console.log(`✅ Received ${data.notifications?.length || 0} notifications`);
-        
+        console.log(`Received ${data.notifications?.length || 0} notifications`);
+
         setNotifications(data.notifications || []);
         calculateStats(data.notifications || []);
-        
+
         if (data.notifications?.length > 0) {
           toast.success(`Loaded ${data.notifications.length} notifications`);
         }
       } else {
         const errorData = await response.json();
-        console.error('❌ API Error:', errorData);
+        console.error('API Error:', errorData);
         setError(errorData.error || 'Failed to fetch notifications');
         toast.error(errorData.error || 'Failed to fetch notifications');
       }
     } catch (err) {
-      console.error('❌ Network Error:', err);
+      console.error('Network Error:', err);
       setError('Network error. Please try again.');
       toast.error('Network error. Please try again.');
     } finally {
@@ -373,11 +407,11 @@ const NotificationsPage = () => {
       setRefreshing(false);
     }
   };
-  
+
   // Fetch notification preferences
   const fetchPreferences = async () => {
     if (!user?.uid) return;
-    
+
     try {
       const response = await fetch(`${API_BASE_URL}notifications/preferences/${user.uid}`);
       if (response.ok) {
@@ -388,57 +422,40 @@ const NotificationsPage = () => {
       console.error('Error fetching preferences:', err);
     }
   };
-  
+
   // Calculate statistics
   const calculateStats = (notificationList) => {
     const now = new Date();
     const todayStart = startOfDay(now);
-    
-    const stats = {
+
+    const newStats = {
       total: notificationList.length,
-      unread: notificationList.filter(n => !n.is_read).length,
-      today: notificationList.filter(n => {
+      unread: notificationList.filter((n) => !n.is_read).length,
+      today: notificationList.filter((n) => {
         const notifDate = new Date(n.created_at);
         return notifDate >= todayStart;
       }).length,
-      timesheet_alerts: notificationList.filter(n => n.type === 'timesheet_missing').length,
-      approval_alerts: notificationList.filter(n => n.type === 'approval_required').length,
-      critical_alerts: notificationList.filter(n => n.metadata?.notification_stage === 'final').length
+      timesheet_alerts: notificationList.filter((n) => n.type === 'timesheet_missing').length,
+      approval_alerts: notificationList.filter((n) => n.type === 'approval_required').length,
+      critical_alerts: notificationList.filter((n) => n.metadata?.notification_stage === 'final').length,
     };
-    
-    setStats(stats);
+
+    setStats(newStats);
   };
-  
+
   // Mark notification as read
   const markAsRead = async (notificationId) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}notifications/${notificationId}/read`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ empId, userRole })
-        }
-      );
-      
+      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}/read`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empId, userRole }),
+      });
+
       if (response.ok) {
-        // Update local state
-        setNotifications(prev => 
-          prev.map(notif => 
-            notif.id === notificationId 
-              ? { ...notif, is_read: true } 
-              : notif
-          )
-        );
-        
-        // Update selected notifications
-        setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
-        
-        // Recalculate stats
-        calculateStats(notifications.map(n => 
-          n.id === notificationId ? { ...n, is_read: true } : n
-        ));
-        
+        setNotifications((prev) => prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif)));
+        setSelectedNotifications((prev) => prev.filter((id) => id !== notificationId));
+        calculateStats(notifications.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n)));
         toast.success('Notification marked as read');
       }
     } catch (err) {
@@ -446,32 +463,19 @@ const NotificationsPage = () => {
       toast.error('Failed to mark notification as read');
     }
   };
-  
+
   // Mark notification as unread
   const markAsUnread = async (notificationId) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}notifications/${notificationId}/unread`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ empId, userRole })
-        }
-      );
-      
+      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}/unread`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empId, userRole }),
+      });
+
       if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => 
-            notif.id === notificationId 
-              ? { ...notif, is_read: false } 
-              : notif
-          )
-        );
-        
-        calculateStats(notifications.map(n => 
-          n.id === notificationId ? { ...n, is_read: false } : n
-        ));
-        
+        setNotifications((prev) => prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: false } : notif)));
+        calculateStats(notifications.map((n) => (n.id === notificationId ? { ...n, is_read: false } : n)));
         toast.success('Notification marked as unread');
       }
     } catch (err) {
@@ -479,56 +483,43 @@ const NotificationsPage = () => {
       toast.error('Failed to mark notification as unread');
     }
   };
-  
+
   // Delete notification
   const deleteNotification = async (notificationId) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}notifications/${notificationId}`,
-        {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ empId, userRole })
-        }
-      );
-      
+      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empId, userRole }),
+      });
+
       if (response.ok) {
-        setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
-        setSelectedNotifications(prev => prev.filter(id => id !== notificationId));
-        
+        setNotifications((prev) => prev.filter((notif) => notif.id !== notificationId));
+        setSelectedNotifications((prev) => prev.filter((id) => id !== notificationId));
         toast.success('Notification deleted successfully');
-        
-        calculateStats(notifications.filter(n => n.id !== notificationId));
+        calculateStats(notifications.filter((n) => n.id !== notificationId));
       }
     } catch (err) {
       console.error('Error:', err);
       toast.error('Failed to delete notification');
     }
   };
-  
+
   // Mark all as read
   const markAllAsRead = async () => {
     if (!user?.uid) return;
-    
+
     try {
-      const response = await fetch(
-        `${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ empId, userRole })
-        }
-      );
-      
+      const response = await fetch(`${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empId, userRole }),
+      });
+
       if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => ({ ...notif, is_read: true }))
-        );
+        setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: true })));
         setSelectedNotifications([]);
-        
-        // Update stats
-        setStats(prev => ({ ...prev, unread: 0 }));
-        
+        setStats((prev) => ({ ...prev, unread: 0 }));
         toast.success('All notifications marked as read');
       }
     } catch (err) {
@@ -536,46 +527,48 @@ const NotificationsPage = () => {
       toast.error('Failed to mark all notifications as read');
     }
   };
-  
+
   // Bulk actions
   const handleBulkAction = async (action) => {
     if (selectedNotifications.length === 0) {
       toast.warning('Please select notifications first');
       return;
     }
-    
+
     try {
-      switch(action) {
+      switch (action) {
         case 'mark_read':
-          await Promise.all(selectedNotifications.map(id => markAsRead(id)));
+          await Promise.all(selectedNotifications.map((id) => markAsRead(id)));
           toast.success(`${selectedNotifications.length} notifications marked as read`);
           break;
-          
+
         case 'mark_unread':
-          await Promise.all(selectedNotifications.map(id => markAsUnread(id)));
+          await Promise.all(selectedNotifications.map((id) => markAsUnread(id)));
           toast.success(`${selectedNotifications.length} notifications marked as unread`);
           break;
-          
+
         case 'delete':
           setDeleteDialogOpen(true);
           break;
-          
+
         case 'archive':
           toast.info('Archive functionality coming soon');
           break;
+        default:
+          break;
       }
-      
+
       setBulkActionMenuAnchor(null);
     } catch (err) {
       console.error('Error:', err);
       toast.error('Failed to perform bulk action');
     }
   };
-  
+
   // Confirm delete
   const confirmDelete = async () => {
     try {
-      await Promise.all(selectedNotifications.map(id => deleteNotification(id)));
+      await Promise.all(selectedNotifications.map((id) => deleteNotification(id)));
       setSelectedNotifications([]);
       setDeleteDialogOpen(false);
     } catch (err) {
@@ -583,179 +576,134 @@ const NotificationsPage = () => {
       toast.error('Failed to delete notifications');
     }
   };
-  
+
   // Toggle notification selection
   const toggleNotificationSelection = (notificationId) => {
-    setSelectedNotifications(prev => {
-      if (prev.includes(notificationId)) {
-        return prev.filter(id => id !== notificationId);
-      } else {
-        return [...prev, notificationId];
-      }
-    });
+    setSelectedNotifications((prev) => (prev.includes(notificationId) ? prev.filter((id) => id !== notificationId) : [...prev, notificationId]));
   };
-  
+
   // Select all notifications
   const selectAllNotifications = () => {
-    const filteredNotifications = getFilteredNotifications();
-    if (selectedNotifications.length === filteredNotifications.length) {
+    const filtered = getFilteredNotifications();
+    if (selectedNotifications.length === filtered.length) {
       setSelectedNotifications([]);
     } else {
-      setSelectedNotifications(filteredNotifications.map(n => n.id));
+      setSelectedNotifications(filtered.map((n) => n.id));
     }
   };
-  
+
   // Format notification time
   const formatNotificationTime = (timestamp) => {
     const now = new Date();
     const notifTime = new Date(timestamp);
     const diffHours = differenceInHours(now, notifTime);
     const diffDays = differenceInDays(now, notifTime);
-    
-    if (diffHours < 1) {
-      return 'Just now';
-    } else if (diffHours < 24) {
-      return `${diffHours} hours ago`;
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
-    } else {
-      return format(notifTime, 'MMM dd, yyyy');
-    }
+
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return format(notifTime, 'MMM dd, yyyy');
   };
-  
+
   // Get notification icon based on type and stage
   const getNotificationIcon = (type, stage, isRead) => {
-    let iconColor = isRead ? '#757575' : getTypeColor(type, stage);
-    
-    // Handle stages
-    if (stage === 'final') {
-      iconColor = isRead ? '#757575' : '#F44336';
-      return <ErrorOutlineIcon style={{ color: iconColor }} />;
-    }
-    if (stage === 'early_warning') {
-      iconColor = isRead ? '#757575' : '#FF9800';
-      return <WarningIcon style={{ color: iconColor }} />;
-    }
-    
-    // Handle types
-    switch(type) {
+    const color = isRead ? COLORS.muted : getTypeColor(type, stage);
+
+    if (stage === 'final') return <ErrorOutlineIcon style={{ color }} />;
+    if (stage === 'early_warning') return <WarningIcon style={{ color }} />;
+
+    switch (type) {
       case 'timesheet_missing':
-        return <WarningIcon style={{ color: iconColor }} />;
+        return <WarningIcon style={{ color }} />;
       case 'approval_required':
-        return <NotificationImportantIcon style={{ color: iconColor }} />;
+        return <NotificationImportantIcon style={{ color }} />;
       case 'system_alert':
-        return <InfoIcon style={{ color: iconColor }} />;
+        return <InfoIcon style={{ color }} />;
       default:
-        return <NotificationsIcon style={{ color: iconColor }} />;
+        return <NotificationsIcon style={{ color }} />;
     }
   };
-  
-  // Get type color
-  const getTypeColor = (type, stage) => {
-    if (stage === 'final') return '#F44336';
-    if (stage === 'early_warning') return '#FF9800';
-    
-    switch(type) {
-      case 'timesheet_missing': return '#FF9800';
-      case 'approval_required': return '#F44336';
-      case 'system_alert': return '#2196F3';
-      default: return '#2E7D32';
-    }
-  };
-  
+
   // Get filtered notifications
   const getFilteredNotifications = () => {
-    return notifications.filter(notification => {
-      // Search filter
+    return notifications.filter((notification) => {
       if (searchTerm && !notification.message.toLowerCase().includes(searchTerm.toLowerCase())) {
         return false;
       }
-      
-      // Type filter
+
       if (filters.type !== 'all' && notification.type !== filters.type) {
         return false;
       }
-      
-      // Read status filter
+
       if (filters.readStatus !== 'all') {
         const isRead = filters.readStatus === 'read';
-        if (notification.is_read !== isRead) {
-          return false;
-        }
+        if (notification.is_read !== isRead) return false;
       }
-      
-      // Date range filter
+
       const notificationDate = new Date(notification.created_at);
-      
-      switch(filters.dateRange) {
-        case 'today':
+
+      switch (filters.dateRange) {
+        case 'today': {
           const today = startOfDay(new Date());
           if (notificationDate < today) return false;
           break;
-          
-        case 'yesterday':
+        }
+        case 'yesterday': {
           const yesterday = startOfDay(new Date());
           yesterday.setDate(yesterday.getDate() - 1);
           const endYesterday = endOfDay(yesterday);
           if (notificationDate < yesterday || notificationDate > endYesterday) return false;
           break;
-          
-        case 'last7':
+        }
+        case 'last7': {
           const last7Days = new Date();
           last7Days.setDate(last7Days.getDate() - 7);
           if (notificationDate < last7Days) return false;
           break;
-          
-        case 'last30':
+        }
+        case 'last30': {
           const last30Days = new Date();
           last30Days.setDate(last30Days.getDate() - 30);
           if (notificationDate < last30Days) return false;
           break;
-          
-        case 'custom':
+        }
+        case 'custom': {
           if (filters.startDate && notificationDate < filters.startDate) return false;
           if (filters.endDate && notificationDate > endOfDay(filters.endDate)) return false;
           break;
+        }
+        default:
+          break;
       }
-      
+
       return true;
     });
   };
-  
+
   // Apply filters
   const applyFilters = () => {
     setFilterMenuAnchor(null);
     toast.info('Filters applied successfully');
   };
-  
+
   // Clear filters
   const clearFilters = () => {
-    setFilters({
-      type: 'all',
-      dateRange: 'all',
-      startDate: null,
-      endDate: null,
-      readStatus: 'all'
-    });
+    setFilters({ type: 'all', dateRange: 'all', startDate: null, endDate: null, readStatus: 'all' });
     setSearchTerm('');
     toast.info('Filters cleared');
   };
-  
+
   // Update preferences
   const updatePreferences = async (key, value) => {
     const updatedPrefs = { ...preferences, [key]: value };
     setPreferences(updatedPrefs);
-    
+
     try {
       await fetch(`${API_BASE_URL}notifications/preferences`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.uid,
-          preferences: updatedPrefs
-        })
+        body: JSON.stringify({ userId: user.uid, preferences: updatedPrefs }),
       });
       toast.success('Preferences updated successfully');
     } catch (err) {
@@ -763,22 +711,22 @@ const NotificationsPage = () => {
       toast.error('Failed to update preferences');
     }
   };
-  
+
   // Export notifications
   const exportNotifications = () => {
     const dataStr = JSON.stringify(getFilteredNotifications(), null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
+    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
     const exportFileDefaultName = `notifications_${format(new Date(), 'yyyy-MM-dd')}.json`;
-    
+
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
-    
+
     toast.success('Notifications exported successfully');
   };
-  
+
   // Initialize
   useEffect(() => {
     if (user?.uid) {
@@ -786,95 +734,71 @@ const NotificationsPage = () => {
       fetchUserInfo();
     }
   }, [user?.uid]);
-  
-  // Fetch notifications when user info is available
+
   useEffect(() => {
-    if (user?.uid && (userRole || empId)) {
-      console.log('🔄 Fetching notifications...');
+    if (!user?.uid || !userInfoLoaded) return;
+
+    if (userRole === 'Admin' || empId) {
+      console.log('Fetching notifications...');
       fetchNotifications();
       fetchPreferences();
+      return;
     }
-  }, [user?.uid, userRole, empId]);
-  
+
+    setLoading(false);
+    setError('Employee ID not found. Please refresh the page.');
+  }, [user?.uid, userInfoLoaded, userRole, empId]);
+
   // Refresh notifications every 5 minutes
   useEffect(() => {
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        console.log('🔄 Auto-refreshing notifications...');
+      if (document.visibilityState === 'visible' && userInfoLoaded && (userRole === 'Admin' || empId)) {
+        console.log('Auto-refreshing notifications...');
         fetchNotifications();
       }
     }, 5 * 60 * 1000);
-    
+
     return () => clearInterval(interval);
-  }, [userRole, empId]);
-  
+  }, [userInfoLoaded, userRole, empId]);
+
   // Handle tab change
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
-    
-    // Apply tab-specific filters
-    switch(newValue) {
-      case 0: // All
-        setFilters(prev => ({ ...prev, readStatus: 'all' }));
+
+    switch (newValue) {
+      case 0:
+        setFilters((prev) => ({ ...prev, readStatus: 'all' }));
         break;
-      case 1: // Unread
-        setFilters(prev => ({ ...prev, readStatus: 'unread' }));
+      case 1:
+        setFilters((prev) => ({ ...prev, readStatus: 'unread' }));
         break;
-      case 2: // Timesheet Alerts
-        setFilters(prev => ({ ...prev, type: 'timesheet_missing', readStatus: 'all' }));
+      case 2:
+        setFilters((prev) => ({ ...prev, type: 'timesheet_missing', readStatus: 'all' }));
         break;
-      case 3: // Critical Alerts
-        // For critical alerts, filter by stage in frontend
-        setFilters(prev => ({ ...prev, type: 'all', readStatus: 'all' }));
+      case 3:
+        setFilters((prev) => ({ ...prev, type: 'all', readStatus: 'all' }));
+        break;
+      default:
         break;
     }
   };
-  
-  // Get filtered notifications for display
+
   const filteredNotifications = getFilteredNotifications();
-  
+  const readRate = stats.total > 0 ? ((stats.total - stats.unread) / stats.total) * 100 : 0;
+
   if (loading) {
     return (
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <Box 
-          display="flex" 
-          justifyContent="center" 
-          alignItems="center" 
-          minHeight="80vh"
-          sx={{
-            background: `linear-gradient(135deg, ${alpha("#2E7D32", 0.05)}, ${alpha("#4CAF50", 0.05)})`
-          }}
-        >
-          <ToastContainer
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop={true}
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="colored"
-          />
+        <GlobalStyles styles={fontImport} />
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh" sx={{ bgcolor: COLORS.bg }}>
+          <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="colored" />
           <Fade in={loading} style={{ transitionDelay: '200ms' }}>
             <Box textAlign="center">
-              <CircularProgress 
-                size={60} 
-                thickness={4}
-                sx={{ 
-                  color: greenTheme.primary,
-                  mb: 2 
-                }}
-              />
-              <Typography 
-                variant="h6" 
-                color={greenTheme.primary}
-                sx={{ fontWeight: 500 }}
-              >
-                Loading Notifications...
+              <CircularProgress size={56} thickness={4} sx={{ color: COLORS.primary, mb: 2 }} />
+              <Typography sx={{ fontWeight: 600, color: COLORS.ink }}>
+                <Display>Loading notifications…</Display>
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              <Typography variant="body2" sx={{ color: COLORS.muted, mt: 1 }}>
                 {userRole === 'Admin' ? 'Fetching all notifications' : `Fetching your notifications (${empId})`}
               </Typography>
             </Box>
@@ -883,381 +807,188 @@ const NotificationsPage = () => {
       </LocalizationProvider>
     );
   }
-  
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop={true}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="colored"
-      />
-      
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-        {/* Header Section */}
-        <StyledPaper sx={{ p: 3, mb: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <GlobalStyles styles={fontImport} />
+      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="colored" />
+
+      <Shell sx={{ px: { xs: 2, sm: 4 }, py: 3, bgcolor: COLORS.bg, minHeight: '100vh' }}>
+        {/* Header */}
+        <Surface sx={{ p: { xs: 2.5, sm: 3.5 }, mb: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
             <Box>
-              <Button
-                startIcon={<ArrowBackIcon />}
-                onClick={() => navigate(-1)}
-                sx={{ mb: 1, color: greenTheme.primary }}
-              >
+              <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)} sx={{ mb: 1, color: COLORS.primary, textTransform: 'none', fontWeight: 600 }}>
                 Back
               </Button>
-              <GradientTypography variant="h4">
-                Notifications Center
-              </GradientTypography>
-              <Typography variant="body2" color="text.secondary">
-                {userRole === 'Admin' ? 'View all system notifications' : 'Manage your alerts, reminders, and system notifications'}
+              <Typography sx={{ fontSize: '1.7rem', fontWeight: 800, color: COLORS.ink }}>
+                <Display>Notifications center</Display>
+              </Typography>
+              <Typography variant="body2" sx={{ color: COLORS.muted, mt: 0.5 }}>
+                {userRole === 'Admin' ? 'View all system notifications.' : 'Manage your alerts, reminders, and system notifications.'}
               </Typography>
               <Chip
-                label={userRole === 'Admin' ? '👑 Admin - All Notifications' : `👤 Employee - Your Notifications (${empId})`}
-                color={userRole === 'Admin' ? 'error' : 'primary'}
+                label={userRole === 'Admin' ? `Admin — all notifications` : `Employee — your notifications (${empId})`}
                 variant="outlined"
-                sx={{ mt: 1 }}
+                size="small"
+                sx={{ mt: 1.25, borderColor: userRole === 'Admin' ? alpha(COLORS.danger, 0.4) : alpha(COLORS.primary, 0.4), color: userRole === 'Admin' ? COLORS.danger : COLORS.primary, fontWeight: 600 }}
               />
             </Box>
-            
+
             <Stack direction="row" spacing={1}>
               <Tooltip title="Refresh">
-                <IconButton 
+                <IconButton
                   onClick={() => {
                     setRefreshing(true);
                     fetchNotifications();
                   }}
                   disabled={refreshing}
-                  sx={{
-                    bgcolor: "rgba(46, 125, 50, 0.1)",
-                    border: "1px solid rgba(46, 125, 50, 0.2)",
-                    "&:hover": {
-                      bgcolor: "rgba(46, 125, 50, 0.2)"
-                    }
-                  }}
+                  sx={{ bgcolor: COLORS.bg, border: `1px solid ${COLORS.border}`, color: COLORS.muted, '&:hover': { bgcolor: alpha(COLORS.primary, 0.1), color: COLORS.primary } }}
                 >
                   <RefreshIcon />
                 </IconButton>
               </Tooltip>
-              
-         
-              
-              <GradientButton
-                startIcon={<MarkEmailReadIcon />}
-                onClick={markAllAsRead}
-                disabled={stats.unread === 0}
-              >
-                Mark All as Read
+
+              <GradientButton startIcon={<MarkEmailReadIcon />} onClick={markAllAsRead} disabled={stats.unread === 0}>
+                Mark all as read
               </GradientButton>
             </Stack>
           </Box>
-          
-          {/* Stats Cards */}
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
-              <StatCard color={greenTheme.gradient}>
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {stats.total}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <NotificationsIcon />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Total Notifications
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
-              <StatCard color="#FF9800">
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {stats.unread}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <NotificationsActiveIcon />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Unread
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
-              <StatCard color="#2196F3">
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {stats.today}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <AccessTimeIcon />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Today
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
-              <StatCard color="#FF5722">
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {stats.timesheet_alerts}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <WarningIcon />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Timesheet Alerts
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={2.4} minWidth={'250px'}>
-              <StatCard color="#F44336">
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {stats.critical_alerts}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <ErrorOutlineIcon />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Critical Alerts
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
-          </Grid>
-          
+
+          {/* Overview */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3.5, flexWrap: 'wrap', mb: 3 }}>
+            <RadialProgress value={readRate} color={COLORS.primary} />
+
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flex: 1, minWidth: 280 }}>
+              <StatTile label="Total" value={stats.total} color={COLORS.primary} icon={<NotificationsIcon fontSize="small" />} />
+              <StatTile label="Unread" value={stats.unread} color={COLORS.warning} icon={<NotificationsActiveIcon fontSize="small" />} />
+              <StatTile label="Today" value={stats.today} color={COLORS.info} icon={<AccessTimeIcon fontSize="small" />} />
+              <StatTile label="Timesheet alerts" value={stats.timesheet_alerts} color={COLORS.orange} icon={<WarningIcon fontSize="small" />} />
+              <StatTile label="Critical alerts" value={stats.critical_alerts} color={COLORS.danger} icon={<ErrorOutlineIcon fontSize="small" />} />
+            </Box>
+          </Box>
+
           {/* Search and Filter Bar */}
-          <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
             <TextField
               fullWidth
-              variant="outlined"
-              placeholder="Search notifications..."
+              placeholder="Search notifications…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              size="small"
+              sx={{ flex: 1, minWidth: 220 }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon color="success" />
+                    <SearchIcon sx={{ color: COLORS.muted, fontSize: 20 }} />
                   </InputAdornment>
                 ),
-                sx: { 
-                  borderRadius: "12px",
-                  bgcolor: "rgba(46, 125, 50, 0.05)",
-                  border: "1px solid rgba(46, 125, 50, 0.1)"
-                }
+                sx: { borderRadius: '12px', bgcolor: COLORS.bg },
               }}
             />
-            
-          
-            
+
             <Button
               variant="outlined"
               startIcon={<ClearIcon />}
               onClick={clearFilters}
-              sx={{
-                borderColor: "rgba(46, 125, 50, 0.3)",
-                color: "#2196F3",
-                borderRadius: "12px",
-                minWidth: '100px',
-                "&:hover": {
-                  borderColor: "#2E7D32",
-                  bgcolor: "rgba(46, 125, 50, 0.05)"
-                }
-              }}
+              sx={{ borderColor: COLORS.border, color: COLORS.muted, borderRadius: '12px', minWidth: 100, textTransform: 'none', fontWeight: 600, '&:hover': { borderColor: COLORS.primary, color: COLORS.primary, bgcolor: alpha(COLORS.primary, 0.04) } }}
             >
               Clear
             </Button>
           </Box>
-   
+
           {/* Tabs */}
-          <Tabs 
-            value={selectedTab} 
-            onChange={handleTabChange}
-            sx={{ 
-              borderBottom: 1, 
-              borderColor: 'divider',
-              '& .MuiTab-root': {
-                textTransform: 'none',
-                fontWeight: 'medium',
-                minHeight: '48px'
-              }
-            }}
-          >
-            <Tab 
-              label="All Notifications" 
-              icon={<NotificationsIcon />}
-              iconPosition="start"
-            />
-            <Tab 
-              label={
-                <Badge badgeContent={stats.unread} color="error">
-                  <span>Unread</span>
-                </Badge>
-              }
-              icon={<NotificationsActiveIcon />}
-              iconPosition="start"
-            />
-            <Tab 
-              label="Timesheet Alerts" 
-              icon={<WarningIcon />}
-              iconPosition="start"
-            />
-            <Tab 
-              label={
-                <Badge badgeContent={stats.critical_alerts} color="error">
-                  <span>Critical</span>
-                </Badge>
-              }
-              icon={<ErrorOutlineIcon />}
-              iconPosition="start"
-            />
-          </Tabs>
-        </StyledPaper>
-        
+          <Segmented
+            value={selectedTab}
+            onChange={(val) => handleTabChange(null, val)}
+            options={[
+              { value: 0, label: 'All', icon: <NotificationsIcon fontSize="small" /> },
+              { value: 1, label: 'Unread', icon: <NotificationsActiveIcon fontSize="small" />, badge: stats.unread },
+              { value: 2, label: 'Timesheet alerts', icon: <WarningIcon fontSize="small" /> },
+              { value: 3, label: 'Critical', icon: <ErrorOutlineIcon fontSize="small" />, badge: stats.critical_alerts },
+            ]}
+          />
+        </Surface>
+
         {/* Bulk Actions Bar */}
         {selectedNotifications.length > 0 && (
-          <StyledPaper sx={{ p: 2, mb: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body1" color="#2E7D32" fontWeight="medium">
-                <Badge badgeContent={selectedNotifications.length} color="success">
+          <Surface sx={{ p: 2, mb: 2.5 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+              <Typography sx={{ color: COLORS.primary, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Badge badgeContent={selectedNotifications.length} color="error" sx={{ '& .MuiBadge-badge': { right: -10 } }}>
                   <span>Selected</span>
                 </Badge>
               </Typography>
-              
+
               <Stack direction="row" spacing={1}>
-                <Button
-                  size="small"
-                  onClick={selectAllNotifications}
-                  sx={{ color: '#2E7D32' }}
-                >
-                  {selectedNotifications.length === filteredNotifications.length ? 'Deselect All' : 'Select All'}
+                <Button size="small" onClick={selectAllNotifications} sx={{ color: COLORS.primary, textTransform: 'none', fontWeight: 600 }}>
+                  {selectedNotifications.length === filteredNotifications.length ? 'Deselect all' : 'Select all'}
                 </Button>
-                
+
                 <Button
                   variant="outlined"
                   size="small"
                   startIcon={<MoreVertIcon />}
                   onClick={(e) => setBulkActionMenuAnchor(e.currentTarget)}
-                  sx={{
-                    borderColor: "rgba(46, 125, 50, 0.3)",
-                    color: "#2196F3",
-                  }}
+                  sx={{ borderColor: COLORS.border, color: COLORS.muted, textTransform: 'none', fontWeight: 600, '&:hover': { borderColor: COLORS.primary, color: COLORS.primary } }}
                 >
                   Actions
                 </Button>
               </Stack>
             </Box>
-          </StyledPaper>
+          </Surface>
         )}
-        
+
         {/* Bulk Actions Menu */}
-        <Menu
-          anchorEl={bulkActionMenuAnchor}
-          open={Boolean(bulkActionMenuAnchor)}
-          onClose={() => setBulkActionMenuAnchor(null)}
-          PaperProps={{
-            sx: {
-              borderRadius: '12px',
-            }
-          }}
-        >
+        <Menu anchorEl={bulkActionMenuAnchor} open={Boolean(bulkActionMenuAnchor)} onClose={() => setBulkActionMenuAnchor(null)} PaperProps={{ sx: { borderRadius: '14px' } }}>
           {bulkActions.map((action) => (
-            <MenuItem
-              key={action.action}
-              onClick={() => handleBulkAction(action.action)}
-              sx={{
-                color: action.color || 'inherit',
-                py: 1.5
-              }}
-            >
-              <ListItemIcon>
-                {React.cloneElement(action.icon, { fontSize: 'small', color: action.color || 'action' })}
-              </ListItemIcon>
+            <MenuItem key={action.action} onClick={() => handleBulkAction(action.action)} sx={{ color: action.color || COLORS.ink, py: 1.5 }}>
+              <ListItemIcon>{React.cloneElement(action.icon, { fontSize: 'small', sx: { color: action.color ? COLORS.danger : COLORS.muted } })}</ListItemIcon>
               <ListItemText>{action.label}</ListItemText>
             </MenuItem>
           ))}
         </Menu>
-        
+
         {/* Notifications List */}
-        <StyledPaper>
+        <Surface sx={{ overflow: 'hidden' }}>
           {refreshing ? (
             <Box sx={{ p: 4, textAlign: 'center' }}>
-              <CircularProgress size={32} sx={{ color: greenTheme.primary }} />
+              <CircularProgress size={32} sx={{ color: COLORS.primary }} />
             </Box>
           ) : filteredNotifications.length > 0 ? (
-            <List sx={{ p: 0 }}>
+            <List sx={{ p: 1.5 }}>
               {filteredNotifications.map((notification) => {
-                // Filter for critical alerts tab
                 const isCritical = notification.metadata?.notification_stage === 'final';
                 if (selectedTab === 3 && !isCritical) return null;
-                
+
+                const color = getTypeColor(notification.type, notification.metadata?.notification_stage);
+
                 return (
-                  <NotificationCard
-                    key={notification.id}
-                    read={notification.is_read}
-                    type={notification.type}
-                    stage={notification.metadata?.notification_stage}
-                  >
+                  <NotificationCard key={notification.id} read={notification.is_read} color={color}>
                     <ListItem
                       alignItems="flex-start"
-                      sx={{
-                        py: 2,
-                        px: 3,
-                        cursor: 'pointer',
-                        '&:hover': {
-                          backgroundColor: 'rgba(46, 125, 50, 0.02)'
-                        }
-                      }}
+                      sx={{ py: 2, px: 2, pl: 1, cursor: 'pointer', '&:hover': { backgroundColor: alpha(color, 0.03) } }}
                       onClick={() => {
-                        if (!notification.is_read) {
-                          markAsRead(notification.id);
-                        }
+                        if (!notification.is_read) markAsRead(notification.id);
                         setSelectedNotification(notification);
                         setNotificationDetailsOpen(true);
                       }}
                       secondaryAction={
                         <Stack direction="row" spacing={0.5}>
-                          <Tooltip title={notification.is_read ? "Mark as unread" : "Mark as read"}>
+                          <Tooltip title={notification.is_read ? 'Mark as unread' : 'Mark as read'}>
                             <IconButton
                               edge="end"
                               size="small"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (notification.is_read) {
-                                  markAsUnread(notification.id);
-                                } else {
-                                  markAsRead(notification.id);
-                                }
+                                if (notification.is_read) markAsUnread(notification.id);
+                                else markAsRead(notification.id);
                               }}
                             >
-                              {notification.is_read ? <NotificationsActiveIcon /> : <MarkEmailReadIcon />}
+                              {notification.is_read ? <NotificationsActiveIcon fontSize="small" /> : <MarkEmailReadIcon fontSize="small" />}
                             </IconButton>
                           </Tooltip>
-                          
+
                           <Tooltip title="More options">
                             <IconButton
                               edge="end"
@@ -1268,83 +999,65 @@ const NotificationsPage = () => {
                                 setNotificationMenuAnchor(e.currentTarget);
                               }}
                             >
-                              <MoreVertIcon />
+                              <MoreVertIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                         </Stack>
                       }
                     >
-                      <ListItemIcon sx={{ minWidth: 48, mt: 1 }}>
+                      <Checkbox
+                        checked={selectedNotifications.includes(notification.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleNotificationSelection(notification.id);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        size="small"
+                        sx={{ mt: 0.5, color: COLORS.faint, '&.Mui-checked': { color: COLORS.primary } }}
+                      />
+
+                      <ListItemIcon sx={{ minWidth: 44, mt: 1 }}>
                         <Box sx={{ position: 'relative' }}>
                           {getNotificationIcon(notification.type, notification.metadata?.notification_stage, notification.is_read)}
                           {!notification.is_read && (
-                            <Box
-                              sx={{
-                                position: 'absolute',
-                                top: -4,
-                                right: -4,
-                                width: 8,
-                                height: 8,
-                                borderRadius: '50%',
-                                backgroundColor: getTypeColor(notification.type, notification.metadata?.notification_stage)
-                              }}
-                            />
+                            <Box sx={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, borderRadius: '50%', backgroundColor: color }} />
                           )}
                         </Box>
                       </ListItemIcon>
-                      
+
                       <ListItemText
                         primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                            <Typography
-                              variant="subtitle1"
-                              sx={{
-                                fontWeight: notification.is_read ? 'normal' : 'bold',
-                                color: notification.is_read ? 'text.primary' : getTypeColor(notification.type, notification.metadata?.notification_stage)
-                              }}
-                            >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: notification.is_read ? 500 : 700, color: notification.is_read ? COLORS.ink : color }}>
                               {notification.message}
                             </Typography>
-                            <TypeChip 
-                              label={notification.metadata?.notification_stage === 'final' 
-                                ? '🚨 CRITICAL' 
-                                : notification.metadata?.notification_stage === 'early_warning' 
-                                  ? '⏰ REMINDER' 
-                                  : notification.type.replace('_', ' ')} 
-                              type={notification.type}
-                              stage={notification.metadata?.notification_stage}
+                            <TypeChip
+                              color={color}
+                              label={
+                                notification.metadata?.notification_stage === 'final'
+                                  ? 'Critical'
+                                  : notification.metadata?.notification_stage === 'early_warning'
+                                  ? 'Reminder'
+                                  : notification.type.replace('_', ' ')
+                              }
                             />
                           </Box>
                         }
                         secondary={
                           <Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            <Typography variant="body2" sx={{ color: COLORS.muted, mb: 1 }}>
                               {formatNotificationTime(notification.created_at)}
                             </Typography>
                             {notification.metadata && (
                               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                {notification.metadata.date && (
-                                  <Chip
-                                    size="small"
-                                    icon={<CalendarIcon />}
-                                    label={notification.metadata.date}
-                                    variant="outlined"
-                                  />
-                                )}
-                                {notification.metadata.employee_name && (
-                                  <Chip
-                                    size="small"
-                                    icon={<PersonIcon />}
-                                    label={notification.metadata.employee_name}
-                                    variant="outlined"
-                                  />
-                                )}
+                                {notification.metadata.date && <Chip size="small" icon={<CalendarIcon />} label={notification.metadata.date} variant="outlined" />}
+                                {notification.metadata.employee_name && <Chip size="small" icon={<PersonIcon />} label={notification.metadata.employee_name} variant="outlined" />}
                                 {notification.metadata.status && (
                                   <Chip
                                     size="small"
                                     label={notification.metadata.status}
                                     variant="outlined"
-                                    color={notification.metadata.status === 'OVERDUE' ? 'error' : 'default'}
+                                    sx={notification.metadata.status === 'OVERDUE' ? { borderColor: alpha(COLORS.danger, 0.4), color: COLORS.danger } : undefined}
                                   />
                                 )}
                               </Box>
@@ -1352,19 +1065,6 @@ const NotificationsPage = () => {
                           </Box>
                         }
                       />
-                      
-                      <Box sx={{ position: 'absolute', right: 80, top: 16 }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedNotifications.includes(notification.id)}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            toggleNotificationSelection(notification.id);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ width: '18px', height: '18px' }}
-                        />
-                      </Box>
                     </ListItem>
                   </NotificationCard>
                 );
@@ -1372,126 +1072,90 @@ const NotificationsPage = () => {
             </List>
           ) : (
             <Box sx={{ p: 8, textAlign: 'center' }}>
-              <NotificationsOffIcon sx={{ fontSize: 64, color: 'rgba(0,0,0,0.2)', mb: 2 }} />
-              <Typography variant="h6" color="text.secondary">
-                No notifications found
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                {searchTerm || filters.type !== 'all' || filters.dateRange !== 'all' 
-                  ? 'Try adjusting your search or filters' 
-                  : 'You\'re all caught up!'}
+              <NotificationsOffIcon sx={{ fontSize: 56, color: alpha(COLORS.muted, 0.3), mb: 2 }} />
+              <Typography sx={{ fontWeight: 700, color: COLORS.ink }}>No notifications found</Typography>
+              <Typography variant="body2" sx={{ color: COLORS.muted, mb: 3 }}>
+                {searchTerm || filters.type !== 'all' || filters.dateRange !== 'all' ? 'Try adjusting your search or filters.' : "You're all caught up!"}
               </Typography>
               {(searchTerm || filters.type !== 'all' || filters.dateRange !== 'all') && (
-                <Button
-                  variant="outlined"
-                  onClick={clearFilters}
-                  sx={{
-                    borderColor: "rgba(46, 125, 50, 0.3)",
-                    color: "#2196F3",
-                  }}
-                >
-                  Clear Filters
+                <Button variant="outlined" onClick={clearFilters} sx={{ borderColor: COLORS.border, color: COLORS.primary, textTransform: 'none', fontWeight: 600 }}>
+                  Clear filters
                 </Button>
               )}
             </Box>
           )}
-          
-          {/* Pagination/Footer */}
+
+          {/* Footer */}
           {filteredNotifications.length > 0 && (
-            <Box sx={{ 
-              p: 2, 
-              bgcolor: "rgba(46, 125, 50, 0.08)", 
-              display: "flex", 
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderTop: "1px solid rgba(46, 125, 50, 0.1)"
-            }}>
-              <Typography variant="body2" color="#2196F3" fontWeight="medium">
-                Showing {filteredNotifications.filter(n => selectedTab !== 3 || n.metadata?.notification_stage === 'final').length} of {notifications.length} notifications
+            <Box sx={{ p: 2, bgcolor: COLORS.bg, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, borderTop: `1px solid ${COLORS.border}` }}>
+              <Typography variant="body2" sx={{ color: COLORS.muted, fontWeight: 500 }}>
+                Showing {filteredNotifications.filter((n) => selectedTab !== 3 || n.metadata?.notification_stage === 'final').length} of {notifications.length} notifications
               </Typography>
-              
-              <Stack direction="row" spacing={1}>
-                <Tooltip title="Export Notifications">
-                  <IconButton size="small" onClick={exportNotifications}>
-                    <DownloadIcon />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
+
+              <Tooltip title="Export notifications">
+                <IconButton size="small" onClick={exportNotifications} sx={{ color: COLORS.muted, '&:hover': { color: COLORS.primary } }}>
+                  <DownloadIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </Box>
           )}
-        </StyledPaper>
-      </Container>
-      
+        </Surface>
+      </Shell>
+
       {/* Notification Details Dialog */}
-      <Dialog
-        open={notificationDetailsOpen}
-        onClose={() => setNotificationDetailsOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: "16px",
-          }
-        }}
-      >
+      <Dialog open={notificationDetailsOpen} onClose={() => setNotificationDetailsOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '20px', overflow: 'hidden' } }}>
         {selectedNotification && (
           <>
-            <DialogTitle
+            <Box
               sx={{
-                background: getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage) + '20',
+                background: alpha(getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage), 0.1),
                 color: getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage),
-                fontWeight: "bold",
-                py: 2,
+                py: 2.5,
+                px: 3,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1
+                gap: 1.25,
               }}
             >
               {getNotificationIcon(selectedNotification.type, selectedNotification.metadata?.notification_stage, selectedNotification.is_read)}
-              Notification Details
-            </DialogTitle>
-            
+              <DialogTitle sx={{ p: 0, fontWeight: 700, color: 'inherit' }}>
+                <Display>Notification details</Display>
+              </DialogTitle>
+            </Box>
+
             <DialogContent sx={{ mt: 3 }}>
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: COLORS.ink, mb: 0.5 }}>
                   {selectedNotification.message}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                <Typography variant="body2" sx={{ color: COLORS.muted }}>
                   {format(new Date(selectedNotification.created_at), 'PPpp')}
                 </Typography>
-                <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <TypeChip 
-                    label={selectedNotification.type.replace('_', ' ')} 
-                    type={selectedNotification.type}
-                    stage={selectedNotification.metadata?.notification_stage}
+                <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <TypeChip
+                    color={getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage)}
+                    label={selectedNotification.type.replace('_', ' ')}
                   />
                   {selectedNotification.metadata?.notification_stage && (
-                    <TypeChip 
-                      label={selectedNotification.metadata.notification_stage === 'final' ? '🚨 CRITICAL' : '⏰ REMINDER'} 
-                      type={selectedNotification.type}
-                      stage={selectedNotification.metadata.notification_stage}
+                    <TypeChip
+                      color={getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage)}
+                      label={selectedNotification.metadata.notification_stage === 'final' ? 'Critical' : 'Reminder'}
                     />
                   )}
                 </Box>
               </Box>
-              
-        
-           
             </DialogContent>
-            
-            <DialogActions sx={{ p: 3, borderTop: "1px solid rgba(0,0,0,0.1)" }}>
+
+            <DialogActions sx={{ p: 2.5, borderTop: `1px solid ${COLORS.border}` }}>
               <Button
                 onClick={() => {
-                  if (selectedNotification.is_read) {
-                    markAsUnread(selectedNotification.id);
-                  } else {
-                    markAsRead(selectedNotification.id);
-                  }
+                  if (selectedNotification.is_read) markAsUnread(selectedNotification.id);
+                  else markAsRead(selectedNotification.id);
                 }}
                 startIcon={selectedNotification.is_read ? <NotificationsActiveIcon /> : <MarkEmailReadIcon />}
-                sx={{ color: getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage) }}
+                sx={{ color: getTypeColor(selectedNotification.type, selectedNotification.metadata?.notification_stage), textTransform: 'none', fontWeight: 600 }}
               >
-                {selectedNotification.is_read ? 'Mark as Unread' : 'Mark as Read'}
+                {selectedNotification.is_read ? 'Mark as unread' : 'Mark as read'}
               </Button>
               <Button
                 onClick={() => {
@@ -1499,52 +1163,33 @@ const NotificationsPage = () => {
                   setNotificationDetailsOpen(false);
                 }}
                 startIcon={<DeleteIcon />}
-                color="error"
+                sx={{ color: COLORS.danger, textTransform: 'none', fontWeight: 600 }}
               >
                 Delete
               </Button>
-              <Button
-                onClick={() => setNotificationDetailsOpen(false)}
-                variant="outlined"
-              >
+              <Button onClick={() => setNotificationDetailsOpen(false)} variant="outlined" sx={{ borderColor: COLORS.border, color: COLORS.muted, textTransform: 'none', fontWeight: 600 }}>
                 Close
               </Button>
             </DialogActions>
           </>
         )}
       </Dialog>
-      
+
       {/* Notification Action Menu */}
-      <Menu
-        anchorEl={notificationMenuAnchor}
-        open={Boolean(notificationMenuAnchor)}
-        onClose={() => setNotificationMenuAnchor(null)}
-        PaperProps={{
-          sx: {
-            borderRadius: '12px',
-          }
-        }}
-      >
+      <Menu anchorEl={notificationMenuAnchor} open={Boolean(notificationMenuAnchor)} onClose={() => setNotificationMenuAnchor(null)} PaperProps={{ sx: { borderRadius: '14px' } }}>
         {selectedNotification && (
           <>
             <MenuItem
               onClick={() => {
-                if (selectedNotification.is_read) {
-                  markAsUnread(selectedNotification.id);
-                } else {
-                  markAsRead(selectedNotification.id);
-                }
+                if (selectedNotification.is_read) markAsUnread(selectedNotification.id);
+                else markAsRead(selectedNotification.id);
                 setNotificationMenuAnchor(null);
               }}
             >
-              <ListItemIcon>
-                {selectedNotification.is_read ? <NotificationsActiveIcon /> : <MarkEmailReadIcon />}
-              </ListItemIcon>
-              <ListItemText>
-                {selectedNotification.is_read ? 'Mark as Unread' : 'Mark as Read'}
-              </ListItemText>
+              <ListItemIcon>{selectedNotification.is_read ? <NotificationsActiveIcon fontSize="small" /> : <MarkEmailReadIcon fontSize="small" />}</ListItemIcon>
+              <ListItemText>{selectedNotification.is_read ? 'Mark as unread' : 'Mark as read'}</ListItemText>
             </MenuItem>
-            
+
             <MenuItem
               onClick={() => {
                 setNotificationDetailsOpen(true);
@@ -1552,72 +1197,52 @@ const NotificationsPage = () => {
               }}
             >
               <ListItemIcon>
-                <InfoIcon />
+                <InfoIcon fontSize="small" sx={{ color: COLORS.info }} />
               </ListItemIcon>
-              <ListItemText>View Details</ListItemText>
+              <ListItemText>View details</ListItemText>
             </MenuItem>
-            
+
             <Divider />
-            
+
             <MenuItem
               onClick={() => {
                 deleteNotification(selectedNotification.id);
                 setNotificationMenuAnchor(null);
               }}
-              sx={{ color: 'error.main' }}
+              sx={{ color: COLORS.danger }}
             >
               <ListItemIcon>
-                <DeleteIcon color="error" />
+                <DeleteIcon fontSize="small" sx={{ color: COLORS.danger }} />
               </ListItemIcon>
               <ListItemText>Delete</ListItemText>
             </MenuItem>
           </>
         )}
       </Menu>
-      
+
       {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            borderRadius: "16px",
-          }
-        }}
-      >
-        <DialogTitle color="error.main" fontWeight="bold">
-          <DeleteIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Delete Notifications
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} PaperProps={{ sx: { borderRadius: '20px' } }}>
+        <DialogTitle sx={{ color: COLORS.danger, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteIcon />
+          Delete notifications
         </DialogTitle>
-        
+
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete {selectedNotifications.length} selected notification(s)?
-          </Typography>
-          <Alert severity="warning" sx={{ mt: 2 }}>
+          <Typography sx={{ color: COLORS.ink }}>Are you sure you want to delete {selectedNotifications.length} selected notification(s)?</Typography>
+          <Alert severity="warning" sx={{ mt: 2, borderRadius: 2.5 }}>
             This action cannot be undone. All selected notifications will be permanently deleted.
           </Alert>
         </DialogContent>
-        
-        <DialogActions sx={{ p: 3, borderTop: "1px solid rgba(0,0,0,0.1)" }}>
-          <Button
-            onClick={() => setDeleteDialogOpen(false)}
-            variant="outlined"
-          >
+
+        <DialogActions sx={{ p: 2.5, borderTop: `1px solid ${COLORS.border}` }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} variant="outlined" sx={{ borderColor: COLORS.border, color: COLORS.muted, textTransform: 'none', fontWeight: 600 }}>
             Cancel
           </Button>
-          <Button
-            onClick={confirmDelete}
-            variant="contained"
-            color="error"
-            startIcon={<DeleteIcon />}
-          >
+          <Button onClick={confirmDelete} variant="contained" startIcon={<DeleteIcon />} sx={{ bgcolor: COLORS.danger, textTransform: 'none', fontWeight: 600, '&:hover': { bgcolor: '#DC2626' } }}>
             Delete ({selectedNotifications.length})
           </Button>
         </DialogActions>
       </Dialog>
-      
-
     </LocalizationProvider>
   );
 };

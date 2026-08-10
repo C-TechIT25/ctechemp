@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy } from "react";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./layout/DashboardLayout";
 import EmployeeApp from "./Pages/CreateEmployee.jsx";
@@ -16,6 +16,24 @@ const Timesheet        = lazy(() => import("./Pages/Timesheet"));
 const NotificationsPage= lazy(() => import("./Pages/Notification"));
 const Profile          = lazy(() => import("./Pages/Profile"));
 
+function AuthRedirect() {
+  const { user, role, loading, authInitialized } = useAuth();
+
+  if (loading || !authInitialized) {
+    return <div style={{ padding: 20 }}>Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <Navigate
+      to={role === "Admin" ? "/admin/users" : "/employee/daily-timesheet"}
+      replace
+    />
+  );
+}
 export default function App() {
   return (
     <AuthProvider>
@@ -23,7 +41,7 @@ export default function App() {
         <Routes>
 
           {/* ROOT REDIRECT */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<AuthRedirect />} />
 
           {/* ─── PUBLIC ROUTES (no auth needed) ─────────────────────────── */}
           <Route path="/login" element={<Login />} />

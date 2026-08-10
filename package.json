@@ -12,6 +12,9 @@
     "electron": "electron .",
     "electron:build": "npm run build && electron-builder --win",
     "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:mac:x64": "npm run build && electron-builder --mac --x64",
+    "electron:build:mac:arm64": "npm run build && electron-builder --mac --arm64",
+    "electron:build:mac:universal": "npm run build && electron-builder --mac --universal",
     "dist": "npm run build && electron-builder",
     "lint": "eslint ."
   },

@@ -31,17 +31,18 @@ import {
   TableContainer,
   Tooltip,
   Grid,
-  Card,
-  CardContent,
   Avatar,
   InputAdornment,
   Stack,
   styled,
+  alpha,
   FormControl,
   InputLabel,
   Select,
   Menu,
-  Collapse
+  Collapse,
+  GlobalStyles,
+  Divider,
 } from "@mui/material";
 import {
   Edit as EditIcon,
@@ -54,15 +55,13 @@ import {
   Groups,
   Person,
   MoreVert as MoreVertIcon,
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
   ChecklistRtl,
   CloudUpload as CloudUploadIcon,
   PauseCircle,
   BlockOutlined as BlockCircle,
   TrendingUp,
   PictureAsPdf as PdfIcon,
-  TableChart as ExcelIcon
+  TableChart as ExcelIcon,
 } from "@mui/icons-material";
 import { auth, db } from "../Config";
 import { API_BASE_URL } from "../Config";
@@ -75,168 +74,208 @@ import 'jspdf-autotable';
 import autoTable from "jspdf-autotable";
 import * as XLSX from 'xlsx';
 
-// Blue Theme - Matching Timesheet
-const blueTheme = {
-  primary: "#2196F3",
-  secondary: "#2196F3",
-  lightBlue: "#2196F3",
-  warning: "#FF9800",
-  error: "#F44336",
-  info: "#2196F3",
-  gradient: "linear-gradient(135deg, #2196F3 0%, #05467aff 100%)",
-  lightGradient: "linear-gradient(135deg, #2196F3 0%, #0f4877ff 100%)"
+// ---------------------------------------------------------------------------
+// Shared design tokens — same palette/type used across Todo, Timesheet,
+// Header, Sidebar, Notifications and Profile. Worth lifting into a single
+// `theme/tokens.js` file so all pages stay in lockstep.
+// ---------------------------------------------------------------------------
+const COLORS = {
+  primary: "#0EA5E9",
+  primaryDark: "#0EA5E9",
+  primarySoft: "#EEF2FF",
+  ink: "#1E1B2E",
+  muted: "#6B7280",
+  faint: "#9CA3AF",
+  surface: "#FFFFFF",
+  bg: "#F6F7FB",
+  border: "rgba(30,27,46,0.08)",
+  success: "#10B981",
+  warning: "#F59E0B",
+  danger: "#EF4444",
+  info: "#0EA5E9",
 };
 
-// Status options with colors
-const statusOptions = [
-  { value: "Active", label: "Active", color: "#2E7D32", icon: ChecklistRtl },
-  { value: "Inactive", label: "Inactive", color: "#757575", icon: PauseCircle },
-  { value: "On Hold", label: "On Hold", color: "#FF9800", icon: BlockCircle },
-];
+const fontImport = `
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+`;
 
-// Styled Components
-const GradientTypography = styled(Typography)(({ theme }) => ({
-  background: blueTheme.gradient,
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  backgroundClip: "text",
-  fontWeight: 700,
-}));
+const Shell = styled(Box)({ fontFamily: "'Inter', sans-serif" });
+const Display = styled('span')({ fontFamily: "'Outfit', sans-serif" });
 
-const GradientButton = styled(Button)(({ theme }) => ({
-  background: blueTheme.gradient,
-  color: "white",
-  border: "none",
-  borderRadius: "10px",
-  padding: "10px 24px",
+const Surface = styled(Paper)({
+  borderRadius: 20,
+  border: `1px solid ${COLORS.border}`,
+  background: COLORS.surface,
+  boxShadow: '0 1px 2px rgba(16,24,40,0.04), 0 8px 24px rgba(16,24,40,0.04)',
+});
+
+const GradientButton = styled(Button)({
+  background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryDark} 100%)`,
+  color: 'white',
+  borderRadius: 12,
+  padding: '10px 22px',
   fontWeight: 600,
-  textTransform: "none",
-  "&:hover": {
-    background: blueTheme.lightGradient,
-    transform: "translateY(-2px)",
-    boxShadow: "0 6px 12px rgba(46, 109, 125, 0.25)",
+  textTransform: 'none',
+  boxShadow: '0 4px 14px rgba(79,70,229,0.30)',
+  '&:hover': {
+    background: `linear-gradient(135deg, ${COLORS.primaryDark} 0%, ${COLORS.primaryDark} 100%)`,
+    boxShadow: '0 6px 18px rgba(79,70,229,0.40)',
   },
-  "&:disabled": {
-    background: "rgba(0, 0, 0, 0.12)",
-  }
-}));
+  '&.Mui-disabled': { color: 'rgba(255,255,255,0.7)' },
+});
 
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  borderRadius: "16px",
-  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85))",
-  backdropFilter: "blur(10px)",
-  border: "1px solid rgba(33, 150, 243, 0.1)",
-  boxShadow: "0 8px 32px rgba(33, 150, 243, 0.08)",
-}));
+// Radial progress ring — same signature visual as the rest of the app.
+const RadialProgress = ({ value = 0, size = 108, stroke = 11, color = COLORS.primary }) => {
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (Math.min(100, Math.max(0, value)) / 100) * circumference;
+  return (
+    <Box sx={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={alpha(color, 0.12)} strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.7s cubic-bezier(.4,0,.2,1)' }}
+        />
+      </svg>
+      <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', color: COLORS.ink, lineHeight: 1 }}>
+          <Display>{Math.round(value)}%</Display>
+        </Typography>
+        <Typography variant="caption" sx={{ color: COLORS.muted, fontSize: '0.62rem' }}>
+          active
+        </Typography>
+      </Box>
+    </Box>
+  );
+};
 
-const StatCard = styled(Card)(({ theme, color }) => ({
-  borderRadius: "12px",
-  height: "100%",
-  background: color || blueTheme.gradient,
-  color: "white",
-  position: "relative",
-  overflow: "hidden",
-  "&::before": {
-    content: '""',
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "4px",
-    background: "rgba(255, 255, 255, 0.3)",
-  },
-  "&:hover": {
-    transform: "translateY(-2px)",
-    transition: "transform 0.2s",
-    boxShadow: "0 8px 24px rgba(33, 150, 243, 0.2)",
-  }
-}));
+const StatTile = ({ label, value, color, icon }) => (
+  <Box sx={{ p: 1.75, borderRadius: '14px', bgcolor: alpha(color, 0.06), borderLeft: `3px solid ${color}`, minWidth: 130, flex: 1 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Typography sx={{ fontWeight: 800, fontSize: '1.4rem', color }}>
+        <Display>{value}</Display>
+      </Typography>
+      <Box sx={{ color, opacity: 0.85, display: 'flex' }}>{icon}</Box>
+    </Box>
+    <Typography variant="caption" sx={{ color: COLORS.muted, fontWeight: 500 }}>
+      {label}
+    </Typography>
+  </Box>
+);
 
-const StatusChip = styled(Chip)(({ theme, status }) => {
-  const getColor = (status) => {
-    const statusLower = status?.toLowerCase();
-    if (statusLower?.includes("active")) return "#2E7D32";
-    if (statusLower?.includes("inactive")) return "#757575";
-    if (statusLower?.includes("hold")) return "#FF9800";
-    if (statusLower?.includes("admin")) return "#074d86ff";
-    if (statusLower?.includes("employee")) return "#2196F3";
-    if (statusLower?.includes("teamlead")) return "#FF9800";
-    return "#757575";
-  };
-  
-  const color = getColor(status);
+// Status / role / work-mode color maps — drive chip colors consistently.
+const STATUS_COLOR = { 
+  active: COLORS.success, 
+  Active: COLORS.success,
+  inactive: COLORS.muted, 
+  Inactive: COLORS.muted, 
+  "on hold": COLORS.warning, 
+  "On Hold": COLORS.warning 
+};
+const ROLE_COLOR = { Admin: COLORS.danger, TeamLead: COLORS.warning, Employee: COLORS.primary };
+
+// Helper function to normalize status for comparison
+const normalizeStatus = (status) => {
+  if (!status) return 'active';
+  const normalized = status.toLowerCase().trim();
+  if (normalized === 'on hold') return 'on hold';
+  if (normalized === 'inactive') return 'inactive';
+  return 'active';
+};
+
+// Helper function to get display status
+const getDisplayStatus = (status) => {
+  if (!status) return 'Active';
+  const normalized = status.toLowerCase().trim();
+  if (normalized === 'on hold') return 'On Hold';
+  if (normalized === 'inactive') return 'Inactive';
+  return 'Active';
+};
+
+const getStatusColor = (status) => {
+  const normalized = normalizeStatus(status);
+  return STATUS_COLOR[normalized] || COLORS.muted;
+};
+
+const getRoleColor = (role) => ROLE_COLOR[role] || COLORS.primary;
+
+const getWorkModeColor = (mode) => {
+  const m = mode?.toLowerCase() || '';
+  if (m.includes('office')) return COLORS.primary;
+  if (m.includes('home')) return COLORS.success;
+  if (m.includes('hybrid')) return COLORS.warning;
+  return COLORS.muted;
+};
+
+const StatusChip = styled(Chip)(({ status }) => {
+  const color = getStatusColor(status);
   return {
-    borderRadius: "8px",
+    borderRadius: 8,
     fontWeight: 600,
-    backgroundColor: `${color}20`,
-    color: color,
-    border: `1px solid ${color}40`,
-    "&:hover": {
-      backgroundColor: `${color}30`,
-    }
+    backgroundColor: alpha(color, 0.12),
+    color,
+    border: `1px solid ${alpha(color, 0.3)}`,
+    '&:hover': { backgroundColor: alpha(color, 0.18) },
   };
 });
 
-const RoleChip = styled(Chip)(({ theme, role }) => {
-  const getColor = (role) => {
-    const roleLower = role?.toLowerCase();
-    if (roleLower?.includes("admin")) return "#074d86ff";
-    if (roleLower?.includes("teamlead")) return "#FF9800";
-    return "#2196F3";
-  };
-  
-  const color = getColor(role);
+const RoleChip = styled(Chip)(({ role }) => {
+  const color = getRoleColor(role);
   return {
-    borderRadius: "8px",
+    borderRadius: 8,
     fontWeight: 600,
-    backgroundColor: `${color}20`,
-    color: color,
-    border: `1px solid ${color}40`,
-    "&:hover": {
-      backgroundColor: `${color}30`,
-    }
+    backgroundColor: alpha(color, 0.12),
+    color,
+    border: `1px solid ${alpha(color, 0.3)}`,
+    '&:hover': { backgroundColor: alpha(color, 0.18) },
   };
 });
 
-const WorkModeChip = styled(Chip)(({ theme, mode }) => {
-  const getColor = (mode) => {
-    const modeLower = mode?.toLowerCase();
-    if (modeLower?.includes("office")) return "#1976D2";
-    if (modeLower?.includes("home")) return "#2E7D32";
-    if (modeLower?.includes("hybrid")) return "#ED6C02";
-    return "#757575";
-  };
-  
-  const color = getColor(mode);
+const WorkModeChip = styled(Chip)(({ mode }) => {
+  const color = getWorkModeColor(mode);
   return {
-    borderRadius: "8px",
+    borderRadius: 8,
     fontWeight: 600,
-    backgroundColor: `${color}20`,
-    color: color,
-    border: `1px solid ${color}40`,
-    "&:hover": {
-      backgroundColor: `${color}30`,
-    }
+    backgroundColor: alpha(color, 0.12),
+    color,
+    border: `1px solid ${alpha(color, 0.3)}`,
+    '&:hover': { backgroundColor: alpha(color, 0.18) },
   };
 });
 
-const ProfileImageUpload = styled(Box)(({ theme }) => ({
+const ProfileImageUpload = styled(Box)({
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
   width: '100%',
   height: '200px',
-  border: '2px dashed rgba(33, 150, 243, 0.3)',
-  borderRadius: '12px',
-  backgroundColor: 'rgba(33, 150, 243, 0.05)',
+  border: `2px dashed ${alpha(COLORS.primary, 0.3)}`,
+  borderRadius: '14px',
+  backgroundColor: alpha(COLORS.primary, 0.05),
   cursor: 'pointer',
-  transition: 'all 0.3s',
+  transition: 'all 0.25s ease',
   '&:hover': {
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
-    borderColor: '#2196F3',
-  }
-}));
+    backgroundColor: alpha(COLORS.primary, 0.09),
+    borderColor: COLORS.primary,
+  },
+});
+
+// Status options with colors
+const statusOptions = [
+  { value: "Active", label: "Active", color: COLORS.success, icon: ChecklistRtl },
+  { value: "Inactive", label: "Inactive", color: COLORS.muted, icon: PauseCircle },
+  { value: "On Hold", label: "On Hold", color: COLORS.warning, icon: BlockCircle },
+];
 
 const initialForm = {
   empId: "",
@@ -262,9 +301,9 @@ const workModeOptions = [
 ];
 
 const roleOptions = [
-  { value: "Admin", label: "Admin", color: "success" },
-  { value: "Employee", label: "Employee", color: "primary" },
-  { value: "TeamLead", label: "Team Lead", color: "warning" },
+  { value: "Admin", label: "Admin" },
+  { value: "Employee", label: "Employee" },
+  { value: "TeamLead", label: "Team Lead" },
 ];
 
 const genderOptions = [
@@ -277,7 +316,7 @@ const genderOptions = [
 // Helper function to get image URL
 const getImageUrl = (profileData) => {
   if (!profileData) return "";
-  
+
   if (typeof profileData === 'string') {
     if (profileData.startsWith('http')) {
       return profileData;
@@ -287,7 +326,7 @@ const getImageUrl = (profileData) => {
     }
     return "";
   }
-  
+
   if (typeof profileData === 'object' && profileData !== null) {
     if (profileData.profile_img_url && profileData.profile_img_url.startsWith('http')) {
       return profileData.profile_img_url;
@@ -296,54 +335,15 @@ const getImageUrl = (profileData) => {
       if (profileData.profile_img.startsWith('http')) {
         return profileData.profile_img;
       }
-      if (typeof profileData.profile_img === 'string' && 
+      if (typeof profileData.profile_img === 'string' &&
           (profileData.profile_img.startsWith('data:image') || profileData.profile_img.length > 100)) {
         return profileData.profile_img;
       }
     }
     return "";
   }
-  
-  return "";
-};
 
-// Helper function to compress image for upload
-const compressImage = async (file, maxWidth = 800, maxHeight = 800, quality = 0.7) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressedBase64);
-      };
-      img.onerror = reject;
-    };
-    reader.onerror = reject;
-  });
+  return "";
 };
 
 export default function UserManagement() {
@@ -355,7 +355,7 @@ export default function UserManagement() {
   const [fetching, setFetching] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [profileImagePreview, setProfileImagePreview] = useState("");
-  
+
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [departments, setDepartments] = useState([]);
@@ -412,7 +412,7 @@ export default function UserManagement() {
     try {
       const previewUrl = URL.createObjectURL(file);
       setProfileImagePreview(previewUrl);
-      
+
       setForm(prev => ({
         ...prev,
         profileImgFile: file,
@@ -446,20 +446,19 @@ export default function UserManagement() {
     setFetching(true);
     try {
       console.log('📤 Fetching users from:', `${API_BASE_URL}employees`);
-      
+
       const response = await fetch(`${API_BASE_URL}employees`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
         }
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Fetch error response:', errorText);
         throw new Error(`Failed to fetch employees: ${response.status} ${response.statusText}`);
       }
-      console.log('📥 Received employees data:', response);
       const pgData = await response.json();
       console.log('📥 Received employees data:', pgData);
 
@@ -472,16 +471,17 @@ export default function UserManagement() {
           ...pgUser,
           uid: fbUser?.uid,
           role: fbUser?.role || "Employee",
+          // Normalize status for display
           status: pgUser.status || "Active",
           pgId: pgUser.id,
         };
       });
 
       setUsers(combinedUsers);
-      
+
       const uniqueDepts = [...new Set(combinedUsers.map(user => user.department).filter(Boolean))];
       setDepartments(uniqueDepts);
-      
+
       showToast(`Loaded ${combinedUsers.length} users successfully!`, "success");
     } catch (err) {
       console.error("Error fetching users:", err);
@@ -525,7 +525,7 @@ export default function UserManagement() {
 
       const pgResponse = await fetch(`${API_BASE_URL}employees`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Accept": "application/json"
         },
@@ -558,13 +558,13 @@ export default function UserManagement() {
         try {
           const formData = new FormData();
           formData.append('profile_img', form.profileImgFile);
-          
+
           const encodedEmail = encodeURIComponent(form.email);
           const uploadResponse = await fetch(`${API_BASE_URL}profile/image/${encodedEmail}`, {
             method: 'POST',
             body: formData
           });
-          
+
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json();
             profileImageUrl = uploadResult.data?.profile_img_url || uploadResult.data?.profile_img;
@@ -608,13 +608,12 @@ export default function UserManagement() {
     setLoading(false);
   };
 
-  /* ================= UPDATE USER - FIXED VERSION ================= */
+  /* ================= UPDATE USER ================= */
   const handleUpdateUser = async () => {
     if (!editing) return;
 
     setLoading(true);
     try {
-      // Prepare update data
       const updateData = {
         employee_name: form.name,
         gender: form.gender,
@@ -622,29 +621,22 @@ export default function UserManagement() {
         designation: form.designation,
         work_mode: form.workMode,
         total_hours: form.totalHours,
-        status: form.status, // Important: Include status
+        status: form.status,
       };
 
       console.log('📤 Updating user with data:', updateData);
-      console.log('📤 Status value being sent:', form.status);
       console.log('📤 API URL:', `${API_BASE_URL}employees/${editing.pgId}`);
 
-      // Make the update request
       const updateResponse = await fetch(`${API_BASE_URL}employees/${editing.pgId}`, {
         method: "PUT",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Accept": "application/json"
         },
         body: JSON.stringify(updateData),
       });
 
-      console.log('📥 Response status:', updateResponse.status);
-      console.log('📥 Response status text:', updateResponse.statusText);
-
-      // Get the raw response text
       const responseText = await updateResponse.text();
-      console.log('📥 Raw response:', responseText);
 
       let responseData;
       try {
@@ -661,19 +653,18 @@ export default function UserManagement() {
 
       console.log('✅ Update successful:', responseData);
 
-      // Handle profile image upload if changed
       let updatedProfileImageUrl = editing.profile_img_url || editing.profile_img;
       if (form.profileImgFile && form.profileImgChanged) {
         try {
           const formData = new FormData();
           formData.append('profile_img', form.profileImgFile);
-          
+
           const encodedEmail = encodeURIComponent(editing.email);
           const uploadResponse = await fetch(`${API_BASE_URL}profile/image/${encodedEmail}`, {
             method: 'POST',
             body: formData
           });
-          
+
           if (uploadResponse.ok) {
             const uploadResult = await uploadResponse.json();
             updatedProfileImageUrl = uploadResult.data?.profile_img_url || uploadResult.data?.profile_img;
@@ -685,7 +676,6 @@ export default function UserManagement() {
         }
       }
 
-      // Update Firestore
       if (editing.uid) {
         const firestoreUpdateData = {
           name: form.name,
@@ -695,18 +685,17 @@ export default function UserManagement() {
           totalHours: form.totalHours,
           role: form.role,
           gender: form.gender,
-          status: form.status, // Important: Include status
+          status: form.status,
         };
-        
+
         if (form.profileImgChanged && updatedProfileImageUrl) {
           firestoreUpdateData.profileImgUrl = updatedProfileImageUrl;
         }
-        
+
         console.log('📤 Updating Firestore with:', firestoreUpdateData);
         await updateDoc(doc(db, "users", editing.uid), firestoreUpdateData);
       }
 
-      // Clean up
       if (profileImagePreview && profileImagePreview.startsWith('blob:')) {
         URL.revokeObjectURL(profileImagePreview);
       }
@@ -715,9 +704,9 @@ export default function UserManagement() {
       setEditing(null);
       setForm(initialForm);
       setProfileImagePreview("");
-      await fetchUsers(); // Refresh the user list
+      await fetchUsers();
       showToast("User updated successfully!", "success");
-      
+
     } catch (err) {
       console.error("❌ Error updating user:", err);
       showToast(err.message || "Error updating user", "error");
@@ -767,7 +756,7 @@ export default function UserManagement() {
   const handleEdit = (user) => {
     setEditing(user);
     const existingProfileImgUrl = getImageUrl(user);
-    
+
     setForm({
       empId: user.emp_id,
       doj: user.date_of_joining?.split("T")[0] || "",
@@ -779,17 +768,17 @@ export default function UserManagement() {
       workMode: user.work_mode || "",
       totalHours: user.total_hours || "",
       role: user.role || "Employee",
-      status: user.status || "Active",
+      status: getDisplayStatus(user.status), // Normalize status for display
       profileImgFile: null,
       profileImgChanged: false,
     });
-    
+
     if (existingProfileImgUrl) {
       setProfileImagePreview(existingProfileImgUrl);
     } else {
       setProfileImagePreview("");
     }
-    
+
     setOpen(true);
   };
 
@@ -828,278 +817,233 @@ export default function UserManagement() {
   };
 
   // Export to PDF (Landscape)
-const exportToPDF = () => {
-  try {
-    // Get the filtered users data for export
-    const exportData = filteredUsers.length > 0 ? filteredUsers : users;
-    
-    if (exportData.length === 0) {
-      showToast('No users to export!', 'warning');
-      return;
-    }
-
-    const doc = new jsPDF('landscape', 'mm', 'a4');
-    
-    // ===== COLOR PALETTE =====
-    const COLORS = {
-      primary: [37, 99, 235],         // Bright blue #2563EB
-      text: [45, 45, 45],             // Dark gray
-      lightText: [107, 114, 128],     // Medium gray
-      border: [229, 231, 235],        // Light gray
-      rowAlt: [249, 250, 251],        // Very light gray
-      white: [255, 255, 255],
-      active: [34, 197, 94],          // Green #22C55E
-      onHold: [249, 115, 22],         // Orange #F97316
-      inactive: [239, 68, 68],        // Red #EF4444
-    };
-
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const MARGIN = { top: 12, right: 12, bottom: 15, left: 12 };
-    const CONTENT_WIDTH = pageWidth - MARGIN.left - MARGIN.right;
-
-    // ===== HEADER SECTION =====
-    let currentY = MARGIN.top;
-
-    // Main title
-    doc.setFontSize(18);
-    doc.setTextColor(...COLORS.text);
-    doc.setFont('helvetica', 'bold');
-    doc.text('User Management Report', MARGIN.left, currentY);
-
-    // Subtitle
-    doc.setFontSize(10);
-    doc.setTextColor(...COLORS.lightText);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Employee Directory and Access Control', MARGIN.left, currentY + 5);
-
-    // Header metadata (right aligned)
-    doc.setFontSize(9);
-    doc.setTextColor(...COLORS.lightText);
-    const currentDate = new Date().toLocaleString();
-    doc.text(`Generated: ${currentDate}`, pageWidth - MARGIN.right, currentY, { align: 'right' });
-    doc.text(`Total Records: ${exportData.length}`, pageWidth - MARGIN.right, currentY + 5, { align: 'right' });
-
-    currentY += 14;
-
-    // ===== SUMMARY STATISTICS =====
-    const activeCount = exportData.filter(u => u.status && u.status.toLowerCase() === 'active').length;
-    const onHoldCount = exportData.filter(u => u.status && u.status.toLowerCase() === 'on hold').length;
-    const inactiveCount = exportData.filter(u => u.status && u.status.toLowerCase() === 'inactive').length;
-
-    const stats = [
-      { 
-        label: 'Active Users', 
-        value: activeCount.toString(),
-        borderColor: COLORS.active
-      },
-      { 
-        label: 'On Hold', 
-        value: onHoldCount.toString(),
-        borderColor: COLORS.onHold
-      },
-      { 
-        label: 'Inactive', 
-        value: inactiveCount.toString(),
-        borderColor: COLORS.inactive
-      },
-      { 
-        label: 'Total Users', 
-        value: exportData.length.toString(),
-        borderColor: COLORS.primary
-      },
-    ];
-
-    const statBoxWidth = CONTENT_WIDTH / 4 - 1.5;
-    const statBoxHeight = 16;
-    const statBoxY = currentY;
-
-    stats.forEach((stat, index) => {
-      const boxX = MARGIN.left + (index * (statBoxWidth + 2));
-
-      // White background with border
-      doc.setFillColor(...COLORS.white);
-      doc.setDrawColor(...COLORS.border);
-      doc.setLineWidth(0.3);
-      doc.rect(boxX, statBoxY, statBoxWidth, statBoxHeight, 'FD');
-
-      // Left colored border (thick)
-      doc.setDrawColor(...stat.borderColor);
-      doc.setLineWidth(0.8);
-      doc.line(boxX, statBoxY, boxX, statBoxY + statBoxHeight);
-
-      // Label
-      doc.setFontSize(7);
-      doc.setTextColor(...COLORS.lightText);
-      doc.setFont('helvetica', 'normal');
-      doc.text(stat.label, boxX + 3, statBoxY + 3.5);
-
-      // Value
-      doc.setFontSize(12);
-      doc.setTextColor(...stat.borderColor);
-      doc.setFont('helvetica', 'bold');
-      doc.text(stat.value, boxX + 3, statBoxY + 11);
-    });
-
-    currentY = statBoxY + statBoxHeight + 7;
-
-    // ===== TABLE SECTION =====
-    const tableColumn = ["S.No", "Emp ID", "Name", "Email", "Department", "Designation", "Status", "Role", "Work Mode", "Hours"];
-    const tableRows = [];
-
-    exportData.forEach((user, index) => {
-      const userData = [
-        (index + 1).toString(),
-        user.emp_id || '-',
-        user.employee_name || '-',
-        user.email || '-',
-        user.department || '-',
-        user.designation || '-',
-        user.status || 'Active',
-        user.role || 'Employee',
-        user.work_mode || '-',
-        user.total_hours || '0'
-      ];
-      tableRows.push(userData);
-    });
-
-    // Generate table
-    autoTable(doc, {
-      startY: currentY,
-      head: [tableColumn],
-      body: tableRows,
-      theme: 'grid',
-      
-      // Column styles
-      columnStyles: {
-        0: { cellWidth: 13, halign: 'center' },    // S.No
-        1: { cellWidth: 20, halign: 'center' },    // Emp ID
-        2: { cellWidth: 35, halign: 'left' },      // Name
-        3: { cellWidth: 40, halign: 'left' },      // Email
-        4: { cellWidth: 40, halign: 'left' },      // Department
-        5: { cellWidth: 35, halign: 'left' },      // Designation
-        6: { cellWidth: 22, halign: 'center' },    // Status
-        7: { cellWidth: 20, halign: 'center' },    // Role
-        8: { cellWidth: 30, halign: 'center' },    // Work Mode
-        9: { cellWidth: 18, halign: 'center' },    // Hours
-      },
-
-      // Header styling
-      headStyles: {
-        fillColor: COLORS.primary,
-        textColor: COLORS.white,
-        fontSize: 8,
-        fontStyle: 'bold',
-        cellPadding: 2,
-        halign: 'center',
-        valign: 'middle',
-        lineColor: COLORS.primary,
-        lineWidth: 0.1
-      },
-
-      // Body styling
-      bodyStyles: {
-        fontSize: 8,
-        textColor: COLORS.text,
-        cellPadding: 2,
-        lineColor: COLORS.border,
-        lineWidth: 0.1,
-        valign: 'middle'
-      },
-
-      // Alternating row colors
-      alternateRowStyles: {
-        fillColor: COLORS.rowAlt,
-        textColor: COLORS.text,
-        cellPadding: 2,
-        lineColor: COLORS.border,
-        lineWidth: 0.1,
-        valign: 'middle'
-      },
-
-      // Dynamic status coloring - CASE INSENSITIVE
-      didParseCell: function (data) {
-        // Color the Status column (index 6)
-        if (data.column.index === 6) {
-          const cellText = data.cell.text[0] || '';
-          const statusLower = cellText.toLowerCase().trim();
-          
-          if (statusLower === 'on hold') {
-            // On Hold - Orange highlight
-            data.cell.textColor = COLORS.onHold;
-            data.cell.fontStyle = 'normal';
-          } else if (statusLower === 'Inactive') {
-            // Inactive - Red highlight
-            data.cell.textColor = COLORS.inactive;
-            data.cell.fontStyle = 'normal';
-          } else if (statusLower === 'active') {
-            // Active status - use normal text color, no highlighting
-            data.cell.textColor = COLORS.text;
-            data.cell.fontStyle = 'normal';
-          }
-        }
-      },
-
-      // Page management
-      margin: MARGIN,
-      rowPageBreak: 'avoid',
-
-      // Footer with page numbers
-      didDrawPage: function (data) {
-        const pageCount = doc.internal.getNumberOfPages();
-        
-        // Bottom border
-        doc.setDrawColor(...COLORS.primary);
-        doc.setLineWidth(0.5);
-        doc.line(MARGIN.left, pageHeight - MARGIN.bottom - 5, pageWidth - MARGIN.right, pageHeight - MARGIN.bottom - 5);
-
-        // Page number and footer
-        doc.setFontSize(7);
-        doc.setTextColor(...COLORS.lightText);
-        doc.setFont('helvetica', 'normal');
-
-        doc.text(
-          `Page ${data.pageNumber} of ${pageCount}`,
-          pageWidth / 2,
-          pageHeight - MARGIN.bottom + 3,
-          { align: 'center' }
-        );
-
-        // Footer text
-        doc.setFontSize(6);
-        doc.text(
-          '© User Management System - Confidential',
-          MARGIN.left,
-          pageHeight - MARGIN.bottom + 3
-        );
-      }
-    });
-
-    // ===== SAVE DOCUMENT =====
-    const fileName = `User_Management_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
-    
-    showToast('PDF exported successfully!', 'success');
-    handleExportMenuClose();
-
-  } catch (error) {
-    console.error('Error exporting PDF:', error);
-    showToast('Error exporting PDF: ' + error.message, 'error');
-  }
-};
-
-  // Export to Excel
-  const exportToExcel = () => {
+  const exportToPDF = () => {
     try {
-      // Get the filtered users data for export
       const exportData = filteredUsers.length > 0 ? filteredUsers : users;
-      
+
       if (exportData.length === 0) {
         showToast('No users to export!', 'warning');
         return;
       }
 
-      // Prepare data for Excel
+      const doc = new jsPDF('landscape', 'mm', 'a4');
+
+      // ===== COLOR PALETTE (matches the app's indigo theme) =====
+      const PDF_COLORS = {
+        primary: [79, 70, 229],         // Indigo #4F46E5
+        text: [30, 27, 46],             // Ink
+        lightText: [107, 114, 128],     // Muted gray
+        border: [229, 231, 235],        // Light gray
+        rowAlt: [246, 247, 251],        // Very light gray
+        white: [255, 255, 255],
+        active: [16, 185, 129],         // Success
+        onHold: [245, 158, 11],         // Warning
+        inactive: [239, 68, 68],        // Danger
+      };
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const MARGIN = { top: 12, right: 12, bottom: 15, left: 12 };
+      const CONTENT_WIDTH = pageWidth - MARGIN.left - MARGIN.right;
+
+      let currentY = MARGIN.top;
+
+      doc.setFontSize(18);
+      doc.setTextColor(...PDF_COLORS.text);
+      doc.setFont('helvetica', 'bold');
+      doc.text('User Management Report', MARGIN.left, currentY);
+
+      doc.setFontSize(10);
+      doc.setTextColor(...PDF_COLORS.lightText);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Employee Directory and Access Control', MARGIN.left, currentY + 5);
+
+      doc.setFontSize(9);
+      doc.setTextColor(...PDF_COLORS.lightText);
+      const currentDate = new Date().toLocaleString();
+      doc.text(`Generated: ${currentDate}`, pageWidth - MARGIN.right, currentY, { align: 'right' });
+      doc.text(`Total Records: ${exportData.length}`, pageWidth - MARGIN.right, currentY + 5, { align: 'right' });
+
+      currentY += 14;
+
+      // Calculate stats using normalized status
+      const activeCount = exportData.filter(u => normalizeStatus(u.status) === 'active').length;
+      const onHoldCount = exportData.filter(u => normalizeStatus(u.status) === 'on hold').length;
+      const inactiveCount = exportData.filter(u => normalizeStatus(u.status) === 'inactive').length;
+
+      const stats = [
+        { label: 'Active Users', value: activeCount.toString(), borderColor: PDF_COLORS.active },
+        { label: 'On Hold', value: onHoldCount.toString(), borderColor: PDF_COLORS.onHold },
+        { label: 'Inactive', value: inactiveCount.toString(), borderColor: PDF_COLORS.inactive },
+        { label: 'Total Users', value: exportData.length.toString(), borderColor: PDF_COLORS.primary },
+      ];
+
+      const statBoxWidth = CONTENT_WIDTH / 4 - 1.5;
+      const statBoxHeight = 16;
+      const statBoxY = currentY;
+
+      stats.forEach((stat, index) => {
+        const boxX = MARGIN.left + (index * (statBoxWidth + 2));
+
+        doc.setFillColor(...PDF_COLORS.white);
+        doc.setDrawColor(...PDF_COLORS.border);
+        doc.setLineWidth(0.3);
+        doc.rect(boxX, statBoxY, statBoxWidth, statBoxHeight, 'FD');
+
+        doc.setDrawColor(...stat.borderColor);
+        doc.setLineWidth(0.8);
+        doc.line(boxX, statBoxY, boxX, statBoxY + statBoxHeight);
+
+        doc.setFontSize(7);
+        doc.setTextColor(...PDF_COLORS.lightText);
+        doc.setFont('helvetica', 'normal');
+        doc.text(stat.label, boxX + 3, statBoxY + 3.5);
+
+        doc.setFontSize(12);
+        doc.setTextColor(...stat.borderColor);
+        doc.setFont('helvetica', 'bold');
+        doc.text(stat.value, boxX + 3, statBoxY + 11);
+      });
+
+      currentY = statBoxY + statBoxHeight + 7;
+
+      const tableColumn = ["S.No", "Emp ID", "Name", "Email", "Department", "Designation", "Status", "Role", "Work Mode", "Hours"];
+      const tableRows = [];
+
+      exportData.forEach((user, index) => {
+        tableRows.push([
+          (index + 1).toString(),
+          user.emp_id || '-',
+          user.employee_name || '-',
+          user.email || '-',
+          user.department || '-',
+          user.designation || '-',
+          getDisplayStatus(user.status), // Use normalized display status
+          user.role || 'Employee',
+          user.work_mode || '-',
+          user.total_hours || '0'
+        ]);
+      });
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [tableColumn],
+        body: tableRows,
+        theme: 'grid',
+
+        columnStyles: {
+          0: { cellWidth: 13, halign: 'center' },
+          1: { cellWidth: 20, halign: 'center' },
+          2: { cellWidth: 35, halign: 'left' },
+          3: { cellWidth: 40, halign: 'left' },
+          4: { cellWidth: 40, halign: 'left' },
+          5: { cellWidth: 35, halign: 'left' },
+          6: { cellWidth: 22, halign: 'center' },
+          7: { cellWidth: 20, halign: 'center' },
+          8: { cellWidth: 30, halign: 'center' },
+          9: { cellWidth: 18, halign: 'center' },
+        },
+
+        headStyles: {
+          fillColor: PDF_COLORS.primary,
+          textColor: PDF_COLORS.white,
+          fontSize: 8,
+          fontStyle: 'bold',
+          cellPadding: 2,
+          halign: 'center',
+          valign: 'middle',
+          lineColor: PDF_COLORS.primary,
+          lineWidth: 0.1
+        },
+
+        bodyStyles: {
+          fontSize: 8,
+          textColor: PDF_COLORS.text,
+          cellPadding: 2,
+          lineColor: PDF_COLORS.border,
+          lineWidth: 0.1,
+          valign: 'middle'
+        },
+
+        alternateRowStyles: {
+          fillColor: PDF_COLORS.rowAlt,
+          textColor: PDF_COLORS.text,
+          cellPadding: 2,
+          lineColor: PDF_COLORS.border,
+          lineWidth: 0.1,
+          valign: 'middle'
+        },
+
+        didParseCell: function (data) {
+          if (data.column.index === 6) {
+            const cellText = data.cell.text[0] || '';
+            const statusLower = cellText.toLowerCase().trim();
+
+            if (statusLower === 'on hold') {
+              data.cell.textColor = PDF_COLORS.onHold;
+              data.cell.fontStyle = 'normal';
+            } else if (statusLower === 'inactive') {
+              data.cell.textColor = PDF_COLORS.inactive;
+              data.cell.fontStyle = 'normal';
+            } else if (statusLower === 'active') {
+              data.cell.textColor = PDF_COLORS.text;
+              data.cell.fontStyle = 'normal';
+            }
+          }
+        },
+
+        margin: MARGIN,
+        rowPageBreak: 'avoid',
+
+        didDrawPage: function (data) {
+          const pageCount = doc.internal.getNumberOfPages();
+
+          doc.setDrawColor(...PDF_COLORS.primary);
+          doc.setLineWidth(0.5);
+          doc.line(MARGIN.left, pageHeight - MARGIN.bottom - 5, pageWidth - MARGIN.right, pageHeight - MARGIN.bottom - 5);
+
+          doc.setFontSize(7);
+          doc.setTextColor(...PDF_COLORS.lightText);
+          doc.setFont('helvetica', 'normal');
+
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            pageWidth / 2,
+            pageHeight - MARGIN.bottom + 3,
+            { align: 'center' }
+          );
+
+          doc.setFontSize(6);
+          doc.text(
+            '© User Management System - Confidential',
+            MARGIN.left,
+            pageHeight - MARGIN.bottom + 3
+          );
+        }
+      });
+
+      const fileName = `User_Management_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+
+      showToast('PDF exported successfully!', 'success');
+      handleExportMenuClose();
+
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      showToast('Error exporting PDF: ' + error.message, 'error');
+    }
+  };
+
+  // Export to Excel
+  const exportToExcel = () => {
+    try {
+      const exportData = filteredUsers.length > 0 ? filteredUsers : users;
+
+      if (exportData.length === 0) {
+        showToast('No users to export!', 'warning');
+        return;
+      }
+
       const excelData = exportData.map((user, index) => ({
         'S.No': index + 1,
         'Employee ID': user.emp_id || '-',
@@ -1109,48 +1053,43 @@ const exportToPDF = () => {
         'Date of Joining': user.date_of_joining || '-',
         'Department': user.department || '-',
         'Designation': user.designation || '-',
-        'Status': user.status || 'Active',
+        'Status': getDisplayStatus(user.status), // Use normalized display status
         'Role': user.role || 'Employee',
         'Work Mode': user.work_mode || '-',
         'Total Hours': user.total_hours || '0'
       }));
 
-      // Create workbook
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(excelData);
 
-      // Style the worksheet
       const wscols = [
-        { wch: 8 },  // S.No
-        { wch: 15 }, // Employee ID
-        { wch: 25 }, // Name
-        { wch: 30 }, // Email
-        { wch: 12 }, // Gender
-        { wch: 18 }, // Date of Joining
-        { wch: 20 }, // Department
-        { wch: 20 }, // Designation
-        { wch: 12 }, // Status
-        { wch: 12 }, // Role
-        { wch: 18 }, // Work Mode
-        { wch: 12 }, // Total Hours
+        { wch: 8 },
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 30 },
+        { wch: 12 },
+        { wch: 18 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 18 },
+        { wch: 12 },
       ];
       ws['!cols'] = wscols;
 
-      // Append worksheet to workbook
       XLSX.utils.book_append_sheet(wb, ws, 'Users');
 
-      // Generate Excel file
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([wbout], { type: 'application/octet-stream' });
-      
-      // Create download link
+
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = 'user_management_report.xlsx';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       showToast('Excel exported successfully!', 'success');
       handleExportMenuClose();
     } catch (error) {
@@ -1174,7 +1113,7 @@ const exportToPDF = () => {
 
   // Filter users
   const filteredUsers = users.filter((user) => {
-    const matchesSearch = searchTerm === "" || 
+    const matchesSearch = searchTerm === "" ||
       user.employee_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.emp_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1183,18 +1122,23 @@ const exportToPDF = () => {
 
     const matchesDepartment = selectedDepartment === "all" || user.department === selectedDepartment;
     const matchesRole = selectedRole === "all" || user.role === selectedRole;
-    const matchesStatus = selectedStatus === "all" || user.status === selectedStatus;
+    
+    // Normalize status for comparison
+    const userStatusNormalized = normalizeStatus(user.status);
+    const filterStatusNormalized = selectedStatus === "all" ? "all" : normalizeStatus(selectedStatus);
+    const matchesStatus = selectedStatus === "all" || userStatusNormalized === filterStatusNormalized;
 
     return matchesSearch && matchesDepartment && matchesRole && matchesStatus;
   });
 
-  // Stats calculations
+  // Stats calculations - using normalized status
   const totalUsers = users.length;
-  const activeUsers = users.filter(u => u.status === "Active").length;
-  const inactiveUsers = users.filter(u => u.status === "Inactive").length;
-  const onHoldUsers = users.filter(u => u.status === "On Hold").length;
+  const activeUsers = users.filter(u => normalizeStatus(u.status) === 'active').length;
+  const inactiveUsers = users.filter(u => normalizeStatus(u.status) === 'inactive').length;
+  const onHoldUsers = users.filter(u => normalizeStatus(u.status) === 'on hold').length;
   const totalAdmins = users.filter(u => u.role === "Admin").length;
   const totalHours = users.reduce((sum, user) => sum + (parseFloat(user.total_hours) || 0), 0);
+  const activeRate = totalUsers > 0 ? (activeUsers / totalUsers) * 100 : 0;
 
   // Handle dialog close
   const handleDialogClose = () => {
@@ -1211,7 +1155,8 @@ const exportToPDF = () => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ flexGrow: 1, px: 4, py: 3, bgcolor: "#f5f7fa", minHeight: "100vh" }}>
+      <GlobalStyles styles={fontImport} />
+      <Shell sx={{ px: { xs: 2, sm: 4 }, py: 3, bgcolor: COLORS.bg, minHeight: "100vh" }}>
         <ToastContainer
           position="top-right"
           autoClose={5000}
@@ -1225,73 +1170,60 @@ const exportToPDF = () => {
           theme="colored"
         />
 
-        {/* HEADER SECTION */}
-        <StyledPaper sx={{ p: 3, mb: 3 }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 2 }}>
+        {/* Header */}
+        <Surface sx={{ p: { xs: 2.5, sm: 3.5 }, mb: 3 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 3, flexWrap: "wrap", gap: 2 }}>
             <Box>
-              <GradientTypography variant="h4">
-                User Management
-              </GradientTypography>
-              <Typography variant="body2" color="text.secondary">
-                Manage all employees and their information
+              <Typography sx={{ fontSize: '1.7rem', fontWeight: 800, color: COLORS.ink }}>
+                <Display>User management</Display>
+              </Typography>
+              <Typography variant="body2" sx={{ color: COLORS.muted, mt: 0.5 }}>
+                Manage all employees and their information.
               </Typography>
             </Box>
-            
+
             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
               <Tooltip title="Toggle filters">
-                <IconButton 
+                <IconButton
                   onClick={() => setShowFilters(!showFilters)}
-                  color={showFilters ? "success" : "default"}
-                  sx={{ 
-                    bgcolor: showFilters ? "rgba(33, 150, 243, 0.1)" : "transparent",
-                    border: "1px solid rgba(33, 150, 243, 0.2)",
-                    "&:hover": {
-                      bgcolor: "rgba(33, 150, 243, 0.15)"
-                    }
+                  sx={{
+                    bgcolor: showFilters ? alpha(COLORS.primary, 0.12) : COLORS.bg,
+                    color: showFilters ? COLORS.primary : COLORS.muted,
+                    border: `1px solid ${COLORS.border}`,
+                    "&:hover": { bgcolor: alpha(COLORS.primary, 0.12), color: COLORS.primary }
                   }}
                 >
                   <FilterIcon />
                 </IconButton>
               </Tooltip>
-              
+
               <Tooltip title="Refresh users">
-                <IconButton 
-                  onClick={fetchUsers} 
+                <IconButton
+                  onClick={fetchUsers}
                   disabled={fetching}
-                  sx={{
-                    bgcolor: "rgba(33, 150, 243, 0.1)",
-                    border: "1px solid rgba(33, 150, 243, 0.2)",
-                    "&:hover": {
-                      bgcolor: "rgba(33, 150, 243, 0.2)"
-                    }
-                  }}
+                  sx={{ bgcolor: COLORS.bg, color: COLORS.muted, border: `1px solid ${COLORS.border}`, "&:hover": { bgcolor: alpha(COLORS.primary, 0.12), color: COLORS.primary } }}
                 >
                   <RefreshIcon />
                 </IconButton>
               </Tooltip>
 
-              {/* Export Button with Menu */}
-              <Tooltip title="Export data">
-                <Button
-                  onClick={handleExportMenuOpen}
-                  sx={{
-                    background: blueTheme.gradient,
-                    color: "white",
-                    borderRadius: "10px",
-                    px: 2,
-                    textTransform: "none",
-                    "&:hover": {
-                      background: blueTheme.lightGradient,
-                      transform: "translateY(-2px)",
-                      boxShadow: "0 6px 12px rgba(46, 109, 125, 0.25)",
-                    }
-                  }}
-                  startIcon={<PdfIcon />}
-                >
-                  Export
-                </Button>
-              </Tooltip>
-              
+              <Button
+                onClick={handleExportMenuOpen}
+                startIcon={<PdfIcon />}
+                variant="outlined"
+                sx={{
+                  borderColor: COLORS.border,
+                  color: COLORS.muted,
+                  borderRadius: "12px",
+                  px: 2,
+                  textTransform: "none",
+                  fontWeight: 600,
+                  "&:hover": { borderColor: COLORS.primary, color: COLORS.primary, bgcolor: alpha(COLORS.primary, 0.04) }
+                }}
+              >
+                Export
+              </Button>
+
               <GradientButton
                 startIcon={<PersonAddIcon />}
                 onClick={() => {
@@ -1300,9 +1232,8 @@ const exportToPDF = () => {
                   setProfileImagePreview("");
                   setOpen(true);
                 }}
-                sx={{ px: 3 }}
               >
-                Create New User
+                Create new user
               </GradientButton>
             </Box>
           </Box>
@@ -1312,289 +1243,138 @@ const exportToPDF = () => {
             anchorEl={exportMenuAnchorEl}
             open={exportMenuOpen}
             onClose={handleExportMenuClose}
-            PaperProps={{
-              sx: {
-                borderRadius: "12px",
-                mt: 1,
-                minWidth: 200,
-                boxShadow: "0 8px 32px rgba(33, 150, 243, 0.15)",
-              }
-            }}
+            PaperProps={{ sx: { borderRadius: "14px", mt: 1, minWidth: 220 } }}
           >
             <MenuItem onClick={exportToPDF} sx={{ py: 1.5 }}>
-              <PdfIcon sx={{ mr: 2, color: "#f44336" }} />
-              <Typography>Export to PDF (Landscape)</Typography>
+              <PdfIcon sx={{ mr: 2, color: COLORS.danger }} />
+              <Typography>Export to PDF (landscape)</Typography>
             </MenuItem>
             <MenuItem onClick={exportToExcel} sx={{ py: 1.5 }}>
-              <ExcelIcon sx={{ mr: 2, color: "#2196F3" }} />
+              <ExcelIcon sx={{ mr: 2, color: COLORS.success }} />
               <Typography>Export to Excel</Typography>
             </MenuItem>
           </Menu>
 
-          {/* STATS CARDS */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={2.4} width={'15%'}>
-              <StatCard color={blueTheme.gradient}>
-                <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>
-                        Total Users
-                      </Typography>
-                      <Typography variant="h5" fontWeight="bold">
-                        {totalUsers}
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)", width: 40, height: 40 }}>
-                      <Groups />
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </StatCard>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={2.4} width={'15%'}>
-              <StatCard color="#2E7D32">
-                <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>
-                        Active Users
-                      </Typography>
-                      <Typography variant="h5" fontWeight="bold">
-                        {activeUsers}
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)", width: 40, height: 40 }}>
-                      <ChecklistRtl />
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </StatCard>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={2.4} width={'15%'}>
-              <StatCard color="#FF9800">
-                <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>
-                        On Hold
-                      </Typography>
-                      <Typography variant="h5" fontWeight="bold">
-                        {onHoldUsers}
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)", width: 40, height: 40 }}>
-                      <BlockCircle />
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </StatCard>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={2.4} width={'15%'}>
-              <StatCard color="#757575">
-                <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>
-                        Inactive Users
-                      </Typography>
-                      <Typography variant="h5" fontWeight="bold">
-                        {inactiveUsers}
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)", width: 40, height: 40 }}>
-                      <PauseCircle />
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </StatCard>
-            </Grid>
+          {/* Overview */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3.5, flexWrap: 'wrap', mb: 3 }}>
+            <RadialProgress value={activeRate} color={COLORS.primary} />
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flex: 1, minWidth: 280 }}>
+              <StatTile label="Total users" value={totalUsers} color={COLORS.primary} icon={<Groups fontSize="small" />} />
+              <StatTile label="Active" value={activeUsers} color={COLORS.success} icon={<ChecklistRtl fontSize="small" />} />
+              <StatTile label="On hold" value={onHoldUsers} color={COLORS.warning} icon={<BlockCircle fontSize="small" />} />
+              <StatTile label="Inactive" value={inactiveUsers} color={COLORS.muted} icon={<PauseCircle fontSize="small" />} />
+              <StatTile label="Admins" value={totalAdmins} color={COLORS.danger} icon={<Person fontSize="small" />} />
+            </Box>
+          </Box>
 
-            <Grid item xs={12} sm={6} md={2.4} width={'15%'}>
-              <StatCard color="#2196F3">
-                <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <Box>
-                      <Typography variant="body2" sx={{ opacity: 0.9, mb: 0.5 }}>
-                        Admin Users
-                      </Typography>
-                      <Typography variant="h5" fontWeight="bold">
-                        {totalAdmins}
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)", width: 40, height: 40 }}>
-                      <Person />
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </StatCard>
-            </Grid>
-          </Grid>
-
-          {/* SEARCH BAR */}
+          {/* Search bar */}
           <TextField
             fullWidth
-            variant="outlined"
-            placeholder="Search by name, email, ID, department, or designation..."
+            placeholder="Search by name, email, ID, department, or designation…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            size="small"
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon color="success" />
+                  <SearchIcon sx={{ color: COLORS.muted, fontSize: 20 }} />
                 </InputAdornment>
               ),
-              sx: { 
-                borderRadius: "12px",
-                bgcolor: "rgba(33, 150, 243, 0.05)",
-                border: "1px solid rgba(33, 150, 243, 0.1)"
-              }
+              sx: { borderRadius: "12px", bgcolor: COLORS.bg }
             }}
           />
 
-          {/* FILTER SECTION */}
+          {/* Filter section */}
           <Collapse in={showFilters}>
-            <StyledPaper sx={{ p: 3, mt: 3, bgcolor: "rgba(33, 150, 243, 0.02)" }}>
-              <Typography variant="subtitle1" fontWeight="bold" color="#2196F3" gutterBottom sx={{ display: "flex", alignItems: "center" }}>
-                <FilterIcon sx={{ mr: 1 }} />
-                Filter Users
-              </Typography>
-              
-              <Grid container spacing={2} alignItems="flex-end">
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: "#2196F3" }}>Department</InputLabel>
-                    <Select
-                      value={selectedDepartment}
-                      label="Department"
-                      onChange={(e) => setSelectedDepartment(e.target.value)}
-                      sx={{ 
-                        borderRadius: "8px",
-                        bgcolor: "rgba(33, 150, 243, 0.05)",
-                        border: "1px solid rgba(33, 150, 243, 0.1)"
-                      }}
-                    >
-                      <MenuItem value="all">All Departments</MenuItem>
-                      {departments.map((dept) => (
-                        <MenuItem key={dept} value={dept}>
-                          {dept}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: "#2196F3" }}>Role</InputLabel>
-                    <Select
-                      value={selectedRole}
-                      label="Role"
-                      onChange={(e) => setSelectedRole(e.target.value)}
-                      sx={{ 
-                        borderRadius: "8px",
-                        bgcolor: "rgba(33, 150, 243, 0.05)",
-                        border: "1px solid rgba(33, 150, 243, 0.1)"
-                      }}
-                    >
-                      <MenuItem value="all">All Roles</MenuItem>
-                      {roleOptions.map((role) => (
-                        <MenuItem key={role.value} value={role.value}>
-                          {role.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+            <Divider sx={{ my: 2.5 }} />
+            <Typography sx={{ fontWeight: 700, color: COLORS.ink, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <FilterIcon sx={{ fontSize: 18, color: COLORS.primary }} />
+              Filter users
+            </Typography>
 
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: "#2196F3" }}>Status</InputLabel>
-                    <Select
-                      value={selectedStatus}
-                      label="Status"
-                      onChange={(e) => setSelectedStatus(e.target.value)}
-                      sx={{ 
-                        borderRadius: "8px",
-                        bgcolor: "rgba(33, 150, 243, 0.05)",
-                        border: "1px solid rgba(33, 150, 243, 0.1)"
-                      }}
-                    >
-                      <MenuItem value="all">All Status</MenuItem>
-                      {statusOptions.map((status) => (
-                        <MenuItem key={status.value} value={status.value}>
-                          {status.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                
-                <Grid item xs={12} md={3}>
-                  <Stack direction="row" spacing={1}>
-                    <GradientButton
-                      onClick={handleApplyFilters}
-                      size="small"
-                      startIcon={<FilterIcon />}
-                      fullWidth
-                      sx={{ px: 2 }}
-                    >
-                      Apply
-                    </GradientButton>
-                    
-                    <Button
-                      variant="outlined"
-                      onClick={handleClearFilters}
-                      startIcon={<ClearIcon />}
-                      size="small"
-                      fullWidth
-                      sx={{ 
-                        borderColor: "rgba(33, 150, 243, 0.3)",
-                        color: "#2196F3",
-                        borderRadius: "8px",
-                        "&:hover": {
-                          borderColor: "#2196F3",
-                          bgcolor: "rgba(33, 150, 243, 0.05)"
-                        }
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  </Stack>
-                </Grid>
+            <Grid container spacing={2} alignItems="flex-end">
+              <Grid item xs={12} md={3} minWidth={200}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Department</InputLabel>
+                  <Select value={selectedDepartment} label="Department" onChange={(e) => setSelectedDepartment(e.target.value)} sx={{ borderRadius: "10px", bgcolor: COLORS.bg }}>
+                    <MenuItem value="all">All departments</MenuItem>
+                    {departments.map((dept) => (
+                      <MenuItem key={dept} value={dept}>{dept}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Grid>
-              
-              {(selectedDepartment !== "all" || selectedRole !== "all" || selectedStatus !== "all") && (
-                <Typography variant="caption" color="#2196F3" sx={{ mt: 2, display: "block" }}>
-                  Active Filters: 
-                  {selectedDepartment !== "all" && ` Department=${selectedDepartment}`}
-                  {selectedRole !== "all" && `, Role=${selectedRole}`}
-                  {selectedStatus !== "all" && `, Status=${selectedStatus}`}
-                </Typography>
-              )}
-            </StyledPaper>
-          </Collapse>
-        </StyledPaper>
 
-        {/* TABLE SECTION */}
-        <StyledPaper>
-          <TableContainer sx={{ maxHeight: "calc(100vh - 400px)" }}>
+              <Grid item xs={12} md={3} minWidth={200}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Role</InputLabel>
+                  <Select value={selectedRole} label="Role" onChange={(e) => setSelectedRole(e.target.value)} sx={{ borderRadius: "10px", bgcolor: COLORS.bg }}>
+                    <MenuItem value="all">All roles</MenuItem>
+                    {roleOptions.map((role) => (
+                      <MenuItem key={role.value} value={role.value}>{role.label}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={3} minWidth={200}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Status</InputLabel>
+                  <Select value={selectedStatus} label="Status" onChange={(e) => setSelectedStatus(e.target.value)} sx={{ borderRadius: "10px", bgcolor: COLORS.bg }}>
+                    <MenuItem value="all">All status</MenuItem>
+                    {statusOptions.map((status) => (
+                      <MenuItem key={status.value} value={status.value}>{status.label}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={3} minWidth={200}>
+                <Stack direction="row" spacing={1}>
+                  <GradientButton onClick={handleApplyFilters} size="small" startIcon={<FilterIcon />} fullWidth>
+                    Apply
+                  </GradientButton>
+                  <Button
+                    variant="outlined"
+                    onClick={handleClearFilters}
+                    startIcon={<ClearIcon />}
+                    size="small"
+                    fullWidth
+                    sx={{ borderColor: COLORS.border, color: COLORS.muted, borderRadius: "10px", textTransform: 'none', fontWeight: 600, "&:hover": { borderColor: COLORS.primary, color: COLORS.primary } }}
+                  >
+                    Clear
+                  </Button>
+                </Stack>
+              </Grid>
+            </Grid>
+
+            {(selectedDepartment !== "all" || selectedRole !== "all" || selectedStatus !== "all") && (
+              <Typography variant="caption" sx={{ color: COLORS.muted, mt: 2, display: "block" }}>
+                Active filters:
+                {selectedDepartment !== "all" && ` Department = ${selectedDepartment}`}
+                {selectedRole !== "all" && `, Role = ${selectedRole}`}
+                {selectedStatus !== "all" && `, Status = ${selectedStatus}`}
+              </Typography>
+            )}
+          </Collapse>
+        </Surface>
+
+        {/* Table */}
+        <Surface sx={{ overflow: 'hidden' }}>
+          <TableContainer sx={{ maxHeight: "calc(100vh - 420px)", minHeight: 320 }}>
             <Table stickyHeader size="medium">
               <TableHead>
-                <TableRow sx={{ bgcolor: "#2196F3" }}>
-                  <TableCell sx={{ color: "white", fontWeight: "bold", width: 60 }}>S.No</TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Profile</TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Emp ID</TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Name</TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Email</TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Status</TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Department</TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Role</TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: "bold" }}>Work Mode</TableCell>
-                  <TableCell sx={{ color: "white", fontWeight: "bold", width: 70 }}>Actions</TableCell>
+                <TableRow>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, width: 60, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>S.No</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Profile</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Emp ID</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Name</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Email</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Status</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Department</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Role</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Work mode</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}`, width: 70 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
 
@@ -1602,226 +1382,148 @@ const exportToPDF = () => {
                 {fetching ? (
                   <TableRow>
                     <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
-                      <CircularProgress color="success" />
-                      <Typography sx={{ mt: 2, color: "#2196F3" }}>Loading users...</Typography>
+                      <CircularProgress sx={{ color: COLORS.primary }} />
+                      <Typography sx={{ mt: 2, color: COLORS.muted }}>Loading users…</Typography>
                     </TableCell>
                   </TableRow>
                 ) : filteredUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
-                      <SearchIcon sx={{ fontSize: 64, color: "rgba(33, 150, 243, 0.3)", mb: 2 }} />
-                      <Typography variant="h6" color="text.secondary">
+                      <SearchIcon sx={{ fontSize: 56, color: alpha(COLORS.muted, 0.3), mb: 2 }} />
+                      <Typography variant="h6" sx={{ fontWeight: 700, color: COLORS.ink }}>
                         {searchTerm || selectedDepartment !== "all" || selectedRole !== "all" || selectedStatus !== "all" ? "No matching users found" : "No users found"}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {searchTerm || selectedDepartment !== "all" || selectedRole !== "all" || selectedStatus !== "all" ? "Try adjusting your search or filters" : "Click 'Create New User' to add your first employee"}
+                      <Typography variant="body2" sx={{ color: COLORS.muted }}>
+                        {searchTerm || selectedDepartment !== "all" || selectedRole !== "all" || selectedStatus !== "all" ? "Try adjusting your search or filters." : "Click \"Create new user\" to add your first employee."}
                       </Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredUsers.map((user, index) => (
-                    <TableRow
-                      key={user.pgId}
-                      sx={{
-                        backgroundColor: index % 2 === 0 ? "rgba(33, 150, 243, 0.02)" : "white",
-                        "&:hover": {
-                          backgroundColor: "rgba(33, 150, 243, 0.05)",
-                          transition: "background-color 0.2s",
-                        },
-                        borderBottom: "1px solid rgba(33, 150, 243, 0.1)",
-                      }}
-                    >
-                      <TableCell sx={{ fontWeight: 500 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <Box
+                  filteredUsers.map((user, index) => {
+                    const displayStatus = getDisplayStatus(user.status);
+                    return (
+                      <TableRow
+                        key={user.pgId}
+                        hover
+                        sx={{ '&:hover': { bgcolor: alpha(COLORS.primary, 0.03) }, borderBottom: `1px solid ${COLORS.border}` }}
+                      >
+                        <TableCell sx={{ fontWeight: 500 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                            <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: getStatusColor(user.status) }} />
+                            {index + 1}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Avatar
+                            src={getImageUrl(user)}
                             sx={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              backgroundColor: user.status === "Active" ? "#2E7D32" : user.status === "On Hold" ? "#FF9800" : "#757575",
-                            }}
-                          />
-                          {index + 1}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Avatar
-                          src={getImageUrl(user)}
-                          sx={{
-                            width: 40,
-                            height: 40,
-                            border: "2px solid #2196F3",
-                            bgcolor: getImageUrl(user) ? 'transparent' : 'rgba(33, 150, 243, 0.1)',
-                            color: getImageUrl(user) ? 'inherit' : '#2196F3',
-                            fontWeight: 'bold',
-                          }}
-                        >
-                          {user.employee_name?.charAt(0) || "U"}
-                        </Avatar>
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 500 }}>
-                        {user.emp_id}
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 500 }}>
-                        {user.employee_name}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {user.email}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <StatusChip
-                          label={user.status || "Active"}
-                          size="small"
-                          status={user.status}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={user.department || "-"} 
-                          size="small" 
-                          sx={{ 
-                            bgcolor: "rgba(33, 150, 243, 0.1)", 
-                            color: "#2196F3",
-                            fontWeight: "medium",
-                            borderRadius: "6px"
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <RoleChip
-                          label={user.role || "Employee"}
-                          size="small"
-                          role={user.role}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <WorkModeChip
-                          label={user.work_mode || "-"}
-                          size="small"
-                          mode={user.work_mode}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip title="More options">
-                          <IconButton
-                            size="small"
-                            onClick={(event) => handleActionMenuOpen(event, user)}
-                            sx={{
-                              color: "#2196F3",
-                              "&:hover": {
-                                bgcolor: "rgba(33, 150, 243, 0.1)"
-                              }
+                              width: 40,
+                              height: 40,
+                              border: `2px solid ${COLORS.primary}`,
+                              bgcolor: getImageUrl(user) ? 'transparent' : alpha(COLORS.primary, 0.1),
+                              color: getImageUrl(user) ? 'inherit' : COLORS.primary,
+                              fontWeight: 'bold',
                             }}
                           >
-                            <MoreVertIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                            {user.employee_name?.charAt(0) || "U"}
+                          </Avatar>
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 500, color: COLORS.ink }}>{user.emp_id}</TableCell>
+                        <TableCell sx={{ fontWeight: 500, color: COLORS.ink }}>{user.employee_name}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ color: COLORS.muted }}>{user.email}</Typography>
+                        </TableCell>
+                        <TableCell>
+                          <StatusChip label={displayStatus} size="small" status={user.status} />
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={user.department || "-"}
+                            size="small"
+                            sx={{ bgcolor: alpha(COLORS.primary, 0.1), color: COLORS.primary, fontWeight: 600, borderRadius: "6px" }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <RoleChip label={user.role || "Employee"} size="small" role={user.role} />
+                        </TableCell>
+                        <TableCell>
+                          <WorkModeChip label={user.work_mode || "-"} size="small" mode={user.work_mode} />
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip title="More options">
+                            <IconButton
+                              size="small"
+                              onClick={(event) => handleActionMenuOpen(event, user)}
+                              sx={{ color: COLORS.muted, "&:hover": { bgcolor: alpha(COLORS.primary, 0.1), color: COLORS.primary } }}
+                            >
+                              <MoreVertIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
           </TableContainer>
-          
-          {/* TABLE FOOTER */}
+
+          {/* Footer */}
           {filteredUsers.length > 0 && (
-            <Box sx={{ 
-              p: 2, 
-              bgcolor: "rgba(33, 150, 243, 0.08)", 
-              display: "flex", 
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderTop: "1px solid rgba(33, 150, 243, 0.1)",
-              flexWrap: "wrap",
-              gap: 2
-            }}>
-              <Typography variant="body2" color="#2196F3" fontWeight="medium">
+            <Box sx={{ p: 2, bgcolor: COLORS.bg, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${COLORS.border}`, flexWrap: "wrap", gap: 2 }}>
+              <Typography variant="body2" sx={{ color: COLORS.muted, fontWeight: 500 }}>
                 Showing {filteredUsers.length} of {users.length} users
               </Typography>
-              <Typography variant="body2" fontWeight="bold" color="#2196F3" sx={{ display: "flex", alignItems: "center" }}>
-                <TrendingUp sx={{ mr: 1, fontSize: "1.2rem" }} />
+              <Typography variant="body2" sx={{ fontWeight: 700, color: COLORS.primary, display: "flex", alignItems: "center", gap: 0.5 }}>
+                <TrendingUp sx={{ fontSize: "1.1rem" }} />
                 Total hours: {totalHours.toFixed(1)}h
               </Typography>
             </Box>
           )}
-        </StyledPaper>
+        </Surface>
 
-        {/* ACTION MENU */}
+        {/* Action Menu */}
         <Menu
           anchorEl={actionMenuAnchorEl}
           open={actionMenuOpen}
           onClose={handleActionMenuClose}
-          PaperProps={{
-            sx: {
-              borderRadius: "12px",
-              mt: 1,
-              minWidth: 200,
-              boxShadow: "0 8px 32px rgba(33, 150, 243, 0.15)",
-            }
-          }}
+          PaperProps={{ sx: { borderRadius: "14px", mt: 1, minWidth: 200 } }}
         >
           <MenuItem onClick={handleEditFromMenu} sx={{ py: 1.5 }}>
-            <EditIcon sx={{ mr: 2, color: "#2196F3" }} />
-            <Typography>Edit User</Typography>
+            <EditIcon sx={{ mr: 2, color: COLORS.primary }} />
+            <Typography>Edit user</Typography>
           </MenuItem>
           <MenuItem onClick={handleDeleteFromMenu} sx={{ py: 1.5 }}>
-            <DeleteIcon sx={{ mr: 2, color: "#F44336" }} />
-            <Typography>Delete User</Typography>
+            <DeleteIcon sx={{ mr: 2, color: COLORS.danger }} />
+            <Typography>Delete user</Typography>
           </MenuItem>
         </Menu>
 
-        {/* CREATE/EDIT DIALOG */}
+        {/* Create/Edit Dialog */}
         <Dialog
           open={open}
           onClose={handleDialogClose}
           maxWidth="md"
           fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: "16px",
-              overflow: 'hidden',
-            }
-          }}
+          PaperProps={{ sx: { borderRadius: "20px", overflow: 'hidden', boxShadow: '0 20px 60px rgba(16,24,40,0.25)' } }}
         >
-          <DialogTitle
-            sx={{
-              background: blueTheme.gradient,
-              color: "white",
-              fontWeight: "bold",
-              py: 2,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <PersonAddIcon sx={{ mr: 1 }} />
-              {editing ? "Edit Employee" : "Create New Employee"}
-            </Box>
-            <StatusChip 
-              label={form.status} 
-              size="small"
-              status={form.status}
-            />
-          </DialogTitle>
+          <Box sx={{ background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryDark} 100%)`, color: "white", p: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <DialogTitle sx={{ p: 0, color: 'white', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+              <PersonAddIcon sx={{ mr: 1.5 }} />
+              <Display>{editing ? "Edit employee" : "Create new employee"}</Display>
+            </DialogTitle>
+            <Chip label={form.status} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: 'white', fontWeight: 700, border: '1px solid rgba(255,255,255,0.3)' }} />
+          </Box>
 
-          <DialogContent sx={{ mt: 3 }}>
+          <DialogContent sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
             {/* Profile Image Upload Section */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" gutterBottom color="#2196F3">
-                Profile Image {!editing && "(Optional)"}
-                {editing && form.profileImgChanged && (
-                  <Chip 
-                    label="Image changed" 
-                    size="small" 
-                    color="warning" 
-                    sx={{ ml: 1, fontSize: '0.7rem' }}
-                  />
-                )}
-              </Typography>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: COLORS.faint, letterSpacing: 1 }}>
+              PROFILE IMAGE {!editing && "(OPTIONAL)"}
+            </Typography>
+            <Box sx={{ mb: 3, mt: 1 }}>
+              {editing && form.profileImgChanged && (
+                <Chip label="Image changed" size="small" sx={{ mb: 1, fontSize: '0.7rem', bgcolor: alpha(COLORS.warning, 0.12), color: COLORS.warning }} />
+              )}
               <input
                 type="file"
                 accept="image/*"
@@ -1831,7 +1533,7 @@ const exportToPDF = () => {
                 disabled={uploadingImage}
               />
               <label htmlFor="profile-image-upload">
-                <ProfileImageUpload sx={{ 
+                <ProfileImageUpload sx={{
                   opacity: uploadingImage ? 0.7 : 1,
                   pointerEvents: uploadingImage ? 'none' : 'auto'
                 }}>
@@ -1840,49 +1542,20 @@ const exportToPDF = () => {
                       <img
                         src={profileImagePreview}
                         alt="Profile Preview"
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          borderRadius: '10px'
-                        }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
                       />
                       {!uploadingImage && (
                         <>
                           <IconButton
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveImage();
-                            }}
-                            sx={{
-                              position: 'absolute',
-                              top: 8,
-                              right: 8,
-                              backgroundColor: 'rgba(244, 67, 54, 0.8)',
-                              color: 'white',
-                              '&:hover': {
-                                backgroundColor: '#f44336'
-                              }
-                            }}
+                            onClick={(e) => { e.stopPropagation(); handleRemoveImage(); }}
+                            sx={{ position: 'absolute', top: 8, right: 8, backgroundColor: alpha(COLORS.danger, 0.85), color: 'white', '&:hover': { backgroundColor: COLORS.danger } }}
                             size="small"
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
                           <IconButton
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              document.getElementById('profile-image-upload').click();
-                            }}
-                            sx={{
-                              position: 'absolute',
-                              top: 8,
-                              left: 8,
-                              backgroundColor: 'rgba(33, 150, 243, 0.8)',
-                              color: 'white',
-                              '&:hover': {
-                                backgroundColor: '#2196F3'
-                              }
-                            }}
+                            onClick={(e) => { e.stopPropagation(); document.getElementById('profile-image-upload').click(); }}
+                            sx={{ position: 'absolute', top: 8, left: 8, backgroundColor: alpha(COLORS.primary, 0.85), color: 'white', '&:hover': { backgroundColor: COLORS.primary } }}
                             size="small"
                           >
                             <EditIcon fontSize="small" />
@@ -1892,11 +1565,11 @@ const exportToPDF = () => {
                     </Box>
                   ) : (
                     <>
-                      <CloudUploadIcon sx={{ fontSize: 48, color: '#2196F3', mb: 2 }} />
-                      <Typography variant="body2" color="#2196F3" gutterBottom>
+                      <CloudUploadIcon sx={{ fontSize: 44, color: COLORS.primary, mb: 1.5 }} />
+                      <Typography variant="body2" sx={{ color: COLORS.primary, fontWeight: 600 }}>
                         Click to upload profile image
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: COLORS.muted }}>
                         Recommended: Square image, max 5MB
                       </Typography>
                     </>
@@ -1905,319 +1578,114 @@ const exportToPDF = () => {
               </label>
             </Box>
 
-            <Box display="grid" gridTemplateColumns="repeat(2, 1fr)" gap={3}>
-              {/* Left Column */}
-              <Box>
-                <TextField
-                  fullWidth
-                  label="Employee ID *"
-                  name="empId"
-                  value={form.empId}
-                  onChange={handleChange}
-                  margin="normal"
-                  disabled={!!editing}
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)",
-                    }
-                  }}
-                />
-
-                <TextField
-                  fullWidth
-                  type="date"
-                  label="Date of Joining *"
-                  name="doj"
-                  value={form.doj}
-                  onChange={handleChange}
-                  margin="normal"
-                  InputLabelProps={{ shrink: true }}
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
-                />
-
-                <TextField
-                  fullWidth
-                  select
-                  label="Gender"
-                  name="gender"
-                  value={form.gender}
-                  onChange={handleChange}
-                  margin="normal"
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
-                >
-                  <MenuItem value="">Select Gender</MenuItem>
-                  {genderOptions.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                <TextField
-                  fullWidth
-                  label="Employee Name *"
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  margin="normal"
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
-                />
-
-                <TextField
-                  fullWidth
-                  label="Designation"
-                  name="designation"
-                  value={form.designation}
-                  onChange={handleChange}
-                  margin="normal"
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
-                />
-              </Box>
-
-              {/* Right Column */}
-              <Box>
-                <TextField
-                  fullWidth
-                  label="Department"
-                  name="department"
-                  value={form.department}
-                  onChange={handleChange}
-                  margin="normal"
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
-                />
-
-                <TextField
-                  fullWidth
-                  label="Email ID *"
-                  name="email"
-                  value={form.email}
-                  onChange={handleChange}
-                  margin="normal"
-                  type="email"
-                  disabled={!!editing}
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
-                />
-
-                <TextField
-                  fullWidth
-                  select
-                  label="Work Mode"
-                  name="workMode"
-                  value={form.workMode}
-                  onChange={handleChange}
-                  margin="normal"
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
-                >
-                  <MenuItem value="">Select Work Mode</MenuItem>
-                  {workModeOptions.map((option) => (
-                    <MenuItem key={option} value={option}>
-                      {option}
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                <TextField
-                  fullWidth
-                  label="Total Hours"
-                  name="totalHours"
-                  value={form.totalHours}
-                  onChange={handleChange}
-                  margin="normal"
-                  type="number"
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
-                />
-
-                <TextField
-                  fullWidth
-                  select
-                  label="Status *"
-                  name="status"
-                  value={form.status}
-                  onChange={handleChange}
-                  margin="normal"
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
-                >
-                  {statusOptions.map((status) => (
-                    <MenuItem key={status.value} value={status.value}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Box 
-                          sx={{ 
-                            width: 10, 
-                            height: 10, 
-                            borderRadius: '50%', 
-                            bgcolor: status.color 
-                          }} 
-                        />
-                        {status.label}
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Box>
-            </Box>
-
-            <Box display="grid" gridTemplateColumns="repeat(2, 1fr)" gap={3} sx={{ mt: 2 }}>
+            <Divider sx={{ mb: 2 }} />
+            <Typography variant="caption" sx={{ fontWeight: 700, color: COLORS.faint, letterSpacing: 1 }}>
+              EMPLOYEE DETAILS
+            </Typography>
+            <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)' }} gap={2} sx={{ mt: 1 }}>
               <TextField
-                fullWidth
-                select
-                label="Role"
-                name="role"
-                value={form.role}
-                onChange={handleChange}
-                variant="outlined"
-                size="small"
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: "8px",
-                    bgcolor: "rgba(33, 150, 243, 0.05)",
-                    border: "1px solid rgba(33, 150, 243, 0.1)"
-                  }
-                }}
+                fullWidth label="Employee ID *" name="empId" value={form.empId} onChange={handleChange}
+                disabled={!!editing} size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              />
+              <TextField
+                fullWidth label="Email ID *" name="email" value={form.email} onChange={handleChange}
+                type="email" disabled={!!editing} size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              />
+              <TextField
+                fullWidth type="date" label="Date of joining *" name="doj" value={form.doj} onChange={handleChange}
+                InputLabelProps={{ shrink: true }} size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              />
+              <TextField
+                fullWidth select label="Gender" name="gender" value={form.gender} onChange={handleChange}
+                size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
               >
-                {roleOptions.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
+                <MenuItem value="">Select gender</MenuItem>
+                {genderOptions.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+              </TextField>
+              <TextField
+                fullWidth label="Employee name *" name="name" value={form.name} onChange={handleChange}
+                size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              />
+              <TextField
+                fullWidth label="Designation" name="designation" value={form.designation} onChange={handleChange}
+                size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              />
+              <TextField
+                fullWidth label="Department" name="department" value={form.department} onChange={handleChange}
+                size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              />
+              <TextField
+                fullWidth select label="Work mode" name="workMode" value={form.workMode} onChange={handleChange}
+                size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              >
+                <MenuItem value="">Select work mode</MenuItem>
+                {workModeOptions.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+              </TextField>
+              <TextField
+                fullWidth label="Total hours" name="totalHours" value={form.totalHours} onChange={handleChange}
+                type="number" size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              />
+              <TextField
+                fullWidth select label="Status *" name="status" value={form.status} onChange={handleChange}
+                size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              >
+                {statusOptions.map((status) => (
+                  <MenuItem key={status.value} value={status.value}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: status.color }} />
+                      {status.label}
+                    </Box>
                   </MenuItem>
                 ))}
+              </TextField>
+            </Box>
+
+            <Divider sx={{ mb: 2, mt: 3 }} />
+            <Typography variant="caption" sx={{ fontWeight: 700, color: COLORS.faint, letterSpacing: 1 }}>
+              ACCESS
+            </Typography>
+            <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)' }} gap={2} sx={{ mt: 1 }}>
+              <TextField
+                fullWidth select label="Role" name="role" value={form.role} onChange={handleChange}
+                size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
+              >
+                {roleOptions.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
               </TextField>
 
               {!editing && (
                 <TextField
-                  fullWidth
-                  label="Password *"
-                  type="password"
-                  name="password"
-                  value={form.password}
-                  onChange={handleChange}
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: "8px",
-                      bgcolor: "rgba(33, 150, 243, 0.05)",
-                      border: "1px solid rgba(33, 150, 243, 0.1)"
-                    }
-                  }}
+                  fullWidth label="Password *" type="password" name="password" value={form.password} onChange={handleChange}
+                  size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: "10px" } }}
                 />
               )}
             </Box>
 
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ mt: 3, display: "block", fontStyle: "italic" }}
-            >
+            <Typography variant="caption" sx={{ color: COLORS.faint, mt: 3, display: "block", fontStyle: "italic" }}>
               * Required fields
             </Typography>
           </DialogContent>
 
-          <DialogActions sx={{ p: 3, borderTop: "1px solid rgba(33, 150, 243, 0.1)" }}>
-            <Button
-              onClick={handleDialogClose}
-              disabled={loading || uploadingImage}
-              variant="outlined"
-              sx={{
-                borderColor: "rgba(33, 150, 243, 0.3)",
-                color: "#2196F3",
-                borderRadius: "8px",
-                "&:hover": {
-                  borderColor: "#2196F3",
-                  bgcolor: "rgba(33, 150, 243, 0.05)"
-                }
-              }}
-            >
-              Cancel
-            </Button>
-            <GradientButton
-              onClick={editing ? handleUpdateUser : handleCreateUser}
-              disabled={loading || uploadingImage}
-              sx={{ minWidth: 140 }}
-            >
-              {loading || uploadingImage
-                ? "Processing..."
-                : editing
-                ? "Update User"
-                : "Create User"}
-            </GradientButton>
-          </DialogActions>
+          <Box sx={{ p: 2, bgcolor: COLORS.bg, borderTop: `1px solid ${COLORS.border}` }}>
+            <DialogActions sx={{ p: 0 }}>
+              <Button
+                onClick={handleDialogClose}
+                disabled={loading || uploadingImage}
+                variant="outlined"
+                sx={{ borderColor: COLORS.border, color: COLORS.muted, borderRadius: "10px", textTransform: 'none', fontWeight: 600, "&:hover": { borderColor: COLORS.primary, color: COLORS.primary, bgcolor: alpha(COLORS.primary, 0.04) } }}
+              >
+                Cancel
+              </Button>
+              <GradientButton
+                onClick={editing ? handleUpdateUser : handleCreateUser}
+                disabled={loading || uploadingImage}
+                sx={{ minWidth: 150 }}
+              >
+                {loading || uploadingImage ? "Processing…" : editing ? "Update user" : "Create user"}
+              </GradientButton>
+            </DialogActions>
+          </Box>
         </Dialog>
-      </Box>
+      </Shell>
     </LocalizationProvider>
   );
 }

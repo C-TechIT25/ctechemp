@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
   Paper,
   Typography,
   Grid,
   TextField,
   Button,
   Box,
-  Menu,
   MenuItem,
   Alert,
   CircularProgress,
@@ -24,14 +22,11 @@ import {
   TableHead,
   TableRow,
   Chip,
-  Card,
-  CardContent,
   alpha,
   styled,
   Divider,
   Avatar,
   Fade,
-  Zoom,
   Stack,
   InputAdornment,
   Collapse,
@@ -44,33 +39,28 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemAvatar,
-  ListItemButton,
-  Switch,
-  FormControlLabel,
   Tabs,
   Tab,
   Alert as MuiAlert,
-  Snackbar
+  Snackbar,
+  GlobalStyles,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
-import { 
-  Add as AddIcon, 
+import {
+  Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Save as SaveIcon,
   AccessTime as AccessTimeIcon,
   Refresh as RefreshIcon,
-  Work as WorkIcon,
   Timer as TimerIcon,
   CalendarToday as CalendarIcon,
   CheckCircle as CheckCircleIcon,
-  ArrowUpward as ArrowUpwardIcon,
   TrendingUp,
   Search as SearchIcon,
   FilterAlt as FilterIcon,
   Clear as ClearIcon,
-  Groups,
-  Person,
   Comment as CommentIcon,
   Info as InfoIcon,
   Login as LoginIcon,
@@ -79,19 +69,21 @@ import {
   Notifications as NotificationsIcon,
   MarkEmailRead as MarkEmailReadIcon,
   DeleteOutline as DeleteOutlineIcon,
-  Settings as SettingsIcon,
-  Email as EmailIcon,
   NotificationsActive as NotificationsActiveIcon,
   NotificationImportant as NotificationImportantIcon,
   Close as CloseIcon,
   Warning as WarningIcon,
   CheckCircleOutline as CheckCircleOutlineIcon,
-  ErrorOutline as ErrorOutlineIcon
+  ErrorOutline as ErrorOutlineIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  ViewModule as ViewModuleIcon,
+  ViewList as ViewListIcon,
 } from '@mui/icons-material';
 import { DatePicker } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { format, parseISO, isToday, differenceInHours } from 'date-fns';
+import { format, parseISO, differenceInHours, isAfter, isToday, isPast, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../Config';
@@ -99,171 +91,177 @@ import { API_BASE_URL } from '../Config';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-// Green Gradient Theme - Consistent with UserManagement
-const greenTheme = {
-  primary: "#2E7D32",
-  secondary: "#4CAF50",
-  lightGreen: "#66BB2196F36A",
-  warning: "#FF9800",
-  error: "#F44336",
-  info: "#2196F3",
-  gradient: "linear-gradient(135deg, #2196F3 0%, #115186ff 100%)",
-  lightGradient: "linear-gradient(135deg, #2196F3 0%, #2196F3 100%)"
+// ---------------------------------------------------------------------------
+// Design tokens — shared visual language with the Todo page. If both pages
+// live in the same app, consider lifting this block into a shared
+// `theme/tokens.js` file so palette/type stay in lockstep automatically.
+// ---------------------------------------------------------------------------
+const COLORS = {
+  primary: '#0EA5E9',
+  primaryDark: '#0EA5E9',
+  primarySoft: '#EEF2FF',
+  ink: '#1E1B2E',
+  muted: '#6B7280',
+  faint: '#9CA3AF',
+  surface: '#FFFFFF',
+  bg: '#F6F7FB',
+  border: 'rgba(30,27,46,0.08)',
+  success: '#10B981',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+  info: '#0EA5E9',
+  violet: '#7C3AED',
+  orange: '#F97316',
 };
 
-// Styled Components
-const GradientTypography = styled(Typography)(({ theme }) => ({
-  background: greenTheme.gradient,
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  backgroundClip: "text",
-  fontWeight: 700,
-}));
+const ACTIVITY_COLOR = {
+  'Productive Effort': COLORS.info,
+  'Idle - System Issue': COLORS.warning,
+  'Idle - Power Issue': COLORS.warning,
+  'Full Day Leave': COLORS.danger,
+  'Sunday / Holiday': COLORS.violet,
+};
 
-const GradientButton = styled(Button)(({ theme }) => ({
-  background: greenTheme.gradient,
-  color: "white",
-  border: "none",
-  borderRadius: "10px",
-  padding: "10px 24px",
+const WORKMODE_COLOR = {
+  Office: COLORS.primary,
+  'Work From Home': COLORS.info,
+  Hybrid: COLORS.warning,
+  'On-site Client': COLORS.violet,
+  'Business Travel': COLORS.orange,
+  'Full Day Leave': COLORS.danger,
+  'Sunday / Holiday': COLORS.violet,
+};
+
+const fontImport = `
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+`;
+
+// ---------------------------------------------------------------------------
+// Styled primitives
+// ---------------------------------------------------------------------------
+const Shell = styled(Box)({ fontFamily: "'Inter', sans-serif" });
+const Display = styled('span')({ fontFamily: "'Outfit', sans-serif" });
+
+const Surface = styled(Paper)({
+  borderRadius: 20,
+  border: `1px solid ${COLORS.border}`,
+  background: COLORS.surface,
+  boxShadow: '0 1px 2px rgba(16,24,40,0.04), 0 8px 24px rgba(16,24,40,0.04)',
+});
+
+const GradientButton = styled(Button)({
+  background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryDark} 100%)`,
+  color: 'white',
+  borderRadius: 12,
+  padding: '10px 22px',
   fontWeight: 600,
-  textTransform: "none",
-  "&:hover": {
-    background: greenTheme.lightGradient,
-    transform: "translateY(-2px)",
-    boxShadow: "0 6px 12px rgba(46, 125, 50, 0.25)",
+  textTransform: 'none',
+  boxShadow: '0 4px 14px rgba(79,70,229,0.30)',
+  '&:hover': {
+    background: `linear-gradient(135deg, ${COLORS.primaryDark} 0%, ${COLORS.primaryDark} 100%)`,
+    boxShadow: '0 6px 18px rgba(79,70,229,0.40)',
   },
-  "&:disabled": {
-    background: "rgba(0, 0, 0, 0.12)",
-  }
-}));
+  '&.Mui-disabled': { color: 'rgba(255,255,255,0.7)' },
+});
 
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  borderRadius: "16px",
-  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85))",
-  backdropFilter: "blur(10px)",
-  border: "1px solid rgba(46, 125, 50, 0.1)",
-  boxShadow: "0 8px 32px rgba(46, 125, 50, 0.08)",
-}));
+const colorByMap = (map) => (value) => map[value] || COLORS.muted;
+const getActivityColor = colorByMap(ACTIVITY_COLOR);
+const getWorkModeColor = colorByMap(WORKMODE_COLOR);
 
-const StatCard = styled(Card)(({ theme, color }) => ({
-  borderRadius: "12px",
-  height: "100%",
-  background: color || greenTheme.gradient,
-  color: "white",
-  position: "relative",
-  overflow: "hidden",
-  "&::before": {
-    content: '""',
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "4px",
-    background: "rgba(255, 255, 255, 0.3)",
-  },
-  "&:hover": {
-    transform: "translateY(-2px)",
-    transition: "transform 0.2s",
-    boxShadow: "0 8px 24px rgba(46, 125, 50, 0.2)",
-  }
-}));
-
-const StatusChip = styled(Chip)(({ theme, status }) => {
-  const getColor = (status) => {
-    const statusLower = status?.toLowerCase();
-    if (statusLower?.includes("approved")) return "#2E7D32";
-    if (statusLower?.includes("rejected")) return "#F44336";
-    if (statusLower?.includes("pending")) return "#FF9800";
-    if (statusLower?.includes("absent")) return "#9C27B0";
-    return "#757575";
-  };
-  
-  const color = getColor(status);
+const ActivityChip = styled(Chip)(({ category }) => {
+  const color = getActivityColor(category);
   return {
-    borderRadius: "8px",
+    borderRadius: 8,
     fontWeight: 600,
-    backgroundColor: `${color}20`,
-    color: color,
-    border: `1px solid ${color}40`,
-    "&:hover": {
-      backgroundColor: `${color}30`,
-    }
+    backgroundColor: alpha(color, 0.12),
+    color,
+    border: `1px solid ${alpha(color, 0.25)}`,
+    '&:hover': { backgroundColor: alpha(color, 0.18) },
   };
 });
 
-const ActivityChip = styled(Chip)(({ theme, category }) => {
-  const getColor = (category) => {
-    const catLower = category?.toLowerCase();
-    if (catLower?.includes("productive")) return "#2196F3";
-    if (catLower?.includes("idle")) return "#FF9800";
-    if (catLower?.includes("leave")) return "#F44336";
-    if (catLower?.includes("holiday")) return "#9C27B0";
-    return "#757575";
-  };
-  
-  const color = getColor(category);
+const WorkModeChip = styled(Chip)(({ mode }) => {
+  const color = getWorkModeColor(mode);
   return {
-    borderRadius: "8px",
+    borderRadius: 8,
     fontWeight: 600,
-    backgroundColor: `${color}20`,
-    color: color,
-    border: `1px solid ${color}40`,
-    "&:hover": {
-      backgroundColor: `${color}30`,
-    }
+    backgroundColor: alpha(color, 0.12),
+    color,
+    border: `1px solid ${alpha(color, 0.25)}`,
+    '&:hover': { backgroundColor: alpha(color, 0.18) },
   };
 });
 
-const WorkModeChip = styled(Chip)(({ theme, mode }) => {
-  const getColor = (mode) => {
-    const modeLower = mode?.toLowerCase();
-    if (modeLower?.includes("office")) return "#033a70ff";
-    if (modeLower?.includes("home")) return "#2196F3";
-    if (modeLower?.includes("hybrid")) return "#ED6C02";
-    if (modeLower?.includes("client")) return "#7B1FA2";
-    if (modeLower?.includes("travel")) return "#F57C00";
-    return "#757575";
-  };
-  
-  const color = getColor(mode);
-  return {
-    borderRadius: "8px",
-    fontWeight: 600,
-    backgroundColor: `${color}20`,
-    color: color,
-    border: `1px solid ${color}40`,
-    "&:hover": {
-      backgroundColor: `${color}30`,
-    }
-  };
-});
-
-const NotificationBadge = styled(Badge)(({ theme }) => ({
+const NotificationBadge = styled(Badge)({
   '& .MuiBadge-badge': {
     right: -3,
     top: 13,
-    border: `2px solid ${theme.palette.background.paper}`,
+    border: `2px solid ${COLORS.surface}`,
     padding: '0 4px',
-    backgroundColor: '#F44336',
+    backgroundColor: COLORS.danger,
     color: 'white',
     fontWeight: 'bold',
     animation: 'pulse 2s infinite',
   },
   '@keyframes pulse': {
-    '0%': {
-      boxShadow: '0 0 0 0 rgba(244, 67, 54, 0.7)',
-    },
-    '70%': {
-      boxShadow: '0 0 0 10px rgba(244, 67, 54, 0)',
-    },
-    '100%': {
-      boxShadow: '0 0 0 0 rgba(244, 67, 54, 0)',
-    },
-  }
-}));
+    '0%': { boxShadow: '0 0 0 0 rgba(239,68,68,0.7)' },
+    '70%': { boxShadow: '0 0 0 10px rgba(239,68,68,0)' },
+    '100%': { boxShadow: '0 0 0 0 rgba(239,68,68,0)' },
+  },
+});
+
+// Radial progress ring — same signature visual as the Todo dashboard.
+const RadialProgress = ({ value = 0, size = 116, stroke = 12, color = COLORS.primary }) => {
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (Math.min(100, Math.max(0, value)) / 100) * circumference;
+  return (
+    <Box sx={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={alpha(color, 0.12)} strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.7s cubic-bezier(.4,0,.2,1)' }}
+        />
+      </svg>
+      <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography sx={{ fontWeight: 800, fontSize: '1.4rem', color: COLORS.ink, lineHeight: 1 }}>
+          <Display>{Math.round(value)}%</Display>
+        </Typography>
+        <Typography variant="caption" sx={{ color: COLORS.muted, fontSize: '0.68rem' }}>
+          productive
+        </Typography>
+      </Box>
+    </Box>
+  );
+};
+
+const StatTile = ({ label, value, color, icon }) => (
+  <Box sx={{ p: 1.75, borderRadius: '14px', bgcolor: alpha(color, 0.06), borderLeft: `3px solid ${color}`, minWidth: 132, flex: 1 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Typography sx={{ fontWeight: 800, fontSize: '1.45rem', color }}>
+        <Display>{value}</Display>
+      </Typography>
+      <Box sx={{ color, opacity: 0.85, display: 'flex' }}>{icon}</Box>
+    </Box>
+    <Typography variant="caption" sx={{ color: COLORS.muted, fontWeight: 500 }}>
+      {label}
+    </Typography>
+  </Box>
+);
 
 const TimesheetPage = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -273,6 +271,7 @@ const TimesheetPage = () => {
   const [dialogMode, setDialogMode] = useState('add'); // 'add' or 'edit'
   const [editingTimesheet, setEditingTimesheet] = useState(null);
   const [empId, setEmpId] = useState('');
+  const [employeeName, setEmployeeName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState('all');
@@ -281,6 +280,9 @@ const TimesheetPage = () => {
   const [endDate, setEndDate] = useState(null);
   const [expandedRows, setExpandedRows] = useState([]);
   
+  // New state for month filter
+  const [viewMode, setViewMode] = useState('currentMonth'); // 'currentMonth' or 'all'
+
   // Notification States
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -294,42 +296,35 @@ const TimesheetPage = () => {
   const [notificationPreferences, setNotificationPreferences] = useState({
     email_notifications: true,
     in_app_notifications: true,
-    daily_summary: true
+    daily_summary: true,
   });
 
   const { user } = useAuth();
 
-  // Updated activity categories (removed separate permission category)
   const activityCategories = [
     'Productive Effort',
     'Idle - System Issue',
     'Idle - Power Issue',
     'Full Day Leave',
-    'Sunday / Holiday'
+    'Sunday / Holiday',
   ];
 
-  // Work modes
-  const workModes = [
-    'Office',
-    'Work From Home',
-    'Hybrid',
-    'On-site Client',
-    'Business Travel'
-  ];
+  const workModes = ['Office', 'Work From Home', 'Hybrid', 'On-site Client', 'Business Travel'];
+  const minimalActivityModes = ['Full Day Leave', 'Sunday / Holiday'];
 
   /* ================= TOAST NOTIFICATIONS ================= */
-  const showToast = (message, type = "success") => {
+  const showToast = (message, type = 'success') => {
     switch (type) {
-      case "success":
+      case 'success':
         toast.success(message);
         break;
-      case "error":
+      case 'error':
         toast.error(message);
         break;
-      case "warning":
+      case 'warning':
         toast.warning(message);
         break;
-      case "info":
+      case 'info':
         toast.info(message);
         break;
       default:
@@ -337,18 +332,38 @@ const TimesheetPage = () => {
     }
   };
 
-  // Fetch employee ID from Firestore
   const fetchEmpId = async () => {
     if (!user?.uid) return;
-    
+
     try {
       const userRef = doc(db, 'users', user.uid);
       const snap = await getDoc(userRef);
-      
+
       if (snap.exists()) {
         const userData = snap.data();
+        const displayName = userData.name || userData.employee_name || user.displayName || user.email || 'User';
+
         setEmpId(userData.empId || userData.uid);
-        showToast(`Welcome ${userData.name || userData.email}`, "success");
+        setEmployeeName(displayName);
+        showToast(`Welcome ${displayName}`, 'success');
+
+        if (user.email) {
+          try {
+            const encodedEmail = encodeURIComponent(user.email);
+            const response = await fetch(`${API_BASE_URL}profile/${encodedEmail}`);
+
+            if (response.ok) {
+              const result = await response.json();
+              const profileName = result?.data?.employee_name;
+
+              if (profileName) {
+                setEmployeeName(profileName);
+              }
+            }
+          } catch (profileError) {
+            console.error('Failed to fetch employee profile name:', profileError);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to fetch employee ID:', err);
@@ -356,24 +371,18 @@ const TimesheetPage = () => {
     }
   };
 
-  // Fetch all timesheets
   const fetchTimesheets = async () => {
     if (!empId) return;
-    
+
     setLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}timesheets/employee/${empId}`
-      );
-      
+      const response = await fetch(`${API_BASE_URL}timesheets/employee/${empId}`);
+
       if (response.ok) {
         const data = await response.json();
         setTimesheets(data);
-        
-        // Check today's timesheet status
         checkTodayTimesheetStatus(data);
-        
-        showToast(`Loaded ${data.length} timesheet entries`, "success");
+        showToast(`Loaded ${data.length} timesheet entries`, 'success');
       } else {
         const errorData = await response.json();
         showToast(errorData.error || 'Failed to fetch timesheets', 'error');
@@ -387,17 +396,14 @@ const TimesheetPage = () => {
     }
   };
 
-  // Check if today's timesheet is submitted
   const checkTodayTimesheetStatus = (timesheetData) => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    
-    const todayTimesheet = timesheetData.find(ts => {
+
+    const todayTimesheet = timesheetData.find((ts) => {
       const timesheetDate = ts.date;
-      
-      if (timesheetDate === today) {
-        return true;
-      }
-      
+
+      if (timesheetDate === today) return true;
+
       try {
         const parsedDate = new Date(timesheetDate);
         const formattedDate = format(parsedDate, 'yyyy-MM-dd');
@@ -407,46 +413,39 @@ const TimesheetPage = () => {
         return false;
       }
     });
-    
+
     if (todayTimesheet) {
-      setTodayTimesheetStatus({
-        exists: true,
-        data: todayTimesheet,
-        message: 'Timesheet submitted for today'
-      });
+      setTodayTimesheetStatus({ exists: true, data: todayTimesheet, message: 'Timesheet submitted for today' });
       setShowTodayAlert(false);
       setCriticalAlertVisible(false);
     } else {
       const currentHour = new Date().getHours();
       const isAfter6PM = currentHour >= 18;
       const isAfter11PM = currentHour >= 23;
-      
+
       setTodayTimesheetStatus({
         exists: false,
         isAfter6PM,
         isAfter11PM,
-        message: isAfter11PM 
-          ? 'Timesheet OVERDUE - Day completed without submission' 
-          : isAfter6PM 
-            ? 'Timesheet not yet submitted for today'
-            : 'Timesheet pending for today'
+        message: isAfter11PM
+          ? 'Timesheet OVERDUE - Day completed without submission'
+          : isAfter6PM
+          ? 'Timesheet not yet submitted for today'
+          : 'Timesheet pending for today',
       });
-      
+
       setShowTodayAlert(isAfter6PM);
       setCriticalAlertVisible(isAfter11PM);
     }
   };
 
-  // Fetch notifications
   const fetchNotifications = async () => {
     if (!user?.uid) return;
-    
+
     setNotificationLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}notifications/user/${user.uid}?unread_only=true`
-      );
-      
+      const response = await fetch(`${API_BASE_URL}notifications/user/${user.uid}?unread_only=true`);
+
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);
@@ -461,15 +460,12 @@ const TimesheetPage = () => {
     }
   };
 
-  // Fetch all notifications (for drawer)
   const fetchAllNotifications = async () => {
     if (!user?.uid) return;
-    
+
     try {
-      const response = await fetch(
-        `${API_BASE_URL}notifications/user/${user.uid}`
-      );
-      
+      const response = await fetch(`${API_BASE_URL}notifications/user/${user.uid}`);
+
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);
@@ -480,43 +476,27 @@ const TimesheetPage = () => {
     }
   };
 
-  // Mark notification as read
   const markNotificationAsRead = async (notificationId) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}notifications/${notificationId}/read`,
-        { method: 'PUT' }
-      );
-      
+      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}/read`, { method: 'PUT' });
+
       if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => 
-            notif.id === notificationId 
-              ? { ...notif, is_read: true } 
-              : notif
-          )
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
+        setNotifications((prev) => prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif)));
+        setUnreadCount((prev) => Math.max(0, prev - 1));
       }
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
   };
 
-  // Mark all notifications as read
   const markAllNotificationsAsRead = async () => {
     if (!user?.uid) return;
-    
+
     try {
-      const response = await fetch(
-        `${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`,
-        { method: 'PUT' }
-      );
-      
+      const response = await fetch(`${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`, { method: 'PUT' });
+
       if (response.ok) {
-        setNotifications(prev => 
-          prev.map(notif => ({ ...notif, is_read: true }))
-        );
+        setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: true })));
         setUnreadCount(0);
         showToast('All notifications marked as read', 'success');
       }
@@ -526,24 +506,18 @@ const TimesheetPage = () => {
     }
   };
 
-  // Delete notification
   const deleteNotification = async (notificationId) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}notifications/${notificationId}`,
-        { method: 'DELETE' }
-      );
-      
+      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}`, { method: 'DELETE' });
+
       if (response.ok) {
-        setNotifications(prev => 
-          prev.filter(notif => notif.id !== notificationId)
-        );
-        
-        const deletedNotif = notifications.find(n => n.id === notificationId);
+        setNotifications((prev) => prev.filter((notif) => notif.id !== notificationId));
+
+        const deletedNotif = notifications.find((n) => n.id === notificationId);
         if (deletedNotif && !deletedNotif.is_read) {
-          setUnreadCount(prev => Math.max(0, prev - 1));
+          setUnreadCount((prev) => Math.max(0, prev - 1));
         }
-        
+
         showToast('Notification deleted', 'success');
       }
     } catch (err) {
@@ -552,7 +526,6 @@ const TimesheetPage = () => {
     }
   };
 
-  // Handle notification menu
   const handleNotificationMenuOpen = (event) => {
     setNotificationMenuAnchorEl(event.currentTarget);
     fetchNotifications();
@@ -562,91 +535,67 @@ const TimesheetPage = () => {
     setNotificationMenuAnchorEl(null);
   };
 
-  // Open notification drawer
   const openNotificationDrawer = () => {
     setNotificationDrawerOpen(true);
     fetchAllNotifications();
   };
 
-  // Close notification drawer
   const closeNotificationDrawer = () => {
     setNotificationDrawerOpen(false);
   };
 
-  // Handle notification tab change
   const handleNotificationTabChange = (event, newValue) => {
     setNotificationTab(newValue);
   };
 
-  // Get filtered notifications based on tab
   const getFilteredNotifications = () => {
-    if (notificationTab === 0) {
-      return notifications;
-    } else if (notificationTab === 1) {
-      return notifications.filter(n => !n.is_read);
-    } else if (notificationTab === 2) {
-      return notifications.filter(n => n.metadata?.notification_stage === 'early_warning');
-    } else {
-      return notifications.filter(n => n.metadata?.notification_stage === 'final');
-    }
+    if (notificationTab === 0) return notifications;
+    if (notificationTab === 1) return notifications.filter((n) => !n.is_read);
+    if (notificationTab === 2) return notifications.filter((n) => n.metadata?.notification_stage === 'early_warning');
+    return notifications.filter((n) => n.metadata?.notification_stage === 'final');
   };
 
-  // Get notification icon based on type and stage
   const getNotificationIcon = (type, stage) => {
-    if (stage === 'final') {
-      return <ErrorOutlineIcon sx={{ color: '#F44336' }} />;
-    }
-    if (stage === 'early_warning') {
-      return <WarningIcon sx={{ color: '#FF9800' }} />;
-    }
+    if (stage === 'final') return <ErrorOutlineIcon sx={{ color: COLORS.danger }} />;
+    if (stage === 'early_warning') return <WarningIcon sx={{ color: COLORS.warning }} />;
     switch (type) {
       case 'timesheet_missing':
-        return <WarningIcon color="warning" />;
+        return <WarningIcon sx={{ color: COLORS.warning }} />;
       case 'approval_required':
-        return <NotificationImportantIcon color="error" />;
+        return <NotificationImportantIcon sx={{ color: COLORS.danger }} />;
       case 'system_alert':
-        return <InfoIcon color="info" />;
+        return <InfoIcon sx={{ color: COLORS.info }} />;
       default:
-        return <NotificationsIcon color="action" />;
+        return <NotificationsIcon sx={{ color: COLORS.muted }} />;
     }
   };
 
-  // Format notification time
   const formatNotificationTime = (timestamp) => {
     const now = new Date();
     const notifTime = new Date(timestamp);
     const diffHours = differenceInHours(now, notifTime);
-    
-    if (diffHours < 1) {
-      return 'Just now';
-    } else if (diffHours < 24) {
-      return `${diffHours} hours ago`;
-    } else {
-      return format(notifTime, 'MMM dd, HH:mm');
-    }
+
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    return format(notifTime, 'MMM dd, HH:mm');
   };
 
-  // Get notification severity color
   const getNotificationSeverityColor = (stage, priority) => {
-    if (stage === 'final') return '#F44336'; // Red for critical
-    if (priority === 'critical') return '#F44336';
-    if (stage === 'early_warning') return '#FF9800'; // Orange for warning
-    return '#2196F3'; // Blue for info
+    if (stage === 'final') return COLORS.danger;
+    if (priority === 'critical') return COLORS.danger;
+    if (stage === 'early_warning') return COLORS.warning;
+    return COLORS.info;
   };
 
-  // Update notification preferences
   const updateNotificationPreferences = async (key, value) => {
     const updatedPrefs = { ...notificationPreferences, [key]: value };
     setNotificationPreferences(updatedPrefs);
-    
+
     try {
       await fetch(`${API_BASE_URL}notifications/preferences`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.uid,
-          preferences: updatedPrefs
-        })
+        body: JSON.stringify({ userId: user.uid, preferences: updatedPrefs }),
       });
       showToast('Notification preferences updated', 'success');
     } catch (err) {
@@ -654,7 +603,6 @@ const TimesheetPage = () => {
     }
   };
 
-  // Initialize data
   useEffect(() => {
     fetchEmpId();
   }, [user?.uid]);
@@ -663,18 +611,16 @@ const TimesheetPage = () => {
     if (empId) {
       fetchTimesheets();
       fetchNotifications();
-      
-      // Refresh every 30 minutes
+
       const interval = setInterval(() => {
         fetchTimesheets();
         fetchNotifications();
       }, 30 * 60 * 1000);
-      
+
       return () => clearInterval(interval);
     }
   }, [empId]);
 
-  // Form state
   const [formData, setFormData] = useState({
     date: new Date(),
     activity_category: '',
@@ -684,20 +630,14 @@ const TimesheetPage = () => {
     check_out: '',
     lunch_in: '',
     lunch_out: '',
-    permission_hours: ''
+    permission_hours: '',
+    overtime_hours: '',
   });
 
-  // Check if activity requires time tracking
-  const requiresTimeTracking = (activity) => {
-    return activity === 'Productive Effort' || 
-           activity === 'Idle - System Issue' || 
-           activity === 'Idle - Power Issue';
-  };
+  const requiresTimeTracking = (activity) =>
+    activity === 'Productive Effort' || activity === 'Idle - System Issue' || activity === 'Idle - Power Issue';
 
-  // Check if activity requires minimal fields (Sunday/Holiday)
-  const isMinimalActivity = (activity) => {
-    return activity === 'Sunday / Holiday' || activity === 'Full Day Leave';
-  };
+  const isMinimalActivity = (activity) => activity === 'Sunday / Holiday' || activity === 'Full Day Leave';
 
   const resetForm = () => {
     setFormData({
@@ -709,33 +649,32 @@ const TimesheetPage = () => {
       check_out: '',
       lunch_in: '',
       lunch_out: '',
-      permission_hours: ''
+      permission_hours: '',
+      overtime_hours: '',
     });
     setEditingTimesheet(null);
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle activity category change
   const handleActivityChange = (e) => {
     const activity = e.target.value;
-    setFormData(prev => ({
+    const minimalActivity = isMinimalActivity(activity);
+
+    setFormData((prev) => ({
       ...prev,
       activity_category: activity,
-      // Reset fields for minimal activities
-      work_mode: isMinimalActivity(activity) ? '' : prev.work_mode,
-      description: isMinimalActivity(activity) ? '' : prev.description,
-      check_in: isMinimalActivity(activity) ? '' : prev.check_in,
-      check_out: isMinimalActivity(activity) ? '' : prev.check_out,
-      lunch_in: isMinimalActivity(activity) ? '' : prev.lunch_in,
-      lunch_out: isMinimalActivity(activity) ? '' : prev.lunch_out,
-      permission_hours: isMinimalActivity(activity) ? '' : prev.permission_hours
+      work_mode: minimalActivity ? activity : isMinimalActivity(prev.work_mode) ? '' : prev.work_mode,
+      description: minimalActivity ? '' : prev.description,
+      check_in: minimalActivity ? '' : prev.check_in,
+      check_out: minimalActivity ? '' : prev.check_out,
+      lunch_in: minimalActivity ? '' : prev.lunch_in,
+      lunch_out: minimalActivity ? '' : prev.lunch_out,
+      permission_hours: minimalActivity ? '' : prev.permission_hours,
+      overtime_hours: minimalActivity ? '' : prev.overtime_hours,
     }));
   };
 
@@ -757,7 +696,8 @@ const TimesheetPage = () => {
       check_out: timesheet.check_out || '',
       lunch_in: timesheet.lunch_in || '',
       lunch_out: timesheet.lunch_out || '',
-      permission_hours: timesheet.permission_hours || ''
+      permission_hours: timesheet.permission_hours || '',
+      overtime_hours: timesheet.ot_hours || '',
     });
     setOpenDialog(true);
   };
@@ -767,22 +707,64 @@ const TimesheetPage = () => {
     resetForm();
   };
 
+  // Date validation function - prevents future dates
+  const isDateValid = (date) => {
+    if (!date) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    return selectedDate <= today;
+  };
+
+  // Calculate working hours (total hours from check-in/out minus lunch and permission)
+  const calculateWorkingHours = (checkIn, checkOut, lunchIn, lunchOut, permissionHours) => {
+    if (!checkIn || !checkOut) return 0;
+    
+    try {
+      const [inHour, inMin] = checkIn.split(':').map(Number);
+      const [outHour, outMin] = checkOut.split(':').map(Number);
+      let totalMinutes = outHour * 60 + outMin - (inHour * 60 + inMin);
+      
+      // Subtract lunch break if both lunch in and lunch out are provided
+      if (lunchIn && lunchOut) {
+        const [lInHour, lInMin] = lunchIn.split(':').map(Number);
+        const [lOutHour, lOutMin] = lunchOut.split(':').map(Number);
+        const lunchMinutes = lOutHour * 60 + lOutMin - (lInHour * 60 + lInMin);
+        totalMinutes -= lunchMinutes;
+      }
+      
+      // Subtract permission hours (convert to minutes)
+      if (permissionHours) {
+        totalMinutes -= parseFloat(permissionHours) * 60;
+      }
+      
+      // Return hours as a number (rounded to 2 decimal places)
+      return Math.round((totalMinutes / 60) * 100) / 100;
+    } catch {
+      return 0;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate required fields based on activity
+
+    if (!isDateValid(formData.date)) {
+      showToast('Date cannot be in the future. Please select today or a past date.', 'error');
+      return;
+    }
+
     if (!formData.activity_category) {
       showToast('Please select an activity category', 'error');
       return;
     }
 
-    // For activities that require work mode (not Sunday/Holiday)
     if (!isMinimalActivity(formData.activity_category) && !formData.work_mode) {
       showToast('Please select work mode', 'error');
       return;
     }
 
-    // Validation for time tracking activities
     if (requiresTimeTracking(formData.activity_category)) {
       if (!formData.check_in) {
         showToast('Check-in time is required', 'error');
@@ -794,44 +776,54 @@ const TimesheetPage = () => {
     try {
       const dateStr = format(formData.date, 'yyyy-MM-dd');
       const day = format(formData.date, 'EEEE');
+
+      // Calculate working hours
+      const workingHours = calculateWorkingHours(
+        formData.check_in,
+        formData.check_out,
+        formData.lunch_in,
+        formData.lunch_out,
+        formData.permission_hours
+      );
+
+      // Parse overtime hours
+      const overtimeHours = formData.overtime_hours ? parseFloat(formData.overtime_hours) : 0;
       
+      // Calculate total hours = working hours + overtime hours
+      const totalHours = workingHours + overtimeHours;
+
       const payload = {
         emp_id: empId,
         date: dateStr,
-        day: day,
+        day,
         activity_category: formData.activity_category,
-        work_mode: isMinimalActivity(formData.activity_category) ? 'Not Applicable' : formData.work_mode,
+        work_mode: isMinimalActivity(formData.activity_category) ? formData.activity_category : formData.work_mode,
         description: formData.description || '',
         check_in: formData.check_in || null,
         check_out: formData.check_out || null,
         lunch_in: formData.lunch_in || null,
         lunch_out: formData.lunch_out || null,
-        permission_hours: formData.permission_hours ? parseFloat(formData.permission_hours) : 0
+        permission_hours: formData.permission_hours ? parseFloat(formData.permission_hours) : 0,
+        ot_hours: overtimeHours,
+        total_hours: totalHours, // Now total_hours = working_hours + ot_hours
       };
 
-      const url = dialogMode === 'edit' && editingTimesheet
-        ? `${API_BASE_URL}timesheets/${editingTimesheet.id}`
-        : `${API_BASE_URL}timesheets`;
-      
+      const url =
+        dialogMode === 'edit' && editingTimesheet ? `${API_BASE_URL}timesheets/${editingTimesheet.id}` : `${API_BASE_URL}timesheets`;
       const method = dialogMode === 'edit' ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
         const data = await response.json();
-        showToast(
-          dialogMode === 'edit' ? 'Timesheet updated successfully!' : 'Timesheet added successfully!', 
-          'success'
-        );
+        showToast(dialogMode === 'edit' ? 'Timesheet updated successfully!' : 'Timesheet added successfully!', 'success');
         handleCloseDialog();
         fetchTimesheets();
-        
+
         if (dateStr === format(new Date(), 'yyyy-MM-dd')) {
           fetchNotifications();
           checkTodayTimesheetStatus([...timesheets, data]);
@@ -852,11 +844,9 @@ const TimesheetPage = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this timesheet?')) return;
-    
+
     try {
-      const response = await fetch(`${API_BASE_URL}timesheets/${id}`, {
-        method: 'DELETE'
-      });
+      const response = await fetch(`${API_BASE_URL}timesheets/${id}`, { method: 'DELETE' });
 
       if (response.ok) {
         showToast('Timesheet deleted successfully!', 'success');
@@ -872,131 +862,127 @@ const TimesheetPage = () => {
     }
   };
 
-  // Toggle row expansion
   const toggleRowExpansion = (id) => {
-    setExpandedRows(prev =>
-      prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
-    );
+    setExpandedRows((prev) => (prev.includes(id) ? prev.filter((rowId) => rowId !== id) : [...prev, id]));
   };
 
-  // Filter timesheets based on search term and filters
-  const filteredTimesheets = timesheets.filter((row) => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = searchTerm === "" ||
-      row.date?.toLowerCase().includes(searchLower) ||
-      row.day?.toLowerCase().includes(searchLower) ||
-      row.activity_category?.toLowerCase().includes(searchLower) ||
-      row.description?.toLowerCase().includes(searchLower) ||
-      row.work_mode?.toLowerCase().includes(searchLower);
+  // Filter timesheets based on view mode (current month or all)
+  const getFilteredTimesheets = () => {
+    let filtered = timesheets;
 
-    const matchesActivity = selectedActivity === "all" || row.activity_category === selectedActivity;
-    const matchesWorkMode = selectedWorkMode === "all" || row.work_mode === selectedWorkMode;
-    
-    let matchesDate = true;
-    if (startDate && endDate) {
-      const rowDate = new Date(row.date);
-      matchesDate = rowDate >= startDate && rowDate <= endDate;
+    if (viewMode === 'currentMonth') {
+      const now = new Date();
+      const monthStart = startOfMonth(now);
+      const monthEnd = endOfMonth(now);
+      
+      filtered = filtered.filter((row) => {
+        try {
+          const rowDate = new Date(row.date);
+          return isWithinInterval(rowDate, { start: monthStart, end: monthEnd });
+        } catch (err) {
+          return false;
+        }
+      });
     }
 
-    return matchesSearch && matchesActivity && matchesWorkMode && matchesDate;
-  });
+    const searchLower = searchTerm.toLowerCase();
+    filtered = filtered.filter((row) => {
+      const matchesSearch =
+        searchTerm === '' ||
+        row.date?.toLowerCase().includes(searchLower) ||
+        row.day?.toLowerCase().includes(searchLower) ||
+        row.activity_category?.toLowerCase().includes(searchLower) ||
+        row.description?.toLowerCase().includes(searchLower) ||
+        row.work_mode?.toLowerCase().includes(searchLower);
 
-  // Apply filters
-  const handleApplyFilters = () => {
-    showToast("Filters applied successfully!", "info");
+      return matchesSearch;
+    });
+
+    if (selectedActivity !== 'all') {
+      filtered = filtered.filter((row) => row.activity_category === selectedActivity);
+    }
+
+    if (selectedWorkMode !== 'all') {
+      filtered = filtered.filter((row) => row.work_mode === selectedWorkMode);
+    }
+
+    if (startDate && endDate) {
+      filtered = filtered.filter((row) => {
+        const rowDate = new Date(row.date);
+        return rowDate >= startDate && rowDate <= endDate;
+      });
+    }
+
+    return filtered;
   };
 
-  // Clear filters
+  const filteredTimesheets = getFilteredTimesheets();
+
+  const handleApplyFilters = () => {
+    showToast('Filters applied successfully!', 'info');
+  };
+
   const handleClearFilters = () => {
-    setSelectedActivity("all");
-    setSelectedWorkMode("all");
+    setSelectedActivity('all');
+    setSelectedWorkMode('all');
     setStartDate(null);
     setEndDate(null);
-    setSearchTerm("");
-    showToast("Filters cleared!", "info");
+    setSearchTerm('');
+    setViewMode('currentMonth');
+    showToast('Filters cleared!', 'info');
   };
 
-  // Format time display
   const formatTime = (time) => {
     if (!time) return '--:--';
     return time.substring(0, 5);
   };
 
-  // Calculate statistics
   const calculateStats = () => {
-    const totalHours = timesheets.reduce((sum, ts) => sum + (parseFloat(ts.total_hours) || 0), 0);
-    const productiveDays = timesheets.filter(ts => ts.activity_category === 'Productive Effort').length;
-    const avgHours = timesheets.length > 0 ? totalHours / timesheets.length : 0;
-    const pendingApprovals = timesheets.filter(ts => !ts.remark || ts.remark === "").length;
-    
-    return { totalHours, productiveDays, avgHours, pendingApprovals };
+    const filteredData = viewMode === 'currentMonth' ? filteredTimesheets : timesheets;
+    const totalWorkingHours = filteredData.reduce((sum, ts) => sum + (parseFloat(ts.total_hours || 0) - parseFloat(ts.ot_hours || 0)), 0);
+    const totalOTHours = filteredData.reduce((sum, ts) => sum + (parseFloat(ts.ot_hours) || 0), 0);
+    const totalHours = filteredData.reduce((sum, ts) => sum + (parseFloat(ts.total_hours) || 0), 0);
+    const productiveDays = filteredData.filter((ts) => ts.activity_category === 'Productive Effort').length;
+    const avgHours = filteredData.length > 0 ? totalHours / filteredData.length : 0;
+
+    return { totalWorkingHours, totalOTHours, totalHours, productiveDays, avgHours };
   };
 
   const stats = calculateStats();
+  const productivityRate = filteredTimesheets.length > 0 ? (stats.productiveDays / filteredTimesheets.length) * 100 : 0;
 
-  // Get color based on hours
   const getHoursColor = (hours) => {
     const h = parseFloat(hours) || 0;
-    if (h >= 8) return "#2e7d32";
-    if (h >= 6) return "#ed6c02";
-    return "#d32f2f";
+    if (h >= 8) return COLORS.success;
+    if (h >= 6) return COLORS.warning;
+    return COLORS.danger;
   };
 
-  // Calculate work duration
   const calculateWorkDuration = (checkIn, checkOut) => {
-    if (!checkIn || !checkOut) return "N/A";
+    if (!checkIn || !checkOut) return 'N/A';
     try {
-      const [inHour, inMin] = checkIn.split(":").map(Number);
-      const [outHour, outMin] = checkOut.split(":").map(Number);
-      const totalMinutes = (outHour * 60 + outMin) - (inHour * 60 + inMin);
+      const [inHour, inMin] = checkIn.split(':').map(Number);
+      const [outHour, outMin] = checkOut.split(':').map(Number);
+      const totalMinutes = outHour * 60 + outMin - (inHour * 60 + inMin);
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;
       return `${hours}h ${minutes}m`;
     } catch {
-      return "N/A";
+      return 'N/A';
     }
   };
 
   if (loading) {
     return (
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <Box 
-          display="flex" 
-          justifyContent="center" 
-          alignItems="center" 
-          minHeight="80vh"
-          sx={{
-            background: `linear-gradient(135deg, ${alpha("#2E7D32", 0.05)}, ${alpha("#4CAF50", 0.05)})`
-          }}
-        >
-          <ToastContainer
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop={true}
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="colored"
-          />
+        <GlobalStyles styles={fontImport} />
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh" sx={{ bgcolor: COLORS.bg }}>
+          <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="colored" />
           <Fade in={loading} style={{ transitionDelay: '200ms' }}>
             <Box textAlign="center">
-              <CircularProgress 
-                size={60} 
-                thickness={4}
-                sx={{ 
-                  mb: 2,
-                  color:"#2196F3"
-                }}
-              />
-              <Typography 
-                variant="h6" 
-                color="#2196F3"
-                sx={{ fontWeight: 500 }}
-              >
-                Loading Timesheets...
+              <CircularProgress size={56} thickness={4} sx={{ mb: 2, color: COLORS.primary }} />
+              <Typography sx={{ fontWeight: 600, color: COLORS.ink }}>
+                <Display>Loading your timesheets…</Display>
               </Typography>
             </Box>
           </Fade>
@@ -1007,58 +993,44 @@ const TimesheetPage = () => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop={true}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="colored"
-      />
-      
+      <GlobalStyles styles={fontImport} />
+      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="colored" />
+
       {/* CRITICAL END-OF-DAY ALERT (11:59 PM) */}
-      <Snackbar
-        open={criticalAlertVisible}
-        autoHideDuration={0}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
+      <Snackbar open={criticalAlertVisible} autoHideDuration={0} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
         <MuiAlert
           elevation={8}
           variant="filled"
           severity="error"
           onClose={() => setCriticalAlertVisible(false)}
           action={
-            <Button 
-              color="inherit" 
+            <Button
+              color="inherit"
               size="small"
               onClick={() => {
                 handleOpenAddDialog();
                 setCriticalAlertVisible(false);
               }}
             >
-              Submit Now
+              Submit now
             </Button>
           }
-          sx={{ 
+          sx={{
             borderRadius: '12px',
             alignItems: 'center',
             fontSize: '0.95rem',
-            background: 'linear-gradient(135deg, #F44336 0%, #D32F2F 100%)',
-            boxShadow: '0 8px 24px rgba(244, 67, 54, 0.4)'
+            background: `linear-gradient(135deg, ${COLORS.danger} 0%, #B91C1C 100%)`,
+            boxShadow: '0 8px 24px rgba(239,68,68,0.4)',
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <ErrorOutlineIcon sx={{ mr: 1, fontSize: '1.4rem' }} />
             <Box>
               <Typography variant="body1" fontWeight="bold">
-                🚨 CRITICAL: Timesheet Not Submitted!
+                Timesheet not submitted
               </Typography>
               <Typography variant="body2" sx={{ opacity: 0.95 }}>
-                It's past 11:59 PM and your timesheet is OVERDUE. This is required for your attendance record. Submit immediately.
+                It's past 11:59 PM and your timesheet is overdue. This is required for your attendance record — submit immediately.
               </Typography>
             </Box>
           </Box>
@@ -1078,716 +1050,571 @@ const TimesheetPage = () => {
           severity="warning"
           onClose={() => setShowTodayAlert(false)}
           action={
-            <Button 
-              color="inherit" 
+            <Button
+              color="inherit"
               size="small"
               onClick={() => {
                 handleOpenAddDialog();
                 setShowTodayAlert(false);
               }}
             >
-              Add Now
+              Add now
             </Button>
           }
-          sx={{ 
-            borderRadius: '12px',
-            alignItems: 'center',
-            fontSize: '0.9rem',
-            background: 'linear-gradient(135deg, #FF9800 0%, #F57C00 100%)'
-          }}
+          sx={{ borderRadius: '12px', alignItems: 'center', fontSize: '0.9rem', background: `linear-gradient(135deg, ${COLORS.warning} 0%, #D97706 100%)` }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <WarningIcon sx={{ mr: 1 }} />
             <Box>
               <Typography variant="body1" fontWeight="bold">
-                ⏰ Timesheet Reminder!
+                Timesheet reminder
               </Typography>
-              <Typography variant="body2">
-                You haven't submitted today's timesheet yet. Please submit before 11:59 PM.
-              </Typography>
+              <Typography variant="body2">You haven't submitted today's timesheet yet. Please submit before 11:59 PM.</Typography>
             </Box>
           </Box>
         </MuiAlert>
       </Snackbar>
-      
-      <Container 
-        maxWidth="xl" 
-        sx={{ 
-          mt: 4, 
-          mb: 4,
-          minHeight: '100vh'
-        }}
-      >
-        {/* HEADER SECTION */}
-        <StyledPaper sx={{ p: 3, mb: 3 }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-            <Box>
-              <GradientTypography variant="h4">
-                Timesheet Management
-              </GradientTypography>
-              <Typography variant="body2" color="text.secondary">
-                Manage your daily work logs and track your hours
-              </Typography>
-              
-              {/* Today's Status Badge */}
-              {todayTimesheetStatus && (
-                <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  <Chip
-                    label={todayTimesheetStatus.message}
-                    color={todayTimesheetStatus.exists ? "success" : (todayTimesheetStatus.isAfter11PM ? "error" : "warning")}
-                    variant="outlined"
-                    size="small"
-                    icon={todayTimesheetStatus.exists ? <CheckCircleOutlineIcon /> : (todayTimesheetStatus.isAfter11PM ? <ErrorOutlineIcon /> : <WarningIcon />)}
-                  />
-                  {todayTimesheetStatus.isAfter11PM && (
-                    <Chip
-                      label="OVERDUE - Immediate Action Required"
-                      color="error"
-                      variant="filled"
-                      size="small"
-                      icon={<ErrorOutlineIcon />}
-                    />
-                  )}
-                </Box>
-              )}
-            </Box>
-            
-            <Box sx={{ display: "flex", gap: 1, alignItems: 'center' }}>
-              <Tooltip title="Toggle filters">
-                <IconButton 
-                  onClick={() => setShowFilters(!showFilters)}
-                  color={showFilters ? "success" : "default"}
-                  sx={{ 
-                    bgcolor: showFilters ? "rgba(46, 125, 50, 0.1)" : "transparent",
-                    border: "1px solid rgba(46, 125, 50, 0.2)",
-                    "&:hover": {
-                      bgcolor: "rgba(46, 125, 50, 0.15)"
-                    }
-                  }}
-                >
-                  <FilterIcon />
-                </IconButton>
-              </Tooltip>
-              
-              <Tooltip title="Refresh data">
-                <IconButton 
-                  onClick={() => {
-                    fetchTimesheets();
-                    fetchNotifications();
-                  }}
-                  sx={{
-                    bgcolor: "rgba(46, 125, 50, 0.1)",
-                    border: "1px solid rgba(46, 125, 50, 0.2)",
-                    "&:hover": {
-                      bgcolor: "rgba(46, 125, 50, 0.2)"
-                    }
-                  }}
-                >
-                  <RefreshIcon />
-                </IconButton>
-              </Tooltip>
 
-              {/* Notification Bell with Badge */}
-              <Tooltip title="Notifications">
-                <IconButton
-                  onClick={openNotificationDrawer}
-                  sx={{
-                    bgcolor: "rgba(46, 125, 50, 0.1)",
-                    border: "1px solid rgba(46, 125, 50, 0.2)",
-                    position: 'relative',
-                    "&:hover": {
-                      bgcolor: "rgba(46, 125, 50, 0.2)"
-                    }
-                  }}
-                >
-                  <NotificationBadge badgeContent={unreadCount} color="error">
-                    <NotificationsIcon />
-                  </NotificationBadge>
-                </IconButton>
-              </Tooltip>
-              
-              <GradientButton
-                startIcon={<AddIcon />}
-                onClick={handleOpenAddDialog}
-                sx={{ px: 3 }}
+      <Shell sx={{ px: { xs: 2, sm: 4 }, py: 3, bgcolor: COLORS.bg, minHeight: '100vh' }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+          <Box>
+            <Typography sx={{ fontSize: '1.9rem', fontWeight: 800, color: COLORS.ink, display: 'flex', alignItems: 'center', gap: 1.25 }}>
+              <Box sx={{ display: 'flex', p: 1, borderRadius: '14px', bgcolor: alpha(COLORS.primary, 0.1) }}>
+                <AccessTimeIcon sx={{ color: COLORS.primary }} />
+              </Box>
+              <Display>Timesheets</Display>
+            </Typography>
+            <Typography variant="body1" sx={{ color: COLORS.muted, mt: 0.5 }}>
+              Log your daily work and keep your hours on record.
+            </Typography>
+
+            {todayTimesheetStatus && (
+              <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Chip
+                  label={todayTimesheetStatus.message}
+                  color={todayTimesheetStatus.exists ? 'success' : todayTimesheetStatus.isAfter11PM ? 'error' : 'warning'}
+                  variant="outlined"
+                  size="small"
+                  icon={todayTimesheetStatus.exists ? <CheckCircleOutlineIcon /> : todayTimesheetStatus.isAfter11PM ? <ErrorOutlineIcon /> : <WarningIcon />}
+                />
+                {todayTimesheetStatus.isAfter11PM && <Chip label="Overdue — needs immediate action" color="error" variant="filled" size="small" icon={<ErrorOutlineIcon />} />}
+              </Box>
+            )}
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Tooltip title="Toggle filters">
+              <IconButton
+                onClick={() => setShowFilters(!showFilters)}
+                sx={{
+                  bgcolor: showFilters ? alpha(COLORS.primary, 0.12) : COLORS.bg,
+                  color: showFilters ? COLORS.primary : COLORS.muted,
+                  border: `1px solid ${COLORS.border}`,
+                  '&:hover': { bgcolor: alpha(COLORS.primary, 0.12), color: COLORS.primary },
+                }}
               >
-                Add Timesheet
+                <FilterIcon />
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title="Refresh data">
+              <IconButton
+                onClick={() => {
+                  fetchTimesheets();
+                  fetchNotifications();
+                }}
+                sx={{ bgcolor: COLORS.bg, color: COLORS.muted, border: `1px solid ${COLORS.border}`, '&:hover': { bgcolor: alpha(COLORS.primary, 0.12), color: COLORS.primary } }}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+
+            {!isMobile && (
+              <GradientButton startIcon={<AddIcon />} onClick={handleOpenAddDialog} size="large">
+                Add timesheet
               </GradientButton>
+            )}
+          </Box>
+        </Box>
+
+        {/* Overview */}
+        <Surface sx={{ p: { xs: 2.5, sm: 3.5 }, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3.5, flexWrap: 'wrap' }}>
+            <RadialProgress value={productivityRate} color={COLORS.primary} />
+
+            <Box sx={{ minWidth: 180 }}>
+              <Typography variant="overline" sx={{ color: COLORS.faint, letterSpacing: 1, fontWeight: 700 }}>
+                Overview
+              </Typography>
+              <Typography sx={{ fontWeight: 700, fontSize: '1.15rem', color: COLORS.ink }}>
+                <Display>{stats.productiveDays} productive days logged</Display>
+              </Typography>
+              <Typography variant="body2" sx={{ color: COLORS.muted }}>
+                Employee ID: {empId || 'loading…'}
+              </Typography>
+            </Box>
+
+            <Box sx={{ flexGrow: 1 }} />
+
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flex: 1, minWidth: 280 }}>
+              <StatTile label="Total entries" value={filteredTimesheets.length} color={COLORS.primary} icon={<CalendarIcon fontSize="small" />} />
+              <StatTile label="Working Hours" value={stats.totalWorkingHours.toFixed(1)} color={COLORS.info} icon={<AccessTimeIcon fontSize="small" />} />
+              <StatTile label="OT Hours" value={stats.totalOTHours.toFixed(1)} color={COLORS.orange} icon={<TimerIcon fontSize="small" />} />
+              <StatTile label="Total Hours" value={stats.totalHours.toFixed(1)} color={COLORS.success} icon={<CheckCircleIcon fontSize="small" />} />
+              <StatTile label="Avg. hours / day" value={stats.avgHours.toFixed(1)} color={COLORS.warning} icon={<TimerIcon fontSize="small" />} />
+            </Box>
+          </Box>
+        </Surface>
+
+        {/* Search and View Mode */}
+        <Surface sx={{ p: { xs: 2, sm: 2.5 }, mb: 2.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { xs: 'stretch', sm: 'center' } }}>
+            <TextField
+              fullWidth
+              placeholder="Search by date, activity, description, or work mode…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              size="small"
+              sx={{ flex: 1 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: COLORS.muted, fontSize: 20 }} />
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: '12px', bgcolor: COLORS.bg },
+              }}
+            />
+
+            <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+              <Button
+                variant={viewMode === 'currentMonth' ? 'contained' : 'outlined'}
+                onClick={() => setViewMode('currentMonth')}
+                size="small"
+                startIcon={<ViewModuleIcon />}
+                sx={{
+                  borderRadius: '10px',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  ...(viewMode === 'currentMonth' && {
+                    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryDark} 100%)`,
+                    color: 'white',
+                    '&:hover': {
+                      background: `linear-gradient(135deg, ${COLORS.primaryDark} 0%, ${COLORS.primaryDark} 100%)`,
+                    },
+                  }),
+                  ...(viewMode !== 'currentMonth' && {
+                    borderColor: COLORS.border,
+                    color: COLORS.muted,
+                    '&:hover': {
+                      borderColor: COLORS.primary,
+                      color: COLORS.primary,
+                      bgcolor: alpha(COLORS.primary, 0.04),
+                    },
+                  }),
+                }}
+              >
+                This Month
+              </Button>
+              <Button
+                variant={viewMode === 'all' ? 'contained' : 'outlined'}
+                onClick={() => setViewMode('all')}
+                size="small"
+                startIcon={<ViewListIcon />}
+                sx={{
+                  borderRadius: '10px',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  ...(viewMode === 'all' && {
+                    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryDark} 100%)`,
+                    color: 'white',
+                    '&:hover': {
+                      background: `linear-gradient(135deg, ${COLORS.primaryDark} 0%, ${COLORS.primaryDark} 100%)`,
+                    },
+                  }),
+                  ...(viewMode !== 'all' && {
+                    borderColor: COLORS.border,
+                    color: COLORS.muted,
+                    '&:hover': {
+                      borderColor: COLORS.primary,
+                      color: COLORS.primary,
+                      bgcolor: alpha(COLORS.primary, 0.04),
+                    },
+                  }),
+                }}
+              >
+                All Entries
+              </Button>
             </Box>
           </Box>
 
-          {/* STATS CARDS */}
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
-              <StatCard color={greenTheme.gradient}>
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {timesheets.length}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <CalendarIcon />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Total Entries
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
-              <StatCard color="#2196F3">
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {stats.totalHours.toFixed(1)}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <AccessTimeIcon />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Total Hours
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
-            
-            <Grid item xs={12} sm={6} md={3}minWidth={'250px'}>
-              <StatCard color="#4CAF50">
-                <CardContent>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="h4" fontWeight="bold">
-                      {stats.productiveDays}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }}>
-                      <CheckCircleIcon />
-                    </Avatar>
-                  </Box>
-                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                    Productive Days
-                  </Typography>
-                </CardContent>
-              </StatCard>
-            </Grid>
-         
-          </Grid>
-
-          {/* SEARCH BAR */}
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Search by date, activity, description, or work mode..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon color="success" />
-                </InputAdornment>
-              ),
-              sx: { 
-                borderRadius: "12px",
-                bgcolor: "rgba(46, 125, 50, 0.05)",
-                border: "1px solid rgba(46, 125, 50, 0.1)"
-              }
-            }}
-          />
-
-          {/* FILTER SECTION */}
           <Collapse in={showFilters}>
-            <StyledPaper sx={{ p: 3, mt: 3, bgcolor: "rgba(46, 125, 50, 0.02)" }}>
-              <Typography variant="subtitle1" fontWeight="bold" color="#2196F3" sx={{mb:2}} gutterBottom>
-                <FilterIcon sx={{ mr: 1, verticalAlign: 'middle',color:"#2196F3" }} />
-                Filter Timesheets
-              </Typography>
-              
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: "#2196F3" }}>Activity Category</InputLabel>
-                    <Select
-                      value={selectedActivity}
-                      label="Activity Category"
-                      onChange={(e) => setSelectedActivity(e.target.value)}
-                      sx={{ 
-                        borderRadius: "8px",
-                        bgcolor: "rgba(46, 125, 50, 0.05)",
-                        border: "1px solid rgba(46, 125, 50, 0.1)"
-                      }}
-                    >
-                      <MenuItem value="all">All Activities</MenuItem>
-                      {activityCategories.map((category) => (
-                        <MenuItem key={category} value={category}>
-                          <ActivityChip label={category} size="small" category={category} sx={{ mr: 1 }} />
-                          {category}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                
-                <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel sx={{ color: "#2196F3" }}>Work Mode</InputLabel>
-                    <Select
-                      value={selectedWorkMode}
-                      label="Work Mode"
-                      onChange={(e) => setSelectedWorkMode(e.target.value)}
-                      sx={{ 
-                        borderRadius: "8px",
-                        bgcolor: "rgba(46, 125, 50, 0.05)",
-                        border: "1px solid rgba(46, 125, 50, 0.1)"
-                      }}
-                    >
-                      <MenuItem value="all">All Work Modes</MenuItem>
-                      {workModes.map((mode) => (
-                        <MenuItem key={mode} value={mode}>
-                          <WorkModeChip label={mode} size="small" mode={mode} sx={{ mr: 1 }} />
-                          {mode}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                
-                <Grid item xs={12} md={3}>
-                  <DatePicker
-                    label="Start Date"
-                    value={startDate}
-                    onChange={(newValue) => setStartDate(newValue)}
-                    slotProps={{ 
-                      textField: { 
-                        size: "small", 
-                        fullWidth: true,
-                        sx: {
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: "8px",
-                            bgcolor: "rgba(46, 125, 50, 0.05)",
-                            border: "1px solid rgba(46, 125, 50, 0.1)"
-                          }
-                        }
-                      } 
-                    }}
-                  />
-                </Grid>
-                
-                <Grid item xs={12} md={3}>
-                  <DatePicker
-                    label="End Date"
-                    value={endDate}
-                    onChange={(newValue) => setEndDate(newValue)}
-                    slotProps={{ 
-                      textField: { 
-                        size: "small", 
-                        fullWidth: true,
-                        sx: {
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: "8px",
-                            bgcolor: "rgba(46, 125, 50, 0.05)",
-                            border: "1px solid rgba(46, 125, 50, 0.1)"
-                          }
-                        }
-                      } 
-                    }}
-                  />
-                </Grid>
-                
-                <Grid item xs={12}>
-                  <Stack direction="row" spacing={1} justifyContent="flex-end">
-                    <GradientButton
-                      onClick={handleApplyFilters}
-                      size="small"
-                      startIcon={<FilterIcon />}
-                      sx={{ px: 2 }}
-                    >
-                      Apply Filters
-                    </GradientButton>
-                    
-                    <Button
-                      variant="outlined"
-                      onClick={handleClearFilters}
-                      startIcon={<ClearIcon />}
-                      size="small"
-                      sx={{ 
-                        borderColor: "rgba(46, 125, 50, 0.3)",
-                        color: "#2196F3",
-                        borderRadius: "8px",
-                        "&:hover": {
-                          borderColor: "#2E7D32",
-                          bgcolor: "rgba(46, 125, 50, 0.05)"
-                        }
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  </Stack>
-                </Grid>
-              </Grid>
-              
-              {(selectedActivity !== "all" || selectedWorkMode !== "all" || startDate || endDate) && (
-                <Typography variant="caption" color="#2196F3" sx={{ mt: 1, display: "block" }}>
-                  Filtering by: 
-                  {selectedActivity !== "all" && ` Activity = ${selectedActivity}`}
-                  {selectedWorkMode !== "all" && `, Work Mode = ${selectedWorkMode}`}
-                  {startDate && endDate && `, Date Range: ${format(startDate, "MMM dd, yyyy")} - ${format(endDate, "MMM dd, yyyy")}`}
-                </Typography>
-              )}
-            </StyledPaper>
-          </Collapse>
-        </StyledPaper>
+            <Divider sx={{ my: 2.5 }} />
+            <Typography sx={{ fontWeight: 700, color: COLORS.ink, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <FilterIcon sx={{ fontSize: 18, color: COLORS.primary }} />
+              Filter timesheets
+            </Typography>
 
-        {/* EMPLOYEE INFO CARD */}
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={3} minWidth={200}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Activity category</InputLabel>
+                  <Select
+                    value={selectedActivity}
+                    label="Activity category"
+                    onChange={(e) => setSelectedActivity(e.target.value)}
+                    sx={{ borderRadius: '10px', bgcolor: COLORS.bg }}
+                  >
+                    <MenuItem value="all">All activities</MenuItem>
+                    {activityCategories.map((category) => (
+                      <MenuItem key={category} value={category}>
+                        <ActivityChip label={category} size="small" category={category} sx={{ mr: 1 }} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={3} minWidth={200}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Work mode</InputLabel>
+                  <Select value={selectedWorkMode} label="Work mode" onChange={(e) => setSelectedWorkMode(e.target.value)} sx={{ borderRadius: '10px', bgcolor: COLORS.bg }}>
+                    <MenuItem value="all">All work modes</MenuItem>
+                    {[...workModes, ...minimalActivityModes].map((mode) => (
+                      <MenuItem key={mode} value={mode}>
+                        <WorkModeChip label={mode} size="small" mode={mode} sx={{ mr: 1 }} />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={3} minWidth={180}>
+                <DatePicker
+                  label="Start date"
+                  value={startDate}
+                  onChange={(newValue) => setStartDate(newValue)}
+                  slotProps={{ textField: { size: 'small', fullWidth: true, sx: { '& .MuiOutlinedInput-root': { borderRadius: '10px', bgcolor: COLORS.bg } } } }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={3} minWidth={180}>
+                <DatePicker
+                  label="End date"
+                  value={endDate}
+                  onChange={(newValue) => setEndDate(newValue)}
+                  slotProps={{ textField: { size: 'small', fullWidth: true, sx: { '& .MuiOutlinedInput-root': { borderRadius: '10px', bgcolor: COLORS.bg } } } }}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <GradientButton onClick={handleApplyFilters} size="small" startIcon={<FilterIcon />}>
+                    Apply filters
+                  </GradientButton>
+                  <Button
+                    variant="outlined"
+                    onClick={handleClearFilters}
+                    startIcon={<ClearIcon />}
+                    size="small"
+                    sx={{ borderColor: COLORS.border, color: COLORS.muted, borderRadius: '10px', textTransform: 'none', fontWeight: 600, '&:hover': { borderColor: COLORS.primary, color: COLORS.primary, bgcolor: alpha(COLORS.primary, 0.04) } }}
+                  >
+                    Clear
+                  </Button>
+                </Stack>
+              </Grid>
+            </Grid>
+
+            {(selectedActivity !== 'all' || selectedWorkMode !== 'all' || startDate || endDate) && (
+              <Typography variant="caption" sx={{ color: COLORS.muted, mt: 1.5, display: 'block' }}>
+                Filtering by:
+                {selectedActivity !== 'all' && ` Activity = ${selectedActivity}`}
+                {selectedWorkMode !== 'all' && `, Work mode = ${selectedWorkMode}`}
+                {startDate && endDate && `, Date range: ${format(startDate, 'MMM dd, yyyy')} – ${format(endDate, 'MMM dd, yyyy')}`}
+                {viewMode === 'currentMonth' && ', View: Current Month'}
+                {viewMode === 'all' && ', View: All Entries'}
+              </Typography>
+            )}
+          </Collapse>
+        </Surface>
+
+        {/* Employee info card */}
         {empId && (
-          <StyledPaper sx={{ p: 2, mb: 3 }}>
-            <Box display="flex" alignItems="center" gap={3}>
-              <Avatar
-                sx={{
-                  width: 56,
-                  height: 56,
-                  bgcolor: "rgba(46, 125, 50, 0.1)",
-                  color: "#2196F3",
-                  fontSize: "1.5rem",
-                  fontWeight: "bold",
-                  border: "2px solid rgba(46, 125, 50, 0.2)"
-                }}
-              >
-                {user?.email?.charAt(0).toUpperCase() || "U"}
+          <Surface sx={{ p: 2.25, mb: 2.5 }}>
+            <Box display="flex" alignItems="center" gap={2.5} flexWrap="wrap">
+              <Avatar sx={{ width: 52, height: 52, bgcolor: alpha(COLORS.primary, 0.12), color: COLORS.primary, fontSize: '1.3rem', fontWeight: 700, border: `2px solid ${alpha(COLORS.primary, 0.2)}` }}>
+                {(employeeName || user?.email)?.charAt(0).toUpperCase() || 'U'}
               </Avatar>
-              <Box flex={1}>
-                <Typography variant="h6" fontWeight="bold" color="#2196F3">
-                  {user?.email}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Employee ID: {empId} • {timesheets.length} timesheet entries
+              <Box flex={1} minWidth={180}>
+                <Typography sx={{ fontWeight: 700, color: COLORS.ink }}>{employeeName || user?.displayName || user?.email}</Typography>
+                <Typography variant="body2" sx={{ color: COLORS.muted }}>
+                  Employee ID: {empId} • {timesheets.length} total entries • {filteredTimesheets.length} {viewMode === 'currentMonth' ? 'this month' : 'shown'}
                   {todayTimesheetStatus && !todayTimesheetStatus.exists && (
-                    <span style={{ color: todayTimesheetStatus.isAfter11PM ? '#F44336' : '#FF9800', marginLeft: '8px', fontWeight: 'bold' }}>
-                      • {todayTimesheetStatus.isAfter11PM ? '🚨 OVERDUE - URGENT' : '⏰ Pending submission'}
-                    </span>
+                    <Box component="span" sx={{ color: todayTimesheetStatus.isAfter11PM ? COLORS.danger : COLORS.warning, ml: 1, fontWeight: 700 }}>
+                      • {todayTimesheetStatus.isAfter11PM ? 'Overdue — urgent' : 'Pending submission'}
+                    </Box>
                   )}
                 </Typography>
               </Box>
-              <Chip
-                label={stats.avgHours.toFixed(1) + "h average"}
-                color="success"
-                variant="outlined"
-                icon={<TimerIcon />}
-              />
+              <Chip label={`${stats.avgHours.toFixed(1)}h average`} variant="outlined" icon={<TimerIcon />} sx={{ borderColor: alpha(COLORS.success, 0.4), color: COLORS.success }} />
               {unreadCount > 0 && (
                 <Chip
                   label={`${unreadCount} alerts`}
-                  color={unreadCount > 0 ? "error" : "warning"}
                   variant="filled"
                   icon={<NotificationsIcon />}
                   onClick={openNotificationDrawer}
                   clickable
+                  sx={{ bgcolor: COLORS.danger, color: 'white', '&:hover': { bgcolor: '#DC2626' } }}
                 />
               )}
             </Box>
-          </StyledPaper>
+          </Surface>
         )}
 
-        {/* TIMESHEETS TABLE */}
-        <StyledPaper>
-          <TableContainer sx={{ maxHeight: "calc(100vh - 500px)" }}>
+        {/* Timesheets table */}
+        <Surface sx={{ overflow: 'hidden' }}>
+          <TableContainer sx={{ maxHeight: 'calc(100vh - 480px)', minHeight: 320 }}>
             <Table stickyHeader size="medium">
               <TableHead>
-                <TableRow sx={{ 
-                  bgcolor: "rgba(46, 125, 50, 0.08)",
-                  borderBottom: "2px solid #2E7D32"
-                }}>
-                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold", width: 60 ,backgroundColor:"#2196F3"}}>S.No</TableCell>
-                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold" ,backgroundColor:"#2196F3"}}>Date/Day</TableCell>
-                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold" ,backgroundColor:"#2196F3"}}>Activity</TableCell>
-                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold",backgroundColor:"#2196F3" }}>Work Mode</TableCell>
-                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold",backgroundColor:"#2196F3" }}>Description</TableCell>
-                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold" ,backgroundColor:"#2196F3"}}>Hours</TableCell>
-                  <TableCell sx={{ color: "#ffffffff", fontWeight: "bold",backgroundColor:"#2196F3", width: 180 }}>Actions</TableCell>
+                <TableRow>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, width: 48, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }} />
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Date / Day</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Activity</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Work mode</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Description</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Hours</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}`, width: 150 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
 
               <TableBody>
                 {filteredTimesheets.length > 0 ? (
-                  filteredTimesheets.map((row, index) => (
-                    <React.Fragment key={row.id}>
-                      <TableRow 
-                        hover
-                        sx={{ 
-                          '&:nth-of-type(even)': { bgcolor: 'rgba(46, 125, 50, 0.02)' },
-                          '&:hover': { bgcolor: 'rgba(46, 125, 50, 0.05)' },
-                          borderBottom: expandedRows.includes(row.id) ? 'none' : '1px solid rgba(46, 125, 50, 0.1)'
-                        }}
-                      >
-                        <TableCell>
-                          {index+1}.
-                        </TableCell>
-                        
-                        <TableCell>
-                          <Box>
-                            <Typography variant="body2" fontWeight="medium" color="#2196F3">
+                  filteredTimesheets.map((row) => {
+                    const expanded = expandedRows.includes(row.id);
+                    // Calculate working hours (total_hours - ot_hours)
+                    const workingHours = (parseFloat(row.total_hours) || 0) - (parseFloat(row.ot_hours) || 0);
+                    const otHours = parseFloat(row.ot_hours) || 0;
+                    const totalHours = parseFloat(row.total_hours) || 0;
+                    
+                    return (
+                      <React.Fragment key={row.id}>
+                        <TableRow hover sx={{ '&:hover': { bgcolor: alpha(COLORS.primary, 0.03) }, borderBottom: expanded ? 'none' : `1px solid ${COLORS.border}` }}>
+                          <TableCell>
+                            <IconButton size="small" onClick={() => toggleRowExpansion(row.id)} sx={{ color: COLORS.muted }}>
+                              {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                            </IconButton>
+                          </TableCell>
+
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: COLORS.ink }}>
                               {format(parseISO(row.date), 'dd/MM/yyyy')}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="caption" sx={{ color: COLORS.muted }}>
                               {row.day}
                               {row.date === format(new Date(), 'yyyy-MM-dd') && (
-                                <Chip 
-                                  label="Today" 
-                                  size="small" 
-                                  color="success" 
-                                  variant="outlined"
-                                  sx={{ ml: 1, fontSize: '0.6rem', height: 18 }}
-                                />
+                                <Chip label="Today" size="small" variant="outlined" sx={{ ml: 1, fontSize: '0.6rem', height: 18, borderColor: alpha(COLORS.success, 0.4), color: COLORS.success }} />
                               )}
                             </Typography>
-                          </Box>
-                        </TableCell>
-                        
-                        <TableCell>
-                          <ActivityChip
-                            label={row.activity_category}
-                            size="small"
-                            category={row.activity_category}
-                          />
-                        </TableCell>
-                        
-                        <TableCell>
-                          <WorkModeChip
-                            label={row.work_mode}
-                            size="small"
-                            mode={row.work_mode}
-                          />
-                        </TableCell>
-                        
-                        <TableCell>
-                          <Tooltip title={row.description || "No description"} arrow>
-                            <Typography 
-                              variant="body2" 
-                              sx={{
-                                display: '-webkit-box',
-                                WebkitLineClamp: 1,
-                                WebkitBoxOrient: 'vertical',
-                                overflow: 'hidden',
-                                color: row.description ? "text.primary" : "text.secondary",
-                                fontStyle: row.description ? "normal" : "italic"
-                              }}
-                            >
-                              {row.description || "No description provided"}
-                            </Typography>
-                          </Tooltip>
-                        </TableCell>
-                        
-                        <TableCell>
-                          <Box sx={{ display: "flex", alignItems: "center" }}>
-                            <Box
-                              sx={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: "50%",
-                                bgcolor: getHoursColor(row.total_hours),
-                                mr: 1,
-                              }}
-                            />
-                            <Typography 
-                              variant="body2" 
-                              fontWeight="bold"
-                              sx={{ color: getHoursColor(row.total_hours) }}
-                            >
-                              {row.total_hours || "0.0"}h
-                            </Typography>
-                          </Box>
-                        </TableCell>
-              
-                        <TableCell>
-                          <Stack direction="row" spacing={1}>
-                            <Tooltip title="Edit">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleOpenEditDialog(row)}
+                          </TableCell>
+
+                          <TableCell>
+                            <ActivityChip label={row.activity_category} size="small" category={row.activity_category} />
+                          </TableCell>
+
+                          <TableCell>
+                            <WorkModeChip label={row.work_mode} size="small" mode={row.work_mode} />
+                          </TableCell>
+
+                          <TableCell sx={{ maxWidth: 220 }}>
+                            <Tooltip title={row.description || 'No description'} arrow>
+                              <Typography
+                                variant="body2"
                                 sx={{
-                                  backgroundColor: "rgba(46, 125, 50, 0.1)",
-                                  color: "#2196F3",
-                                  "&:hover": {
-                                    backgroundColor: "rgba(46, 125, 50, 0.2)",
-                                  },
-                                  borderRadius: "8px",
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 1,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  color: row.description ? COLORS.ink : COLORS.faint,
+                                  fontStyle: row.description ? 'normal' : 'italic',
                                 }}
                               >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
+                                {row.description || 'No description provided'}
+                              </Typography>
                             </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDelete(row.id)}
-                                sx={{
-                                  backgroundColor: "rgba(244, 67, 54, 0.1)",
-                                  color: "#F44336",
-                                  "&:hover": {
-                                    backgroundColor: "rgba(244, 67, 54, 0.2)",
-                                  },
-                                  borderRadius: "8px",
-                                }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-            
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                      
-                      {/* Expanded Row Details */}
-                      <TableRow>
-                        <TableCell colSpan={8} sx={{ p: 0 }}>
-                          <Collapse in={expandedRows.includes(row.id)} timeout="auto" unmountOnExit>
-                            <Box sx={{ p: 3, bgcolor: 'rgba(46, 125, 50, 0.02)' }}>
-                              <Grid container spacing={3}>
-                                <Grid item xs={12} md={6}>
-                                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ color: '#2196F3' }}>
-                                    <AccessTimeIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                                    Time Tracking
-                                  </Typography>
-                                  <Grid container spacing={2}>
-                                    {[
-                                      { icon: <LoginIcon />, label: "Check In", value: formatTime(row.check_in), color: "#2196F3" },
-                                      { icon: <LogoutIcon />, label: "Check Out", value: formatTime(row.check_out), color: "#D32F2F" },
-                                      { icon: <LunchDiningIcon />, label: "Lunch In", value: formatTime(row.lunch_in), color: "#ED6C02" },
-                                      { icon: <LunchDiningIcon />, label: "Lunch Out", value: formatTime(row.lunch_out), color: "#7B1FA2" }
-                                    ].map((item, index) => (
-                                      <Grid item xs={6} key={index}>
-                                        <Paper elevation={0} sx={{ 
-                                          p: 2, 
-                                          bgcolor: `${item.color}10`, 
-                                          borderRadius: 2,
-                                          border: `1px solid ${item.color}20`
-                                        }}>
-                                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                            {React.cloneElement(item.icon, { sx: { mr: 1, color: item.color } })}
-                                            <Typography variant="body2" fontWeight="bold">{item.label}</Typography>
+                          </TableCell>
+
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getHoursColor(totalHours), mr: 1 }} />
+                              <Typography variant="body2" fontWeight="bold" sx={{ color: getHoursColor(totalHours) }}>
+                                {totalHours.toFixed(1)}h
+                              </Typography>
+                            </Box>
+                          </TableCell>
+
+                          <TableCell>
+                            <Stack direction="row" spacing={1}>
+                              <Tooltip title="Edit">
+                                <IconButton size="small" onClick={() => handleOpenEditDialog(row)} sx={{ bgcolor: alpha(COLORS.primary, 0.08), color: COLORS.primary, '&:hover': { bgcolor: COLORS.primary, color: 'white' } }}>
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete">
+                                <IconButton size="small" onClick={() => handleDelete(row.id)} sx={{ bgcolor: alpha(COLORS.danger, 0.08), color: COLORS.danger, '&:hover': { bgcolor: COLORS.danger, color: 'white' } }}>
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+
+                        <TableRow>
+                          <TableCell colSpan={7} sx={{ p: 0, border: expanded ? undefined : 'none' }}>
+                            <Collapse in={expanded} timeout="auto" unmountOnExit>
+                              <Box sx={{ p: 3, bgcolor: COLORS.bg }}>
+                                <Grid container spacing={3}>
+                                  <Grid item xs={12} md={6}>
+                                    <Typography sx={{ fontWeight: 700, color: COLORS.ink, mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                      <AccessTimeIcon sx={{ fontSize: 18, color: COLORS.primary }} />
+                                      Time tracking
+                                    </Typography>
+                                    <Grid container spacing={2}>
+                                      {[
+                                        { icon: <LoginIcon />, label: 'Check in', value: formatTime(row.check_in), color: COLORS.info },
+                                        { icon: <LogoutIcon />, label: 'Check out', value: formatTime(row.check_out), color: COLORS.danger },
+                                        { icon: <LunchDiningIcon />, label: 'Lunch in', value: formatTime(row.lunch_in), color: COLORS.warning },
+                                        { icon: <LunchDiningIcon />, label: 'Lunch out', value: formatTime(row.lunch_out), color: COLORS.violet },
+                                      ].map((item, idx) => (
+                                        <Grid item xs={6} key={idx}>
+                                          <Box sx={{ p: 1.75, bgcolor: alpha(item.color, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(item.color, 0.18)}` }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
+                                              {React.cloneElement(item.icon, { sx: { mr: 1, fontSize: 18, color: item.color } })}
+                                              <Typography variant="body2" sx={{ fontWeight: 600, color: COLORS.ink }}>
+                                                {item.label}
+                                              </Typography>
+                                            </Box>
+                                            <Typography variant="h6" sx={{ fontWeight: 700, color: item.color }}>
+                                              {item.value}
+                                            </Typography>
                                           </Box>
-                                          <Typography variant="h6" fontWeight="bold" color={item.color}>
-                                            {item.value}
-                                          </Typography>
-                                        </Paper>
-                                      </Grid>
-                                    ))}
+                                        </Grid>
+                                      ))}
+                                    </Grid>
+
+                                    <Box sx={{ p: 1.75, mt: 2, bgcolor: alpha(COLORS.primary, 0.06), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.primary, 0.18)}` }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: COLORS.primary }}>
+                                        Work duration (Check-in to Check-out)
+                                      </Typography>
+                                      <Typography variant="h5" sx={{ fontWeight: 700, color: COLORS.primary }}>
+                                        {calculateWorkDuration(row.check_in, row.check_out)}
+                                      </Typography>
+                                    </Box>
                                   </Grid>
-                                  
-                                  <Paper elevation={0} sx={{ 
-                                    p: 2, 
-                                    mt: 2, 
-                                    bgcolor: 'rgba(33, 150, 243, 0.1)', 
-                                    borderRadius: 2,
-                                    border: "1px solid rgba(33, 150, 243, 0.2)"
-                                  }}>
-                                    <Typography variant="body2" fontWeight="bold" color="#2196F3" gutterBottom>
-                                      Work Duration
+
+                                  <Grid item xs={12} md={6}>
+                                    <Typography sx={{ fontWeight: 700, color: COLORS.ink, mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                      <InfoIcon sx={{ fontSize: 18, color: COLORS.primary }} />
+                                      Hours Breakdown
                                     </Typography>
-                                    <Typography variant="h5" fontWeight="bold" color="#2196F3">
-                                      {calculateWorkDuration(row.check_in, row.check_out)}
-                                    </Typography>
-                                  </Paper>
-                                </Grid>
-                                
-                                <Grid item xs={12} md={6}>
-                                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom sx={{ color: '#2196F3' }}>
-                                    <InfoIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                                    Details
-                                  </Typography>
-                                  
-                                  <Paper elevation={0} sx={{ 
-                                    p: 2, 
-                                    mb: 2, 
-                                    bgcolor: 'rgba(255, 152, 0, 0.1)', 
-                                    borderRadius: 2,
-                                    border: "1px solid rgba(255, 152, 0, 0.2)"
-                                  }}>
-                                    <Typography variant="body2" fontWeight="bold" color="#FF9800" gutterBottom>
-                                      Description
-                                    </Typography>
-                                    <Typography variant="body2">
-                                      {row.description || "No description provided"}
-                                    </Typography>
-                                  </Paper>
-                                  
-                                  <Grid container spacing={2} sx={{ mb: 2 }}>
-                                    <Grid item xs={6}>
-                                      <Paper elevation={0} sx={{ 
-                                        p: 2, 
-                                        bgcolor: 'rgba(244, 67, 54, 0.1)', 
-                                        borderRadius: 2,
-                                        border: "1px solid rgba(244, 67, 54, 0.2)"
-                                      }}>
-                                        <Typography variant="body2" color="text.secondary" gutterBottom>
+
+                                    <Box sx={{ p: 1.75, mb: 2, bgcolor: alpha(COLORS.warning, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.warning, 0.2)}` }}>
+                                      <Typography variant="body2" sx={{ fontWeight: 600, color: COLORS.warning, mb: 0.5 }}>
+                                        Description
+                                      </Typography>
+                                      <Typography variant="body2" sx={{ color: COLORS.ink }}>
+                                        {row.description || 'No description provided'}
+                                      </Typography>
+                                    </Box>
+
+                                    <Grid container spacing={2} sx={{ mb: 2 }}>
+                                      <Grid item xs={6}>
+                                        <Box sx={{ p: 1.75, bgcolor: alpha(COLORS.info, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.info, 0.2)}` }}>
+                                          <Typography variant="body2" sx={{ color: COLORS.muted, mb: 0.5 }}>
+                                            Working Hours
+                                          </Typography>
+                                          <Typography variant="h6" sx={{ fontWeight: 700, color: COLORS.info }}>
+                                            {workingHours.toFixed(1)}h
+                                          </Typography>
+                                          <Typography variant="caption" sx={{ color: COLORS.muted }}>
+                                            Total - OT
+                                          </Typography>
+                                        </Box>
+                                      </Grid>
+                                      <Grid item xs={6}>
+                                        <Box sx={{ p: 1.75, bgcolor: alpha(COLORS.orange, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.orange, 0.2)}` }}>
+                                          <Typography variant="body2" sx={{ color: COLORS.muted, mb: 0.5 }}>
+                                            OT Hours
+                                          </Typography>
+                                          <Typography variant="h6" sx={{ fontWeight: 700, color: COLORS.orange }}>
+                                            {otHours.toFixed(1)}h
+                                          </Typography>
+                                          <Typography variant="caption" sx={{ color: COLORS.muted }}>
+                                            Overtime
+                                          </Typography>
+                                        </Box>
+                                      </Grid>
+                                      <Grid item xs={12}>
+                                        <Box sx={{ p: 1.75, bgcolor: alpha(COLORS.success, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.success, 0.2)}` }}>
+                                          <Typography variant="body2" sx={{ color: COLORS.muted, mb: 0.5 }}>
+                                            Total Hours
+                                          </Typography>
+                                          <Typography variant="h6" sx={{ fontWeight: 700, color: COLORS.success }}>
+                                            {totalHours.toFixed(1)}h
+                                          </Typography>
+                                          <Typography variant="caption" sx={{ color: COLORS.muted }}>
+                                            Working Hours + OT Hours
+                                          </Typography>
+                                        </Box>
+                                      </Grid>
+                                    </Grid>
+
+                                    {row.permission_hours > 0 && (
+                                      <Box sx={{ p: 1.75, mb: 2, bgcolor: alpha(COLORS.danger, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.danger, 0.2)}` }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, color: COLORS.danger, mb: 0.5 }}>
                                           Permission Hours
                                         </Typography>
-                                        <Typography variant="h6" color="#F44336" fontWeight="bold">
-                                          {row.permission_hours || "0.0"}h
+                                        <Typography variant="body2" sx={{ color: COLORS.ink }}>
+                                          {row.permission_hours}h (subtracted from working hours)
                                         </Typography>
-                                      </Paper>
-                                    </Grid>
-                                    <Grid item xs={6}>
-                                      <Paper elevation={0} sx={{ 
-                                        p: 2, 
-                                        bgcolor: 'rgba(46, 125, 50, 0.1)', 
-                                        borderRadius: 2,
-                                        border: "1px solid rgba(46, 125, 50, 0.2)"
-                                      }}>
-                                        <Typography variant="body2" color="text.secondary" gutterBottom>
-                                          Total Hours
+                                      </Box>
+                                    )}
+
+                                    {row.remark && (
+                                      <Box sx={{ p: 1.75, bgcolor: alpha(COLORS.primary, 0.06), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.primary, 0.18)}` }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, color: COLORS.primary, mb: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                          <CommentIcon sx={{ fontSize: 16 }} />
+                                          Supervisor remark
                                         </Typography>
-                                        <Typography variant="h6" fontWeight="bold" color="#2196F3">
-                                          {row.total_hours || "0.0"}h
+                                        <Typography variant="body2" sx={{ color: COLORS.ink }}>
+                                          {row.remark}
                                         </Typography>
-                                      </Paper>
-                                    </Grid>
+                                      </Box>
+                                    )}
                                   </Grid>
-                                  
-                                  {row.remark && (
-                                    <Paper elevation={0} sx={{ 
-                                      p: 2, 
-                                      bgcolor: 'rgba(46, 125, 50, 0.1)', 
-                                      borderRadius: 2,
-                                      border: `1px solid rgba(46, 125, 50, 0.2)`
-                                    }}>
-                                      <Typography variant="body2" fontWeight="bold" color="#2196F3" gutterBottom>
-                                        <CommentIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                                        Supervisor Remark
-                                      </Typography>
-                                      <Typography variant="body2">
-                                        {row.remark}
-                                      </Typography>
-                                    </Paper>
-                                  )}
                                 </Grid>
-                              </Grid>
-                            </Box>
-                          </Collapse>
-                        </TableCell>
-                      </TableRow>
-                    </React.Fragment>
-                  ))
+                              </Box>
+                            </Collapse>
+                          </TableCell>
+                        </TableRow>
+                      </React.Fragment>
+                    );
+                  })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                      <Box sx={{ textAlign: "center" }}>
-                        <AccessTimeIcon sx={{ fontSize: 64, color: "rgba(46, 125, 50, 0.3)", mb: 2 }} />
-                        <Typography variant="h6" color="text.secondary">
-                          {searchTerm ? "No matching records found" : "No timesheet entries"}
+                    <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <AccessTimeIcon sx={{ fontSize: 56, color: alpha(COLORS.muted, 0.3), mb: 2 }} />
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: COLORS.ink }}>
+                          {searchTerm ? 'No matching records found' : viewMode === 'currentMonth' ? 'No timesheet entries for this month' : 'No timesheet entries yet'}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {searchTerm ? "Try adjusting your search or filters" : "Click 'Add Timesheet' to create your first entry"}
+                        <Typography variant="body2" sx={{ color: COLORS.muted }}>
+                          {searchTerm ? 'Try adjusting your search or filters.' : viewMode === 'currentMonth' ? "Click \"Add timesheet\" to log your work for this month." : "Click \"Add timesheet\" to create your first entry."}
                         </Typography>
                         {!todayTimesheetStatus?.exists && (
-                          <Button
-                            variant="contained"
-                            startIcon={<AddIcon />}
-                            onClick={handleOpenAddDialog}
-                            sx={{ mt: 2, bgcolor: greenTheme.gradient }}
-                          >
-                            Add Today's Timesheet
-                          </Button>
+                          <GradientButton startIcon={<AddIcon />} onClick={handleOpenAddDialog} sx={{ mt: 2.5 }}>
+                            Add today's timesheet
+                          </GradientButton>
                         )}
                       </Box>
                     </TableCell>
@@ -1796,540 +1623,212 @@ const TimesheetPage = () => {
               </TableBody>
             </Table>
           </TableContainer>
-          
-          {/* TABLE FOOTER */}
+
           {filteredTimesheets.length > 0 && (
-            <Box sx={{ 
-              p: 2, 
-              bgcolor: "rgba(46, 125, 50, 0.08)", 
-              display: "flex", 
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderTop: "1px solid rgba(46, 125, 50, 0.1)"
-            }}>
-              <Typography variant="body2" color="#2196F3" fontWeight="medium">
+            <Box sx={{ p: 2, bgcolor: COLORS.bg, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, borderTop: `1px solid ${COLORS.border}` }}>
+              <Typography variant="body2" sx={{ color: COLORS.muted, fontWeight: 500 }}>
                 Showing {filteredTimesheets.length} of {timesheets.length} entries
-                {selectedActivity !== "all" && ` in ${selectedActivity}`}
-                {selectedWorkMode !== "all" && ` with ${selectedWorkMode}`}
+                {viewMode === 'currentMonth' && ' (Current Month)'}
+                {viewMode === 'all' && ' (All Entries)'}
+                {selectedActivity !== 'all' && ` in ${selectedActivity}`}
+                {selectedWorkMode !== 'all' && ` with ${selectedWorkMode}`}
               </Typography>
-              <Typography variant="body2" fontWeight="bold" color="#2196F3">
-                <TrendingUp sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Total hours: {filteredTimesheets.reduce((sum, row) => sum + (parseFloat(row.total_hours) || 0), 0).toFixed(1)}h
+              <Typography variant="body2" sx={{ fontWeight: 700, color: COLORS.primary, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <TrendingUp sx={{ fontSize: 18 }} />
+                Total Hours: {filteredTimesheets.reduce((sum, row) => sum + (parseFloat(row.total_hours) || 0), 0).toFixed(1)}h
               </Typography>
             </Box>
           )}
-        </StyledPaper>
+        </Surface>
 
-        {/* NOTIFICATION DRAWER */}
-        <Drawer
-          anchor="right"
-          open={notificationDrawerOpen}
-          onClose={closeNotificationDrawer}
-          PaperProps={{
-            sx: {
-              width: 450,
-              borderRadius: '16px 0 0 16px',
-              overflow: 'hidden',
-              boxShadow: '-8px 0 32px rgba(0,0,0,0.1)'
-            }
-          }}
-        >
-          <Box sx={{ 
-            background: greenTheme.gradient, 
-            color: 'white', 
-            p: 3,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <Box>
-              <Typography variant="h5" fontWeight="bold">
-                Notifications
+        {/* Add/Edit dialog */}
+        <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: '20px', overflow: 'hidden', boxShadow: '0 20px 60px rgba(16,24,40,0.25)', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' } }}>
+          <Box sx={{ background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.primaryDark} 100%)`, color: 'white', p: 3 }}>
+            <DialogTitle sx={{ color: 'white', p: 0, fontWeight: 700 }}>
+              <Display>{dialogMode === 'add' ? 'Add timesheet entry' : 'Edit timesheet entry'}</Display>
+            </DialogTitle>
+            <Typography variant="body2" sx={{ opacity: 0.9, mt: 1 }}>
+              {dialogMode === 'add' ? 'Log how you spent today.' : 'Update the details of this entry.'}
+            </Typography>
+          </Box>
+
+          <Divider />
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+            <DialogContent sx={{ p: { xs: 2, sm: 3, md: 4 }, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: COLORS.faint, letterSpacing: 1 }}>
+                DATE & ACTIVITY
               </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                {unreadCount} unread • {notifications.length} total
-              </Typography>
-            </Box>
-            <IconButton onClick={closeNotificationDrawer} sx={{ color: 'white' }}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-          
-          <Tabs 
-            value={notificationTab} 
-            onChange={handleNotificationTabChange}
-            sx={{ 
-              borderBottom: '1px solid rgba(0,0,0,0.1)',
-              '& .MuiTab-root': { 
-                textTransform: 'none',
-                fontWeight: 'medium'
-              }
-            }}
-          >
-            <Tab 
-              label="All" 
-              icon={<NotificationsIcon />} 
-              iconPosition="start"
-            />
-            <Tab 
-              label="Unread" 
-              icon={
-                <Badge badgeContent={unreadCount} color="error">
-                  <NotificationsActiveIcon />
-                </Badge>
-              } 
-              iconPosition="start"
-            />
-            <Tab 
-              label="Early Warning" 
-              icon={<WarningIcon />} 
-              iconPosition="start"
-            />
-            <Tab 
-              label="Critical" 
-              icon={<ErrorOutlineIcon />} 
-              iconPosition="start"
-            />
-          </Tabs>
-          
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
-            {notificationLoading ? (
-              <Box sx={{ p: 4, textAlign: 'center' }}>
-                <CircularProgress sx={{ color: greenTheme.primary }} />
-              </Box>
-            ) : getFilteredNotifications().length > 0 ? (
-              <List sx={{ p: 0 }}>
-                {getFilteredNotifications().map((notification) => (
-                  <ListItem
-                    key={notification.id}
-                    sx={{
-                      borderBottom: '1px solid rgba(0,0,0,0.05)',
-                      bgcolor: notification.is_read ? 'transparent' : 'rgba(46, 125, 50, 0.05)',
-                      borderLeft: `4px solid ${getNotificationSeverityColor(notification.metadata?.notification_stage, notification.priority)}`,
-                      '&:hover': {
-                        bgcolor: 'rgba(46, 125, 50, 0.1)'
-                      }
-                    }}
-                    secondaryAction={
-                      <Stack direction="row" spacing={0.5}>
-                        {!notification.is_read && (
-                          <Tooltip title="Mark as read">
-                            <IconButton 
-                              size="small"
-                              onClick={() => markNotificationAsRead(notification.id)}
-                            >
-                              <MarkEmailReadIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        <Tooltip title="Delete">
-                          <IconButton 
-                            size="small"
-                            onClick={() => deleteNotification(notification.id)}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    }
-                  >
-                    <ListItemIcon>
-                      {getNotificationIcon(notification.type, notification.metadata?.notification_stage)}
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Typography 
-                          variant="body1" 
-                          sx={{ 
-                            fontWeight: notification.is_read ? 'normal' : 'bold',
-                            color: notification.metadata?.notification_stage === 'final' ? '#F44336' : 'inherit'
-                          }}
-                        >
-                          {notification.message}
-                        </Typography>
-                      }
-                      secondary={
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
-                            {formatNotificationTime(notification.created_at)}
-                          </Typography>
-                          <Box sx={{ mt: 0.5 }}>
-                            {notification.metadata?.notification_stage && (
-                              <Chip 
-                                label={notification.metadata.notification_stage === 'final' ? '🚨 CRITICAL' : '⏰ REMINDER'} 
-                                size="small" 
-                                variant="outlined"
-                                sx={{ 
-                                  mr: 0.5,
-                                  fontSize: '0.65rem',
-                                  borderColor: getNotificationSeverityColor(notification.metadata?.notification_stage, notification.priority),
-                                  color: getNotificationSeverityColor(notification.metadata?.notification_stage, notification.priority)
-                                }}
-                              />
-                            )}
-                            {notification.metadata?.date && (
-                              <Chip 
-                                label={notification.metadata.date} 
-                                size="small" 
-                                variant="outlined"
-                                sx={{ fontSize: '0.65rem' }}
-                              />
-                            )}
-                          </Box>
-                        </Box>
-                      }
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Box sx={{ p: 4, textAlign: 'center' }}>
-                <NotificationsIcon sx={{ fontSize: 64, color: 'rgba(0,0,0,0.2)', mb: 2 }} />
-                <Typography variant="h6" color="text.secondary">
-                  No notifications
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {notificationTab === 1 
-                    ? "You've read all notifications" 
-                    : "No notifications in this category"}
-                </Typography>
-              </Box>
-            )}
-          </Box>
-          
-          <Box sx={{ p: 2, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
-            <Stack direction="row" spacing={1}>
-              <Button
-                fullWidth
-                variant="contained"
-                onClick={markAllNotificationsAsRead}
-                disabled={unreadCount === 0}
-                sx={{ bgcolor: greenTheme.gradient }}
-              >
-                Mark All as Read
-              </Button>
-            </Stack>
-          </Box>
-        </Drawer>
-
-        {/* ADD/EDIT TIMESHEET DIALOG */}
-        <Dialog 
-          open={openDialog} 
-          onClose={handleCloseDialog}
-          maxWidth="md"
-          fullWidth
-          PaperProps={{
-            sx: {
-              borderRadius: "16px",
-              overflow: 'hidden',
-            }
-          }}
-        >
-          <DialogTitle
-            sx={{
-              background: greenTheme.gradient,
-              color: "white",
-              fontWeight: "bold",
-              py: 2,
-            }}
-          >
-            {dialogMode === 'add' ? 'Add New Timesheet Entry' : 'Edit Timesheet Entry'}
-          </DialogTitle>
-
-          <form onSubmit={handleSubmit}>
-            <DialogContent sx={{ mt: 3 }}>
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}width={'31%'}>
+              <Grid container spacing={2} sx={{ mt: 0.5, mb: 2 }}>
+                <Grid item xs={12} sm={6} minWidth={220}>
                   <DatePicker
-                    label="Date *"
+                    label="Date"
                     value={formData.date}
-                    onChange={(newDate) => setFormData(prev => ({ ...prev, date: newDate }))}
+                    onChange={(newDate) => setFormData((prev) => ({ ...prev, date: newDate }))}
+                    disabled={dialogMode === 'edit'}
+                    maxDate={new Date()}
                     slotProps={{ 
                       textField: { 
-                        size: "small", 
-                        fullWidth: true,
-                        sx: {
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: "8px",
-                            bgcolor: "rgba(46, 125, 50, 0.05)",
-                            border: "1px solid rgba(46, 125, 50, 0.1)"
-                          }
-                        }
+                        fullWidth: true, 
+                        sx: { '& .MuiOutlinedInput-root': { borderRadius: '12px' } },
+                        helperText: "Only current or past dates allowed"
                       } 
                     }}
-                    disabled={dialogMode === 'edit'}
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}width={'31%'}>
-                  <TextField
-                    select
-                    fullWidth
-                    required
-                    label="Activity Category *"
-                    name="activity_category"
-                    value={formData.activity_category}
-                    onChange={handleActivityChange}
-                    size="small"
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: "8px",
-                        bgcolor: "rgba(46, 125, 50, 0.05)",
-                        border: "1px solid rgba(46, 125, 50, 0.1)"
-                      }
-                    }}
-                  >
+                <Grid item xs={12} sm={6} width={'33%'}>
+                  <TextField select fullWidth required label="Activity category" name="activity_category" value={formData.activity_category} onChange={handleActivityChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}>
                     {activityCategories.map((category) => (
                       <MenuItem key={category} value={category}>
                         <ActivityChip label={category} size="small" category={category} sx={{ mr: 1 }} />
-                        {category}
                       </MenuItem>
                     ))}
                   </TextField>
                 </Grid>
 
-                {/* Work Mode - Only show for non-minimal activities */}
                 {!isMinimalActivity(formData.activity_category) && (
-                  <Grid item xs={12} sm={6}width={'31%'}>
-                    <TextField
-                      select
-                      fullWidth
-                      required
-                      label="Work Mode *"
-                      name="work_mode"
-                      value={formData.work_mode}
-                      onChange={handleInputChange}
-                      size="small"
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: "8px",
-                          bgcolor: "rgba(46, 125, 50, 0.05)",
-                          border: "1px solid rgba(46, 125, 50, 0.1)"
-                        }
-                      }}
-                    >
+                  <Grid item xs={12} sm={6} width={'33%'}>
+                    <TextField select fullWidth required label="Work mode" name="work_mode" value={formData.work_mode} onChange={handleInputChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}>
                       {workModes.map((mode) => (
                         <MenuItem key={mode} value={mode}>
                           <WorkModeChip label={mode} size="small" mode={mode} sx={{ mr: 1 }} />
-                          {mode}
                         </MenuItem>
                       ))}
                     </TextField>
                   </Grid>
                 )}
-
-                {/* Time Tracking Section - Only for time tracking activities */}
-                {requiresTimeTracking(formData.activity_category) && (
-                  <>
-                    <Grid item xs={12}>
-                        <Chip 
-                          label="Time Tracking" 
-                          icon={<TimerIcon />}
-                          sx={{ 
-                            bgcolor: "rgba(46, 125, 50, 0.1)",
-                            color: "#2E7D32",
-                            fontWeight: 'medium'
-                          }}
-                        />
-                    </Grid>
-
-                    <Grid item xs={12} sm={6} md={3}minWidth={'150px'}>
-                      <TextField
-                        fullWidth
-                        required
-                        type="time"
-                        label="Check In *"
-                        name="check_in"
-                        value={formData.check_in}
-                        onChange={handleInputChange}
-                        InputLabelProps={{ shrink: true }}
-                        size="small"
-                        sx={{ 
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: "8px",
-                            bgcolor: "rgba(46, 125, 50, 0.05)",
-                            border: "1px solid rgba(46, 125, 50, 0.1)"
-                          }
-                        }}
-                      />
-                    </Grid>
-
-                    <Grid item xs={12} sm={6} md={3}minWidth={'150px'}>
-                      <TextField
-                        fullWidth
-                        type="time"
-                        label="Check Out"
-                        name="check_out"
-                        value={formData.check_out}
-                        onChange={handleInputChange}
-                        InputLabelProps={{ shrink: true }}
-                        size="small"
-                        sx={{ 
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: "8px",
-                            bgcolor: "rgba(46, 125, 50, 0.05)",
-                            border: "1px solid rgba(46, 125, 50, 0.1)"
-                          }
-                        }}
-                      />
-                    </Grid>
-
-                    <Grid item xs={12} sm={6} md={3}minWidth={'150px'}>
-                      <TextField
-                        fullWidth
-                        type="time"
-                        label="Lunch In"
-                        name="lunch_in"
-                        value={formData.lunch_in}
-                        onChange={handleInputChange}
-                        InputLabelProps={{ shrink: true }}
-                        size="small"
-                        sx={{ 
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: "8px",
-                            bgcolor: "rgba(46, 125, 50, 0.05)",
-                            border: "1px solid rgba(46, 125, 50, 0.1)"
-                          }
-                        }}
-                      />
-                    </Grid>
-
-                    <Grid item xs={12} sm={6} md={3}minWidth={'150px'}>
-                      <TextField
-                        fullWidth
-                        type="time"
-                        label="Lunch Out"
-                        name="lunch_out"
-                        value={formData.lunch_out}
-                        onChange={handleInputChange}
-                        InputLabelProps={{ shrink: true }}
-                        size="small"
-                        sx={{ 
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: "8px",
-                            bgcolor: "rgba(46, 125, 50, 0.05)",
-                            border: "1px solid rgba(46, 125, 50, 0.1)"
-                          }
-                        }}
-                      />
-                    </Grid>
-                  </>
-                )}
-
-                {/* Info Alert for non-time tracking activities */}
-                {(formData.activity_category === 'Full Day Leave' || 
-                  formData.activity_category === 'Sunday / Holiday') && (
-                  <Grid item xs={12}>
-                    <Alert 
-                      severity="info" 
-                      sx={{ 
-                        borderRadius: 2,
-                        bgcolor: "rgba(33, 150, 243, 0.1)",
-                        color: "#2196F3",
-                        border: "1px solid rgba(33, 150, 243, 0.3)"
-                      }}
-                    >
-                      <Typography variant="body2" fontWeight="medium">
-                        No time tracking required for {formData.activity_category}. Just select the activity and submit.
-                      </Typography>
-                    </Alert>
-                  </Grid>
-                )}
-
-                {/* Permission Hours - Only show for Productive Effort */}
-                {formData.activity_category === 'Productive Effort' && (
-                  <Grid item xs={12} sm={6}width={'100%'}>
-                    <TextField
-                      fullWidth
-                      type="number"
-                      label="Permission Hours (optional)"
-                      name="permission_hours"
-                      value={formData.permission_hours}
-                      onChange={handleInputChange}
-                      size="small"
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: "8px",
-                          bgcolor: "rgba(46, 125, 50, 0.05)",
-                          border: "1px solid rgba(46, 125, 50, 0.1)"
-                        }
-                      }}
-                      InputProps={{
-                        inputProps: { min: 0, max: 8, step: 0.5 },
-                        endAdornment: (
-                          <Typography variant="body2" color="text.secondary">
-                            hours
-                          </Typography>
-                        )
-                      }}
-                      helperText="Permission hours will be subtracted from total work hours"
-                    />
-                  </Grid>
-                )}
-
-                {/* Description - Only show for non-minimal activities */}
-                {!isMinimalActivity(formData.activity_category) && (
-                  <Grid item xs={12}width={'100%'}>
-                    <TextField
-                      fullWidth
-                      multiline
-                      rows={4}
-                      label="Work Description"
-                      name="description"
-                      value={formData.description}
-                      onChange={handleInputChange}
-                      placeholder="Describe your tasks, achievements, and any challenges faced during the day..."
-                      size="small"
-                      sx={{ 
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: "8px",
-                          bgcolor: "rgba(46, 125, 50, 0.05)",
-                          border: "1px solid rgba(46, 125, 50, 0.1)"
-                        }
-                      }}
-                    />
-                  </Grid>
-                )}
               </Grid>
 
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ mt: 3, display: "block", fontStyle: "italic" }}
-              >
-                * Required fields
-              </Typography>
+              {(formData.activity_category === 'Full Day Leave' || formData.activity_category === 'Sunday / Holiday') && (
+                <Alert severity="info" sx={{ borderRadius: 2.5, mb: 2, bgcolor: alpha(COLORS.info, 0.08), color: COLORS.ink, border: `1px solid ${alpha(COLORS.info, 0.25)}` }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    No time tracking required for {formData.activity_category}. Just select the activity and submit.
+                  </Typography>
+                </Alert>
+              )}
+
+              {requiresTimeTracking(formData.activity_category) && (
+                <>
+                  <Divider sx={{ mb: 2 }} />
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: COLORS.faint, letterSpacing: 1 }}>
+                    TIME TRACKING
+                  </Typography>
+                  <Grid container spacing={2} sx={{ mt: 0.5, mb: 2 }}>
+                    <Grid item xs={12} sm={6} md={3} width={'23%'}>
+                      <TextField fullWidth required type="time" label="Check in" name="check_in" value={formData.check_in} onChange={handleInputChange} InputLabelProps={{ shrink: true }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3} width={'24%'}>
+                      <TextField fullWidth type="time" label="Check out" name="check_out" value={formData.check_out} onChange={handleInputChange} InputLabelProps={{ shrink: true }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3} width={'24%'}>
+                      <TextField fullWidth type="time" label="Lunch in" name="lunch_in" value={formData.lunch_in} onChange={handleInputChange} InputLabelProps={{ shrink: true }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3} width={'23%'}>
+                      <TextField fullWidth type="time" label="Lunch out" name="lunch_out" value={formData.lunch_out} onChange={handleInputChange} InputLabelProps={{ shrink: true }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }} />
+                    </Grid>
+                  </Grid>
+                </>
+              )}
+
+              {(formData.activity_category === 'Productive Effort' || !isMinimalActivity(formData.activity_category)) && (
+                <>
+                  <Divider sx={{ mb: 2 }} />
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: COLORS.faint, letterSpacing: 1 }}>
+                    NOTES & HOURS
+                  </Typography>
+                  <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                    {formData.activity_category === 'Productive Effort' && (
+                      <>
+                        <Grid item xs={12} sm={4} width={'100%'}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            label="Permission hours (optional)"
+                            name="permission_hours"
+                            value={formData.permission_hours}
+                            onChange={handleInputChange}
+                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                            InputProps={{ inputProps: { min: 0, max: 8, step: 0.5 }, endAdornment: <Typography variant="body2" sx={{ color: COLORS.muted }}>hours</Typography> }}
+                            helperText="Subtracted from working hours"
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={4} width={'100%'}>
+                          <TextField
+                            fullWidth
+                            type="number"
+                            label="Overtime hours"
+                            name="overtime_hours"
+                            value={formData.overtime_hours}
+                            onChange={handleInputChange}
+                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                            InputProps={{ inputProps: { min: 0, max: 12, step: 0.5 }, endAdornment: <Typography variant="body2" sx={{ color: COLORS.muted }}>hours</Typography> }}
+                            helperText="Additional hours worked beyond regular schedule"
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={4} width={'100%'}>
+                          <Box sx={{ p: 2, bgcolor: alpha(COLORS.info, 0.08), borderRadius: '12px', border: `1px solid ${alpha(COLORS.info, 0.2)}`, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <Typography variant="caption" sx={{ color: COLORS.muted, fontWeight: 600 }}>
+                              Total Hours Preview
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 700, color: COLORS.info }}>
+                              {(
+                                calculateWorkingHours(
+                                  formData.check_in,
+                                  formData.check_out,
+                                  formData.lunch_in,
+                                  formData.lunch_out,
+                                  formData.permission_hours
+                                ) + (parseFloat(formData.overtime_hours) || 0)
+                              ).toFixed(1)}h
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: COLORS.muted }}>
+                              Working + OT hours
+                            </Typography>
+                          </Box>
+                        </Grid>
+                      </>
+                    )}
+
+                    {!isMinimalActivity(formData.activity_category) && (
+                      <Grid item xs={12} width={'100%'}>
+                        <TextField
+                          fullWidth
+                          multiline
+                          rows={4}
+                          label="Work description"
+                          name="description"
+                          value={formData.description}
+                          onChange={handleInputChange}
+                          placeholder="Describe your tasks, achievements, and any challenges faced today…"
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                        />
+                      </Grid>
+                    )}
+                  </Grid>
+                </>
+              )}
+
             </DialogContent>
 
-            <DialogActions sx={{ p: 3, borderTop: "1px solid rgba(46, 125, 50, 0.1)" }}>
-              <Button
-                onClick={handleCloseDialog}
-                disabled={saving}
-                variant="outlined"
-                sx={{
-                  borderColor: "rgba(46, 125, 50, 0.3)",
-                  color: "#2E7D32",
-                  borderRadius: "8px",
-                  "&:hover": {
-                    borderColor: "#2E7D32",
-                    bgcolor: "rgba(46, 125, 50, 0.05)"
-                  }
-                }}
-              >
-                Cancel
-              </Button>
-              <GradientButton
-                type="submit"
-                disabled={saving}
-                startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-                sx={{ minWidth: 140 }}
-              >
-                {saving ? 'Saving...' : dialogMode === 'add' ? 'Add Timesheet' : 'Update Timesheet'}
-              </GradientButton>
-            </DialogActions>
+            <Box sx={{ p: 2, bgcolor: COLORS.bg, borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+              <DialogActions sx={{ p: 0 }}>
+                <Button
+                  onClick={handleCloseDialog}
+                  disabled={saving}
+                  variant="outlined"
+                  sx={{ px: 3, py: 1, borderRadius: '10px', textTransform: 'none', fontWeight: 600, borderColor: COLORS.border, color: COLORS.muted, '&:hover': { borderColor: COLORS.primary, color: COLORS.primary, bgcolor: alpha(COLORS.primary, 0.04) } }}
+                >
+                  Cancel
+                </Button>
+                <GradientButton type="submit" disabled={saving} startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />} sx={{ minWidth: 160 }}>
+                  {saving ? 'Saving…' : dialogMode === 'add' ? 'Add timesheet' : 'Save changes'}
+                </GradientButton>
+              </DialogActions>
+            </Box>
           </form>
         </Dialog>
-      </Container>
+      </Shell>
     </LocalizationProvider>
   );
 };
