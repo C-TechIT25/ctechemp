@@ -1,0 +1,33 @@
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Get project code
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install packages
+        run: npm ci
+
+      - name: Build macOS app
+        run: npm run build && npx electron-builder --mac --arm64 --x64 --publish never
+
+      - name: Save macOS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: C-Tech-Sheet-macOS
+          path: release/
