@@ -11,7 +11,7 @@
     "build": "vite build",
     "electron": "electron .",
     "electron:build": "npm run build && electron-builder --win",
-    "electron:build:mac": "npm run build && electron-builder --mac"
+    "electron:build:mac": "npm run build && electron-builder --mac",
     "dist": "npm run build && electron-builder",
     "lint": "eslint ."
   },
@@ -59,6 +59,13 @@
     "win": {
       "target": "nsis",
       "icon": "public/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.business"
     },
     "nsis": {
       "oneClick": false,
