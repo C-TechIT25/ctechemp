@@ -120,6 +120,7 @@ const ACTIVITY_COLOR = {
   'Idle - Power Issue': COLORS.warning,
   'Full Day Leave': COLORS.danger,
   'Sunday / Holiday': COLORS.violet,
+  'Company Holiday': COLORS.success,
 };
 
 const WORKMODE_COLOR = {
@@ -130,6 +131,7 @@ const WORKMODE_COLOR = {
   'Business Travel': COLORS.orange,
   'Full Day Leave': COLORS.danger,
   'Sunday / Holiday': COLORS.violet,
+  'Company Holiday': COLORS.success,
 };
 
 const fontImport = `
@@ -307,10 +309,11 @@ const TimesheetPage = () => {
     'Idle - Power Issue',
     'Full Day Leave',
     'Sunday / Holiday',
+    'Company Holiday',
   ];
 
   const workModes = ['Office', 'Work From Home', 'Hybrid', 'On-site Client', 'Business Travel'];
-  const minimalActivityModes = ['Full Day Leave', 'Sunday / Holiday'];
+  const minimalActivityModes = ['Full Day Leave', 'Sunday / Holiday', 'Company Holiday'];
 
   /* ================= TOAST NOTIFICATIONS ================= */
   const showToast = (message, type = 'success') => {
@@ -637,7 +640,19 @@ const TimesheetPage = () => {
   const requiresTimeTracking = (activity) =>
     activity === 'Productive Effort' || activity === 'Idle - System Issue' || activity === 'Idle - Power Issue';
 
-  const isMinimalActivity = (activity) => activity === 'Sunday / Holiday' || activity === 'Full Day Leave';
+  const isMinimalActivity = (activity) => minimalActivityModes.includes(activity);
+  const requiresReason = (activity) => activity === 'Full Day Leave' || activity === 'Company Holiday';
+  const getReasonLabel = (activity) => (activity === 'Full Day Leave' ? 'Reason for leave' : 'Reason');
+  const getDisplayWorkMode = (timesheet) => {
+    const activity = timesheet.activity_category;
+    const mode = timesheet.work_mode;
+
+    if (isMinimalActivity(activity) && (!mode || mode === 'Not Applicable' || mode === 'N/A')) {
+      return activity;
+    }
+
+    return mode || (isMinimalActivity(activity) ? activity : 'N/A');
+  };
 
   const resetForm = () => {
     setFormData({
@@ -765,6 +780,11 @@ const TimesheetPage = () => {
       return;
     }
 
+    if (requiresReason(formData.activity_category) && !formData.description.trim()) {
+      showToast(`Please enter ${getReasonLabel(formData.activity_category).toLowerCase()}`, 'error');
+      return;
+    }
+
     if (requiresTimeTracking(formData.activity_category)) {
       if (!formData.check_in) {
         showToast('Check-in time is required', 'error');
@@ -798,7 +818,7 @@ const TimesheetPage = () => {
         day,
         activity_category: formData.activity_category,
         work_mode: isMinimalActivity(formData.activity_category) ? formData.activity_category : formData.work_mode,
-        description: formData.description || '',
+        description: formData.description.trim() || '',
         check_in: formData.check_in || null,
         check_out: formData.check_out || null,
         lunch_in: formData.lunch_in || null,
@@ -887,13 +907,14 @@ const TimesheetPage = () => {
 
     const searchLower = searchTerm.toLowerCase();
     filtered = filtered.filter((row) => {
+      const displayWorkMode = getDisplayWorkMode(row);
       const matchesSearch =
         searchTerm === '' ||
         row.date?.toLowerCase().includes(searchLower) ||
         row.day?.toLowerCase().includes(searchLower) ||
         row.activity_category?.toLowerCase().includes(searchLower) ||
         row.description?.toLowerCase().includes(searchLower) ||
-        row.work_mode?.toLowerCase().includes(searchLower);
+        displayWorkMode?.toLowerCase().includes(searchLower);
 
       return matchesSearch;
     });
@@ -903,7 +924,7 @@ const TimesheetPage = () => {
     }
 
     if (selectedWorkMode !== 'all') {
-      filtered = filtered.filter((row) => row.work_mode === selectedWorkMode);
+      filtered = filtered.filter((row) => getDisplayWorkMode(row) === selectedWorkMode);
     }
 
     if (startDate && endDate) {
@@ -1392,6 +1413,7 @@ const TimesheetPage = () => {
                 {filteredTimesheets.length > 0 ? (
                   filteredTimesheets.map((row) => {
                     const expanded = expandedRows.includes(row.id);
+                    const displayWorkMode = getDisplayWorkMode(row);
                     // Calculate working hours (total_hours - ot_hours)
                     const workingHours = (parseFloat(row.total_hours) || 0) - (parseFloat(row.ot_hours) || 0);
                     const otHours = parseFloat(row.ot_hours) || 0;
@@ -1423,7 +1445,7 @@ const TimesheetPage = () => {
                           </TableCell>
 
                           <TableCell>
-                            <WorkModeChip label={row.work_mode} size="small" mode={row.work_mode} />
+                            <WorkModeChip label={displayWorkMode} size="small" mode={displayWorkMode} />
                           </TableCell>
 
                           <TableCell sx={{ maxWidth: 220 }}>
@@ -1700,12 +1722,36 @@ const TimesheetPage = () => {
                 )}
               </Grid>
 
-              {(formData.activity_category === 'Full Day Leave' || formData.activity_category === 'Sunday / Holiday') && (
+              {isMinimalActivity(formData.activity_category) && (
                 <Alert severity="info" sx={{ borderRadius: 2.5, mb: 2, bgcolor: alpha(COLORS.info, 0.08), color: COLORS.ink, border: `1px solid ${alpha(COLORS.info, 0.25)}` }}>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    No time tracking required for {formData.activity_category}. Just select the activity and submit.
+                    No time tracking required for {formData.activity_category}.
+                    {requiresReason(formData.activity_category) ? ' Add the reason and submit.' : ' Just select the activity and submit.'}
                   </Typography>
                 </Alert>
+              )}
+
+              {requiresReason(formData.activity_category) && (
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid item xs={12} width={'100%'}>
+                    <TextField
+                      fullWidth
+                      required
+                      multiline
+                      rows={3}
+                      label={getReasonLabel(formData.activity_category)}
+                      name="description"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      placeholder={
+                        formData.activity_category === 'Full Day Leave'
+                          ? 'Enter the reason for leave'
+                          : 'Enter the holiday reason'
+                      }
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
+                    />
+                  </Grid>
+                </Grid>
               )}
 
               {requiresTimeTracking(formData.activity_category) && (
