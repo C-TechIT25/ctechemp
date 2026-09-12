@@ -197,7 +197,7 @@ export default function Login() {
   useEffect(() => {
     if (!authInitialized || authLoading || !user) return;
 
-    navigate(role === "Admin" ? "/admin/users" : "/employee/daily-timesheet", {
+    navigate(["Admin", "SuperAdmin"].includes(role) ? "/admin/users" : "/employee/daily-timesheet", {
       replace: true,
     });
   }, [authInitialized, authLoading, navigate, role, user]);
@@ -255,7 +255,7 @@ export default function Login() {
       setLoading(false);
 
       // Redirect based on role
-      if (userData.role === "Admin") {
+      if (["Admin", "SuperAdmin"].includes(userData.role)) {
         navigate("/admin/users", { replace: true });
       } else {
         navigate("/employee/daily-timesheet", { replace: true });

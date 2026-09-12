@@ -181,7 +181,7 @@ const STATUS_COLOR = {
   "on hold": COLORS.warning, 
   "On Hold": COLORS.warning 
 };
-const ROLE_COLOR = { Admin: COLORS.danger, TeamLead: COLORS.warning, Employee: COLORS.primary };
+const ROLE_COLOR = { SuperAdmin: COLORS.danger, Admin: COLORS.danger, TeamLead: COLORS.warning, Employee: COLORS.primary };
 
 // Helper function to normalize status for comparison
 const normalizeStatus = (status) => {
@@ -301,6 +301,7 @@ const workModeOptions = [
 ];
 
 const roleOptions = [
+  { value: "SuperAdmin", label: "SuperAdmin" },
   { value: "Admin", label: "Admin" },
   { value: "Employee", label: "Employee" },
   { value: "TeamLead", label: "Team Lead" },
@@ -1136,7 +1137,7 @@ export default function UserManagement() {
   const activeUsers = users.filter(u => normalizeStatus(u.status) === 'active').length;
   const inactiveUsers = users.filter(u => normalizeStatus(u.status) === 'inactive').length;
   const onHoldUsers = users.filter(u => normalizeStatus(u.status) === 'on hold').length;
-  const totalAdmins = users.filter(u => u.role === "Admin").length;
+  const totalAdmins = users.filter(u => ["Admin", "SuperAdmin"].includes(u.role)).length;
   const totalHours = users.reduce((sum, user) => sum + (parseFloat(user.total_hours) || 0), 0);
   const activeRate = totalUsers > 0 ? (activeUsers / totalUsers) * 100 : 0;
 

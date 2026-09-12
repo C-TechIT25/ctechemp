@@ -364,7 +364,8 @@ const NotificationsPage = () => {
       const params = new URLSearchParams();
       let requestUrl = '';
 
-      if (userRole === 'Admin') {
+      if (['Admin', 'SuperAdmin'].includes(userRole)) {
+        // The notifications API currently uses "Admin" for all privileged users.
         params.append('userRole', 'Admin');
         params.append('page', '1');
         params.append('limit', '100');
@@ -738,7 +739,7 @@ const NotificationsPage = () => {
   useEffect(() => {
     if (!user?.uid || !userInfoLoaded) return;
 
-    if (userRole === 'Admin' || empId) {
+    if (['Admin', 'SuperAdmin'].includes(userRole) || empId) {
       console.log('Fetching notifications...');
       fetchNotifications();
       fetchPreferences();
@@ -752,7 +753,7 @@ const NotificationsPage = () => {
   // Refresh notifications every 5 minutes
   useEffect(() => {
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible' && userInfoLoaded && (userRole === 'Admin' || empId)) {
+      if (document.visibilityState === 'visible' && userInfoLoaded && (['Admin', 'SuperAdmin'].includes(userRole) || empId)) {
         console.log('Auto-refreshing notifications...');
         fetchNotifications();
       }
@@ -799,7 +800,7 @@ const NotificationsPage = () => {
                 <Display>Loading notifications…</Display>
               </Typography>
               <Typography variant="body2" sx={{ color: COLORS.muted, mt: 1 }}>
-                {userRole === 'Admin' ? 'Fetching all notifications' : `Fetching your notifications (${empId})`}
+                {['Admin', 'SuperAdmin'].includes(userRole) ? 'Fetching all notifications' : `Fetching your notifications (${empId})`}
               </Typography>
             </Box>
           </Fade>
@@ -825,13 +826,13 @@ const NotificationsPage = () => {
                 <Display>Notifications center</Display>
               </Typography>
               <Typography variant="body2" sx={{ color: COLORS.muted, mt: 0.5 }}>
-                {userRole === 'Admin' ? 'View all system notifications.' : 'Manage your alerts, reminders, and system notifications.'}
+                {['Admin', 'SuperAdmin'].includes(userRole) ? 'View all system notifications.' : 'Manage your alerts, reminders, and system notifications.'}
               </Typography>
               <Chip
-                label={userRole === 'Admin' ? `Admin — all notifications` : `Employee — your notifications (${empId})`}
+                label={['Admin', 'SuperAdmin'].includes(userRole) ? `${userRole} — all notifications` : `Employee — your notifications (${empId})`}
                 variant="outlined"
                 size="small"
-                sx={{ mt: 1.25, borderColor: userRole === 'Admin' ? alpha(COLORS.danger, 0.4) : alpha(COLORS.primary, 0.4), color: userRole === 'Admin' ? COLORS.danger : COLORS.primary, fontWeight: 600 }}
+                sx={{ mt: 1.25, borderColor: ['Admin', 'SuperAdmin'].includes(userRole) ? alpha(COLORS.danger, 0.4) : alpha(COLORS.primary, 0.4), color: ['Admin', 'SuperAdmin'].includes(userRole) ? COLORS.danger : COLORS.primary, fontWeight: 600 }}
               />
             </Box>
 

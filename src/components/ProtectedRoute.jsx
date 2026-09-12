@@ -49,7 +49,7 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   // Check role-based access if required
   if (requiredRole && role !== requiredRole) {
     // Redirect to appropriate dashboard based on role
-    if (role === "Admin") {
+    if (["Admin", "SuperAdmin"].includes(role)) {
       return <Navigate to="/admin/users" replace />;
     } else {
       return <Navigate to="/employee/daily-timesheet" replace />;

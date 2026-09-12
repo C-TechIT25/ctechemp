@@ -29,7 +29,7 @@ function AuthRedirect() {
 
   return (
     <Navigate
-      to={role === "Admin" ? "/admin/users" : "/employee/daily-timesheet"}
+      to={["Admin", "SuperAdmin"].includes(role) ? "/admin/users" : "/employee/daily-timesheet"}
       replace
     />
   );
@@ -61,7 +61,14 @@ export default function App() {
             <Route path="/admin/users"            element={<UserManagement />} />
             <Route path="/admin/timesheet"         element={<Timesheet />} />
             <Route path="/admin/reports"           element={<Reports />} />
-            <Route path="/admin/create-employee"   element={<EmployeeApp />} />
+            <Route
+              path="/admin/create-employee"
+              element={
+                <ProtectedRoute requiredRole="SuperAdmin">
+                  <EmployeeApp />
+                </ProtectedRoute>
+              }
+            />
 
             {/* EMPLOYEE */}
             <Route path="/employee/daily-timesheet" element={<DailyTimesheet />} />

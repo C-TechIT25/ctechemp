@@ -459,7 +459,7 @@ export default function Profile() {
     );
   }
 
-  const isAdmin = userRole === 'Admin';
+  const isAdmin = ['Admin', 'SuperAdmin'].includes(userRole);
   const profileImageSrc = profile.profile_img || profile.profile_img_url;
 
   // Profile completeness — used by the overview ring.
@@ -599,7 +599,7 @@ export default function Profile() {
                 <Box>
                   <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: COLORS.ink, display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
                     <Display>{profile.employee_name || 'Unknown user'}</Display>
-                    {isAdmin && <Chip label="Admin" size="small" sx={{ fontWeight: 700, fontSize: '0.72rem', bgcolor: alpha(COLORS.danger, 0.1), color: COLORS.danger }} />}
+                    {isAdmin && <Chip label={userRole} size="small" sx={{ fontWeight: 700, fontSize: '0.72rem', bgcolor: alpha(COLORS.danger, 0.1), color: COLORS.danger }} />}
                   </Typography>
 
                   <Typography variant="body1" sx={{ color: COLORS.muted, display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>

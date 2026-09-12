@@ -153,6 +153,10 @@ export default function Sidebar({ mobileOpen, onClose }) {
   const adminMenu = [
     { label: "User Management", path: "/admin/users", icon: <PeopleIcon /> },
     { label: "Timesheet", path: "/admin/timesheet", icon: <TimerIcon /> },
+  ];
+
+  const superAdminMenu = [
+    ...adminMenu,
     { label: "Employee Digital ID", path: "/admin/create-employee", icon: <PersonIcon /> },
   ];
 
@@ -161,7 +165,11 @@ export default function Sidebar({ mobileOpen, onClose }) {
     { label: "Todo List", path: "/employee/todo", icon: <TaskIcon /> },
   ];
 
-  const menu = role === "Admin" ? adminMenu : employeeMenu;
+  const menu = role === "SuperAdmin"
+    ? superAdminMenu
+    : role === "Admin"
+      ? adminMenu
+      : employeeMenu;
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + "/");
 
@@ -229,7 +237,13 @@ export default function Sidebar({ mobileOpen, onClose }) {
                 textOverflow: 'ellipsis',
               }}
             >
-              <Display>{role === "Admin" ? "Admin Panel" : "Employee Portal"}</Display>
+              <Display>
+                {role === "SuperAdmin"
+                  ? "SuperAdmin Panel"
+                  : role === "Admin"
+                    ? "Admin Panel"
+                    : "Employee Portal"}
+              </Display>
             </Typography>
             <Typography
               variant="caption"

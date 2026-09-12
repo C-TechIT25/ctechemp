@@ -84,7 +84,9 @@ export function AuthProvider({ children }) {
     // Helper to check if user is authenticated
     isAuthenticated: !!user,
     // Helper to check if user has admin role
-    isAdmin: role === "Admin",
+    isAdmin: ["Admin", "SuperAdmin"].includes(role),
+    // Helper to check specifically for the super admin role
+    isSuperAdmin: role === "SuperAdmin",
     // Helper to check if user has team lead role
     isTeamLead: role === "TeamLead",
     // Helper to check if user is employee
