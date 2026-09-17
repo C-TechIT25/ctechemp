@@ -64,7 +64,7 @@ export default function App() {
             <Route
               path="/admin/create-employee"
               element={
-                <ProtectedRoute requiredRole="SuperAdmin">
+                <ProtectedRoute allowedRoles={["Admin", "SuperAdmin"]}>
                   <EmployeeApp />
                 </ProtectedRoute>
               }

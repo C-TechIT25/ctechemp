@@ -77,6 +77,7 @@ import { API_BASE_URL } from "../Config";
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { formatIndianTime } from '../utils/dateTime';
 
 // ---------------------------------------------------------------------------
 // Shared design tokens — same palette/type used across Todo, Timesheet,
@@ -256,12 +257,7 @@ const formatDate = (dateString) => {
 };
 
 const formatTime = (timeString) => {
-  if (!timeString) return "N/A";
-  try {
-    return timeString.substring(0, 5);
-  } catch {
-    return timeString;
-  }
+  return formatIndianTime(timeString);
 };
 
 const calculateWorkDuration = (checkIn, checkOut) => {
@@ -717,8 +713,7 @@ export default function Timesheet() {
       };
 
       const formatTimeLocal = (timeString) => {
-        if (!timeString) return 'N/A';
-        return timeString.substring(0, 5);
+        return formatIndianTime(timeString);
       };
 
       const calculateWorkDurationLocal = (checkIn, checkOut) => {
@@ -757,12 +752,55 @@ export default function Timesheet() {
         violet: [124, 58, 237],
         orange: [249, 115, 22],
         rowAlt: [246, 247, 251],
+        panelBorder: [203, 213, 225],
       };
 
       const MARGIN = { top: 12, right: 12, bottom: 20, left: 12 };
-      const LINE_HEIGHT = 4.5;
+      const CONTENT_WIDTH = pageWidth - MARGIN.left - MARGIN.right;
+      const PANEL_GAP = 2;
+      const PANEL_WIDTH = (CONTENT_WIDTH - (PANEL_GAP * 2)) / 3;
 
       let currentY = MARGIN.top;
+
+      const drawDetailsPanel = ({ x, y, title, height, rows, descriptionLines }) => {
+        doc.setFillColor(...PDF_COLORS.white);
+        doc.setDrawColor(...PDF_COLORS.panelBorder);
+        doc.setLineWidth(0.35);
+        doc.rect(x, y, PANEL_WIDTH, height, 'FD');
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...PDF_COLORS.text);
+        doc.text(title, x + 3, y + 5.5);
+
+        doc.setDrawColor(...PDF_COLORS.panelBorder);
+        doc.setLineWidth(0.25);
+        doc.line(x, y + 8.5, x + PANEL_WIDTH, y + 8.5);
+
+        if (descriptionLines) {
+          doc.setFillColor(...PDF_COLORS.rowAlt);
+          doc.setDrawColor(...PDF_COLORS.panelBorder);
+          doc.rect(x + 2.5, y + 11, PANEL_WIDTH - 5, height - 13.5, 'FD');
+
+          doc.setFontSize(5.8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...PDF_COLORS.text);
+          doc.text(descriptionLines, x + 4, y + 15, { lineHeightFactor: 1.15 });
+          return;
+        }
+
+        rows.forEach(([label, value], rowIndex) => {
+          const rowY = y + 13 + (rowIndex * 4.2);
+
+          doc.setFontSize(5.8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(...PDF_COLORS.lightText);
+          doc.text(label, x + 3, rowY);
+
+          doc.setTextColor(...PDF_COLORS.text);
+          doc.text(String(value), x + 22, rowY);
+        });
+      };
 
       // ===== HEADER =====
       doc.setFontSize(20);
@@ -837,7 +875,15 @@ export default function Timesheet() {
 
       // ===== PROCESS EACH TIMESHEET =====
       selectedData.forEach((timesheet, index) => {
-        if (currentY > pageHeight - 65) {
+        const descriptionLines = doc.splitTextToSize(
+          timesheet.description?.trim() || 'N/A',
+          PANEL_WIDTH - 10
+        );
+        const descriptionHeight = ((descriptionLines.length - 1) * 2.35) + 18;
+        const detailsPanelHeight = Math.max(38, descriptionHeight);
+
+        // Keep the three detail panels and the time section together where possible.
+        if (currentY + detailsPanelHeight + 22 > pageHeight - MARGIN.bottom) {
           doc.addPage();
           currentY = MARGIN.top;
         }
@@ -851,127 +897,58 @@ export default function Timesheet() {
         doc.setDrawColor(...PDF_COLORS.primary);
         doc.setLineWidth(0.3);
         doc.line(MARGIN.left, currentY, pageWidth - MARGIN.right, currentY);
-        currentY += 5;
-
-        doc.setFontSize(9);
-        doc.setTextColor(...PDF_COLORS.text);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Employee Information', MARGIN.left, currentY);
         currentY += 4;
 
-        doc.setFontSize(7.5);
-        doc.setFont('helvetica', 'normal');
-
-        const empFields = [
+        const employeeFields = [
           ['Name:', timesheet.employee_name || 'N/A'],
           ['ID:', timesheet.emp_id || 'N/A'],
-          ['Department:', timesheet.department || 'N/A'],
           ['Designation:', timesheet.designation || 'N/A'],
+          ['Department:', timesheet.department || 'N/A'],
           ['Date:', formatDateLocal(timesheet.date)],
-          ['Day:', timesheet.day || 'N/A'],
+          ['Work Mode:', timesheet.work_mode || 'N/A'],
         ];
 
-        empFields.forEach(([label, value], idx) => {
-          const col1X = MARGIN.left;
-          const col2X = MARGIN.left + 95;
-          const x = idx % 2 === 0 ? col1X : col2X;
-          const y = currentY + (Math.floor(idx / 2) * LINE_HEIGHT);
-
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...PDF_COLORS.lightText);
-          doc.text(label, x, y);
-
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...PDF_COLORS.text);
-          doc.text(value, x + 22, y);
-        });
-
-        currentY += 13;
-
-        doc.setFontSize(9);
-        doc.setTextColor(...PDF_COLORS.text);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Work Information', MARGIN.left, currentY);
-        currentY += 4;
-
-        doc.setFontSize(7.5);
-        doc.setFont('helvetica', 'normal');
-
         const workFields = [
+          ['Day:', timesheet.day || 'N/A'],
           ['Activity:', timesheet.activity_category || 'N/A'],
-          ['Work Mode:', timesheet.work_mode || 'N/A'],
           ['Working Hours:', `${(timesheet.working_hours || 0).toFixed(1)}h`],
           ['OT Hours:', `${(timesheet.ot_hours || 0).toFixed(1)}h`],
           ['Total Hours:', `${(timesheet.total_hours_calculated || 0).toFixed(1)}h`],
           ['Permission Hours:', `${timesheet.permission_hours || '0.0'}h`],
         ];
 
-        workFields.forEach(([label, value], idx) => {
-          const col1X = MARGIN.left;
-          const col2X = MARGIN.left + 95;
-          const x = idx % 2 === 0 ? col1X : col2X;
-          const y = currentY + (Math.floor(idx / 2) * LINE_HEIGHT);
-
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...PDF_COLORS.lightText);
-          doc.text(label, x, y);
-
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...PDF_COLORS.text);
-          doc.text(value, x + 28, y);
+        const panelY = currentY;
+        drawDetailsPanel({
+          x: MARGIN.left,
+          y: panelY,
+          title: 'Employee Information',
+          height: detailsPanelHeight,
+          rows: employeeFields,
+        });
+        drawDetailsPanel({
+          x: MARGIN.left + PANEL_WIDTH + PANEL_GAP,
+          y: panelY,
+          title: 'Work Information',
+          height: detailsPanelHeight,
+          rows: workFields,
+        });
+        drawDetailsPanel({
+          x: MARGIN.left + ((PANEL_WIDTH + PANEL_GAP) * 2),
+          y: panelY,
+          title: 'Description',
+          height: detailsPanelHeight,
+          descriptionLines,
         });
 
-        currentY += 13;
+        currentY = panelY + detailsPanelHeight + 2;
 
-        if (timesheet.description && timesheet.description.trim()) {
-          if (currentY > pageHeight - 50) {
-            doc.addPage();
-            currentY = MARGIN.top;
-          }
-
-          doc.setFontSize(8);
-          doc.setTextColor(...PDF_COLORS.text);
-          doc.setFont('helvetica', 'bold');
-          doc.text('Description:', MARGIN.left, currentY);
-          currentY += 3;
-
-          const descLines = doc.splitTextToSize(
-            timesheet.description,
-            pageWidth - MARGIN.left - MARGIN.right - 4
-          );
-          const descHeight = descLines.length * 3.2 + 3;
-
-          doc.setDrawColor(...PDF_COLORS.border);
-          doc.setFillColor(...PDF_COLORS.rowAlt);
-          doc.setLineWidth(0.2);
-          doc.rect(
-            MARGIN.left,
-            currentY - 1,
-            pageWidth - MARGIN.left - MARGIN.right,
-            descHeight + 2,
-            'FD'
-          );
-
-          doc.setFontSize(7);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...PDF_COLORS.text);
-          doc.text(descLines, MARGIN.left + 2, currentY + 2);
-
-          currentY += descHeight + 5;
-        }
-
-        if (currentY > pageHeight - 35) {
-          doc.addPage();
-          currentY = MARGIN.top;
-        }
-
-        doc.setFontSize(9);
+        doc.setFontSize(7);
         doc.setTextColor(...PDF_COLORS.text);
         doc.setFont('helvetica', 'bold');
         doc.text('Time Tracking', MARGIN.left, currentY);
-        currentY += 4;
+        currentY += 3;
 
-        doc.setFontSize(7.5);
+        doc.setFontSize(5.8);
         doc.setFont('helvetica', 'normal');
 
         const timeFields = [
@@ -981,58 +958,48 @@ export default function Timesheet() {
           { label: 'Lunch Out:', value: formatTimeLocal(timesheet.lunch_out), color: PDF_COLORS.violet },
         ];
 
+        const timeFieldWidth = CONTENT_WIDTH / 4;
         timeFields.forEach(({ label, value, color }, idx) => {
-          const col1X = MARGIN.left;
-          const col2X = MARGIN.left + 95;
-          const x = idx % 2 === 0 ? col1X : col2X;
-          const y = currentY + (Math.floor(idx / 2) * LINE_HEIGHT);
-
-          doc.setDrawColor(...PDF_COLORS.border);
-          doc.setFillColor(...PDF_COLORS.white);
-          doc.setLineWidth(0.2);
-          doc.rect(x, y - 2.5, 50, 5.5, 'FD');
-
+          const x = MARGIN.left + (idx * timeFieldWidth);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(...PDF_COLORS.lightText);
-          doc.text(label, x + 1.5, y + 0.5);
+          doc.text(label, x, currentY);
 
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(...color);
-          doc.text(value, x + 26, y + 0.5);
+          doc.text(value, x + 14, currentY);
         });
 
-        currentY += 13;
+        currentY += 3.5;
 
         const workDuration = calculateWorkDurationLocal(timesheet.check_in, timesheet.check_out);
 
-        doc.setFontSize(8);
+        doc.setFontSize(6);
         doc.setTextColor(...PDF_COLORS.text);
         doc.setFont('helvetica', 'bold');
         doc.text('Work Duration:', MARGIN.left, currentY);
 
-        doc.setFontSize(9);
+        doc.setFontSize(6.5);
         doc.setTextColor(...PDF_COLORS.primary);
         doc.setFont('helvetica', 'bold');
-        doc.text(workDuration, MARGIN.left + 32, currentY);
-
-        currentY += 5;
+        doc.text(workDuration, MARGIN.left + 23, currentY);
 
         const remark = timesheet.remark || 'Pending Review';
         const statusColor = remark.toLowerCase().includes('approved') ? PDF_COLORS.success :
                            remark.toLowerCase().includes('rejected') ? PDF_COLORS.error :
                            PDF_COLORS.warning;
 
-        doc.setFontSize(8);
+        doc.setFontSize(6);
         doc.setTextColor(...PDF_COLORS.text);
         doc.setFont('helvetica', 'bold');
-        doc.text('Status:', MARGIN.left, currentY);
+        doc.text('Status:', MARGIN.left + (CONTENT_WIDTH / 2), currentY);
 
-        doc.setFontSize(8);
+        doc.setFontSize(6.5);
         doc.setTextColor(...statusColor);
         doc.setFont('helvetica', 'bold');
-        doc.text(remark, MARGIN.left + 15, currentY);
+        doc.text(remark, MARGIN.left + (CONTENT_WIDTH / 2) + 12, currentY);
 
-        currentY += 8;
+        currentY += 3.5;
 
         if (index < selectedData.length - 1) {
           doc.setDrawColor(...PDF_COLORS.border);
@@ -1040,7 +1007,7 @@ export default function Timesheet() {
           doc.setLineDashPattern([2, 2]);
           doc.line(MARGIN.left, currentY, pageWidth - MARGIN.right, currentY);
           doc.setLineDashPattern([]);
-          currentY += 5;
+          currentY += 3;
         }
       });
 
@@ -1146,14 +1113,20 @@ export default function Timesheet() {
     handleExportMenuClose();
 
     try {
+      if (paginatedData.length === 0) {
+        toast.warning('No records are visible on this page to export.');
+        return;
+      }
+
       toast.info('Generating PDF report...');
 
-      const totalWorkingHoursAll = filteredTimesheets.reduce((sum, row) => sum + (parseFloat(row.working_hours) || 0), 0);
-      const totalOTHoursAll = filteredTimesheets.reduce((sum, row) => sum + (parseFloat(row.ot_hours) || 0), 0);
-      const totalHoursAll = filteredTimesheets.reduce((sum, row) => sum + (parseFloat(row.total_hours_calculated) || 0), 0);
-      const uniqueEmployeesAll = [...new Set(filteredTimesheets.map(row => row.employee_name))].length;
-      const pendingApprovalsAll = filteredTimesheets.filter(row => !row.remark || row.remark === "").length;
-      const approvedTimesheetsAll = filteredTimesheets.filter(row => row.remark?.toLowerCase().includes("approved")).length;
+      const exportRows = paginatedData;
+      const totalWorkingHoursAll = exportRows.reduce((sum, row) => sum + (parseFloat(row.working_hours) || 0), 0);
+      const totalOTHoursAll = exportRows.reduce((sum, row) => sum + (parseFloat(row.ot_hours) || 0), 0);
+      const totalHoursAll = exportRows.reduce((sum, row) => sum + (parseFloat(row.total_hours_calculated) || 0), 0);
+      const uniqueEmployeesAll = [...new Set(exportRows.map(row => row.employee_name))].length;
+      const pendingApprovalsAll = exportRows.filter(row => !row.remark || row.remark === "").length;
+      const approvedTimesheetsAll = exportRows.filter(row => row.remark?.toLowerCase().includes("approved")).length;
 
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -1190,7 +1163,7 @@ export default function Timesheet() {
       doc.setTextColor(...PDF_COLORS.lightText);
       const reportDate = format(new Date(), 'dd MMM yyyy, HH:mm');
       doc.text(`Generated: ${reportDate}`, pageWidth - MARGIN.right, currentY, { align: 'right' });
-      doc.text(`Total Records: ${filteredTimesheets.length}`, pageWidth - MARGIN.right, currentY + 6, { align: 'right' });
+      doc.text(`Records on page: ${exportRows.length}`, pageWidth - MARGIN.right, currentY + 6, { align: 'right' });
 
       currentY += 15;
 
@@ -1232,7 +1205,7 @@ export default function Timesheet() {
 
       currentY = statBoxY + statBoxHeight + 8;
 
-      const tableData = filteredTimesheets.map(row => [
+      const tableData = exportRows.map(row => [
         formatDate(row.date),
         row.employee_name || 'N/A',
         row.department || 'N/A',
@@ -1335,13 +1308,13 @@ export default function Timesheet() {
       const fileName = `C-Tech_Timesheet_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}.pdf`;
       doc.save(fileName);
 
-      toast.success(`PDF report generated with ${filteredTimesheets.length} records!`);
+      toast.success(`PDF report generated with ${exportRows.length} visible records!`);
 
     } catch (error) {
       console.error("PDF export error:", error);
       toast.error("Failed to generate PDF report. Please try again.");
     }
-  }, [filteredTimesheets, handleExportMenuClose]);
+  }, [paginatedData, handleExportMenuClose]);
 
   // ==================== PAGINATION ====================
 
@@ -1877,8 +1850,8 @@ export default function Timesheet() {
                             <TableRow>
                               <TableCell colSpan={12} sx={{ p: 0 }}>
                                 <Box sx={{ p: 3, bgcolor: COLORS.bg }}>
-                                  <Grid container spacing={3}>
-                                    <Grid item xs={12} md={6}>
+                                  <Grid container spacing={3} sx={{ alignItems: 'stretch' }}>
+                                    <Grid size={{ xs: 12, md: 6 }} sx={{ minWidth: 0 }}>
                                       <Typography sx={{ fontWeight: 700, color: COLORS.ink, mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                         <AccessTimeIcon sx={{ fontSize: 18, color: COLORS.primary }} />
                                         Time tracking
@@ -1890,8 +1863,8 @@ export default function Timesheet() {
                                           { icon: <LunchDiningIcon />, label: "Lunch in", value: formatTime(row.lunch_in), color: COLORS.warning },
                                           { icon: <LunchDiningIcon />, label: "Lunch out", value: formatTime(row.lunch_out), color: COLORS.violet }
                                         ].map((item, index) => (
-                                          <Grid item xs={6} key={index}>
-                                            <Box sx={{ p: 1.75, bgcolor: alpha(item.color, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(item.color, 0.18)}` }}>
+                                          <Grid size={{ xs: 6, sm: 3 }} key={index}>
+                                            <Box sx={{ height: '100%', boxSizing: 'border-box', p: 1.75, bgcolor: alpha(item.color, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(item.color, 0.18)}` }}>
                                               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.75 }}>
                                                 {React.cloneElement(item.icon, { sx: { mr: 1, fontSize: 18, color: item.color } })}
                                                 <Typography variant="caption" sx={{ fontWeight: 600, color: COLORS.ink }}>{item.label}</Typography>
@@ -1914,14 +1887,14 @@ export default function Timesheet() {
                                       </Box>
                                     </Grid>
 
-                                    <Grid item xs={12} md={6}>
+                                    <Grid size={{ xs: 12, md: 6 }} sx={{ minWidth: 0 }}>
                                       <Typography sx={{ fontWeight: 700, color: COLORS.ink, mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                                         <InfoIcon sx={{ fontSize: 18, color: COLORS.primary }} />
                                         Hours Breakdown
                                       </Typography>
 
                                       {row.description && (
-                                        <Box sx={{ p: 1.75, mb: 2, bgcolor: alpha(COLORS.warning, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.warning, 0.2)}` }}>
+                                        <Box sx={{ width: '100%', boxSizing: 'border-box', p: 1.75, mb: 2, bgcolor: alpha(COLORS.warning, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.warning, 0.2)}` }}>
                                           <Typography variant="caption" sx={{ fontWeight: 600, color: COLORS.warning, display: 'block', mb: 0.5 }}>
                                             Description
                                           </Typography>
@@ -1932,8 +1905,8 @@ export default function Timesheet() {
                                       )}
 
                                       <Grid container spacing={2} sx={{ mb: 2 }}>
-                                        <Grid item xs={4}>
-                                          <Box sx={{ p: 1.75, bgcolor: alpha(COLORS.info, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.info, 0.2)}` }}>
+                                        <Grid size={{ xs: 12, sm: 4 }}>
+                                          <Box sx={{ height: '100%', boxSizing: 'border-box', p: 1.75, bgcolor: alpha(COLORS.info, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.info, 0.2)}` }}>
                                             <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 0.5 }}>
                                               Working Hours
                                             </Typography>
@@ -1945,8 +1918,8 @@ export default function Timesheet() {
                                             </Typography>
                                           </Box>
                                         </Grid>
-                                        <Grid item xs={4}>
-                                          <Box sx={{ p: 1.75, bgcolor: alpha(COLORS.orange, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.orange, 0.2)}` }}>
+                                        <Grid size={{ xs: 12, sm: 4 }}>
+                                          <Box sx={{ height: '100%', boxSizing: 'border-box', p: 1.75, bgcolor: alpha(COLORS.orange, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.orange, 0.2)}` }}>
                                             <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 0.5 }}>
                                               OT Hours
                                             </Typography>
@@ -1958,8 +1931,8 @@ export default function Timesheet() {
                                             </Typography>
                                           </Box>
                                         </Grid>
-                                        <Grid item xs={4}>
-                                          <Box sx={{ p: 1.75, bgcolor: alpha(COLORS.success, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.success, 0.2)}` }}>
+                                        <Grid size={{ xs: 12, sm: 4 }}>
+                                          <Box sx={{ height: '100%', boxSizing: 'border-box', p: 1.75, bgcolor: alpha(COLORS.success, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.success, 0.2)}` }}>
                                             <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 0.5 }}>
                                               Total Hours
                                             </Typography>
@@ -2110,7 +2083,7 @@ export default function Timesheet() {
               <DialogContent dividers sx={{ p: 3, bgcolor: COLORS.bg }}>
                 <Grid container spacing={3}>
                   {/* Employee Section */}
-                  <Grid item xs={12}>
+                  <Grid size={12} sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 700, color: COLORS.primary, display: 'flex', alignItems: 'center', mb: 1 }}>
                       <PersonIcon sx={{ mr: 1, fontSize: "1.2rem" }} />
                       Employee information
@@ -2123,10 +2096,10 @@ export default function Timesheet() {
                         { label: 'Department', value: selectedTimesheet.department },
                         { label: 'Designation', value: selectedTimesheet.designation },
                       ].map((f, i) => (
-                        <Grid item xs={12} sm={6} key={i}>
-                          <Box sx={{ p: 2, bgcolor: COLORS.surface, borderRadius: 2 }}>
+                        <Grid size={{ xs: 12, sm: 6, md: 3 }} key={i}>
+                          <Box sx={{ height: '100%', minHeight: 76, boxSizing: 'border-box', p: 2, bgcolor: COLORS.surface, borderRadius: 2 }}>
                             <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 0.5 }}>{f.label}</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: COLORS.ink }}>{f.value}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: COLORS.ink, wordBreak: 'break-word' }}>{f.value}</Typography>
                           </Box>
                         </Grid>
                       ))}
@@ -2134,94 +2107,83 @@ export default function Timesheet() {
                   </Grid>
 
                   {/* Work Section */}
-                  <Grid item xs={12}>
+                  <Grid size={12} sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 700, color: COLORS.primary, display: 'flex', alignItems: 'center', mb: 1 }}>
                       <WorkIcon sx={{ mr: 1, fontSize: "1.2rem" }} />
                       Work information
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ p: 2, bgcolor: COLORS.surface, borderRadius: 2 }}>
+                    <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <Box sx={{ height: '100%', minHeight: 100, boxSizing: 'border-box', p: 2, bgcolor: COLORS.surface, borderRadius: 2 }}>
                           <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 0.5 }}>Activity category</Typography>
                           <Typography variant="body2" sx={{ fontWeight: 700, color: COLORS.ink }}>{selectedTimesheet.activity_category}</Typography>
                         </Box>
                       </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ p: 2, bgcolor: COLORS.surface, borderRadius: 2 }}>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <Box sx={{ height: '100%', minHeight: 100, boxSizing: 'border-box', p: 2, bgcolor: COLORS.surface, borderRadius: 2 }}>
                           <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 0.5 }}>Work mode</Typography>
                           <WorkModeChip label={selectedTimesheet.work_mode} size="small" mode={selectedTimesheet.work_mode} />
                         </Box>
                       </Grid>
-                      {selectedTimesheet.description && (
-                        <Grid item xs={12}>
-                          <Box sx={{ p: 2, bgcolor: alpha(COLORS.warning, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.warning, 0.2)}` }}>
-                            <Typography variant="caption" sx={{ color: COLORS.warning, display: "block", mb: 1, fontWeight: 700 }}>Description</Typography>
-                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: COLORS.ink }}>{selectedTimesheet.description}</Typography>
-                          </Box>
-                        </Grid>
-                      )}
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <Box sx={{ height: '100%', minHeight: 100, boxSizing: 'border-box', p: 2, bgcolor: alpha(COLORS.warning, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.warning, 0.2)}` }}>
+                          <Typography variant="caption" sx={{ color: COLORS.warning, display: "block", mb: 1, fontWeight: 700 }}>Description</Typography>
+                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: COLORS.ink }}>{selectedTimesheet.description || 'No description'}</Typography>
+                        </Box>
+                      </Grid>
                     </Grid>
                   </Grid>
 
                   {/* Time Tracking Section */}
-                  <Grid item xs={12}>
+                  <Grid size={12} sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 700, color: COLORS.primary, display: 'flex', alignItems: 'center', mb: 1 }}>
                       <AccessTimeIcon sx={{ mr: 1, fontSize: "1.2rem" }} />
                       Time tracking
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
-                    <Grid container spacing={2}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', md: 'repeat(5, minmax(0, 1fr))' }, gap: 2 }}>
                       {[
                         { label: "Check in", value: formatTime(selectedTimesheet.check_in), color: COLORS.success },
                         { label: "Lunch in", value: formatTime(selectedTimesheet.lunch_in), color: COLORS.warning },
                         { label: "Lunch out", value: formatTime(selectedTimesheet.lunch_out), color: COLORS.violet },
-                        { label: "Check out", value: formatTime(selectedTimesheet.check_out), color: COLORS.danger }
+                        { label: "Check out", value: formatTime(selectedTimesheet.check_out), color: COLORS.danger },
+                        { label: "Work duration", value: calculateWorkDuration(selectedTimesheet.check_in, selectedTimesheet.check_out), color: COLORS.primary }
                       ].map((item, index) => (
-                        <Grid item xs={6} sm={3} key={index}>
-                          <Box sx={{ p: 2, textAlign: 'center', bgcolor: alpha(item.color, 0.08), borderRadius: 2, border: `1px solid ${alpha(item.color, 0.2)}` }}>
-                            <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 1 }}>{item.label}</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: item.color }}>{item.value}</Typography>
-                          </Box>
-                        </Grid>
-                      ))}
-                      <Grid item xs={12}>
-                        <Box sx={{ p: 2, textAlign: 'center', bgcolor: alpha(COLORS.primary, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.primary, 0.2)}` }}>
-                          <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 1, fontWeight: 700 }}>Work duration</Typography>
-                          <Typography variant="h6" sx={{ fontWeight: 700, color: COLORS.primary }}>
-                            {calculateWorkDuration(selectedTimesheet.check_in, selectedTimesheet.check_out)}
-                          </Typography>
+                        <Box key={index} sx={{ minWidth: 0, minHeight: 84, boxSizing: 'border-box', p: 2, textAlign: 'center', bgcolor: alpha(item.color, 0.08), borderRadius: 2, border: `1px solid ${alpha(item.color, 0.2)}` }}>
+                          <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 1 }}>{item.label}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700, color: item.color, whiteSpace: 'nowrap' }}>{item.value}</Typography>
                         </Box>
-                      </Grid>
-                    </Grid>
+                      ))}
+                    </Box>
                   </Grid>
 
                   {/* Hours Section */}
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12, md: 6 }} sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 700, color: COLORS.primary, display: 'flex', alignItems: 'center', mb: 1 }}>
                       <TrendingUp sx={{ mr: 1, fontSize: "1.2rem" }} />
                       Hours summary
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
-                    <Grid container spacing={2}>
-                      <Grid item xs={4}>
-                        <Box sx={{ p: 2, textAlign: 'center', bgcolor: alpha(COLORS.info, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.info, 0.2)}` }}>
+                    <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
+                      <Grid size={4}>
+                        <Box sx={{ height: '100%', minHeight: 94, boxSizing: 'border-box', p: 2, textAlign: 'center', bgcolor: alpha(COLORS.info, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.info, 0.2)}` }}>
                           <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 1 }}>Working Hours</Typography>
                           <Typography variant="h5" sx={{ color: COLORS.info, fontWeight: 700 }}>
                             {(selectedTimesheet.working_hours || 0).toFixed(1)}h
                           </Typography>
                         </Box>
                       </Grid>
-                      <Grid item xs={4}>
-                        <Box sx={{ p: 2, textAlign: 'center', bgcolor: alpha(COLORS.orange, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.orange, 0.2)}` }}>
+                      <Grid size={4}>
+                        <Box sx={{ height: '100%', minHeight: 94, boxSizing: 'border-box', p: 2, textAlign: 'center', bgcolor: alpha(COLORS.orange, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.orange, 0.2)}` }}>
                           <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 1 }}>OT Hours</Typography>
                           <Typography variant="h5" sx={{ color: COLORS.orange, fontWeight: 700 }}>
                             {(selectedTimesheet.ot_hours || 0).toFixed(1)}h
                           </Typography>
                         </Box>
                       </Grid>
-                      <Grid item xs={4}>
-                        <Box sx={{ p: 2, textAlign: 'center', bgcolor: alpha(COLORS.success, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.success, 0.2)}` }}>
+                      <Grid size={4}>
+                        <Box sx={{ height: '100%', minHeight: 94, boxSizing: 'border-box', p: 2, textAlign: 'center', bgcolor: alpha(COLORS.success, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.success, 0.2)}` }}>
                           <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 1 }}>Total Hours</Typography>
                           <Typography variant="h5" sx={{ color: COLORS.success, fontWeight: 700 }}>
                             {(selectedTimesheet.total_hours_calculated || 0).toFixed(1)}h
@@ -2229,7 +2191,7 @@ export default function Timesheet() {
                         </Box>
                       </Grid>
                       {selectedTimesheet.permission_hours > 0 && (
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                           <Box sx={{ p: 2, bgcolor: alpha(COLORS.danger, 0.08), borderRadius: 2, border: `1px solid ${alpha(COLORS.danger, 0.2)}` }}>
                             <Typography variant="caption" sx={{ color: COLORS.danger, display: "block", mb: 1, fontWeight: 700 }}>Permission Hours</Typography>
                             <Typography variant="body2" sx={{ color: COLORS.ink }}>{selectedTimesheet.permission_hours}h (subtracted from working hours)</Typography>
@@ -2240,14 +2202,14 @@ export default function Timesheet() {
                   </Grid>
 
                   {/* Remarks Section */}
-                  <Grid item xs={12}>
+                  <Grid size={{ xs: 12, md: 6 }} sx={{ minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 700, color: COLORS.primary, display: 'flex', alignItems: 'center', mb: 1 }}>
                       <CommentIcon sx={{ mr: 1, fontSize: "1.2rem" }} />
                       Approval status
                     </Typography>
                     <Divider sx={{ mb: 2 }} />
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: "wrap" }}>
-                      <Box sx={{ p: 2.5, flex: 1, minWidth: 200, bgcolor: alpha(getStatusColor(selectedTimesheet.remark), 0.08), borderRadius: 2, border: `1px solid ${alpha(getStatusColor(selectedTimesheet.remark), 0.2)}` }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto' }, alignItems: 'stretch', gap: 2 }}>
+                      <Box sx={{ minWidth: 0, minHeight: 94, boxSizing: 'border-box', p: 2.5, bgcolor: alpha(getStatusColor(selectedTimesheet.remark), 0.08), borderRadius: 2, border: `1px solid ${alpha(getStatusColor(selectedTimesheet.remark), 0.2)}` }}>
                         <Typography variant="caption" sx={{ color: COLORS.muted, display: "block", mb: 1, fontWeight: 700 }}>Current status</Typography>
                         <Typography variant="h6" sx={{ fontWeight: 700, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: getStatusColor(selectedTimesheet.remark) }}>
                           {selectedTimesheet.remark || "Pending review"}
@@ -2259,6 +2221,7 @@ export default function Timesheet() {
                           closeDetailDialog();
                           openRemarkDialog(selectedTimesheet);
                         }}
+                        sx={{ alignSelf: 'center' }}
                       >
                         {selectedTimesheet.remark ? "Edit" : "Add"}
                       </GradientButton>

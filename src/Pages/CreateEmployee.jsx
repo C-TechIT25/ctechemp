@@ -64,6 +64,7 @@ import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
 import GroupIcon          from "@mui/icons-material/Group";
 import PictureAsPdfIcon   from "@mui/icons-material/PictureAsPdf";
 import TableChartIcon     from "@mui/icons-material/TableChart";
+import { useAuth } from "../context/AuthContext";
 
 // ── Shared font import (same Outfit/Inter pairing used across the app) ────────
 const fontImport = `
@@ -203,6 +204,8 @@ const SlideUp = React.forwardRef(function Transition(props, ref) {
 // ROOT
 // ══════════════════════════════════════════════════════════════════════════════
 export default function EmployeeApp() {
+  const { role } = useAuth();
+  const canModifyEmployees = role === "SuperAdmin";
   const [employees, setEmployees] = useState([]);
   const [formDialog,   setFormDialog]   = useState({ open: false, employee: null });
   const [viewDialog,   setViewDialog]   = useState({ open: false, employee: null });
@@ -228,11 +231,18 @@ export default function EmployeeApp() {
         <EmployeeTable
           employees={employees}
           onCreate={() => setFormDialog({ open: true, employee: null })}
-          onEdit={(emp) => setFormDialog({ open: true, employee: emp })}
+          onEdit={(emp) => {
+            if (!canModifyEmployees) return showSnack("Only SuperAdmin can edit employees.", "warning");
+            setFormDialog({ open: true, employee: emp });
+          }}
           onView={(emp) => setViewDialog({ open: true, employee: emp })}
           onQR={(emp) => setQrDialog({ open: true, employee: emp })}
-          onDelete={(emp) => setDeleteDialog({ open: true, employee: emp })}
+          onDelete={(emp) => {
+            if (!canModifyEmployees) return showSnack("Only SuperAdmin can delete employees.", "warning");
+            setDeleteDialog({ open: true, employee: emp });
+          }}
           onSnack={showSnack}
+          canModifyEmployees={canModifyEmployees}
         />
 
         <EmployeeFormDialog
@@ -246,7 +256,12 @@ export default function EmployeeApp() {
           open={viewDialog.open}
           employee={viewDialog.employee}
           onClose={() => setViewDialog({ open: false, employee: null })}
-          onEdit={(emp) => { setViewDialog({ open: false, employee: null }); setFormDialog({ open: true, employee: emp }); }}
+          onEdit={(emp) => {
+            if (!canModifyEmployees) return;
+            setViewDialog({ open: false, employee: null });
+            setFormDialog({ open: true, employee: emp });
+          }}
+          canModifyEmployees={canModifyEmployees}
         />
 
         <QRCodeDialog
@@ -256,12 +271,14 @@ export default function EmployeeApp() {
           onSnack={showSnack}
         />
 
-        <DeleteDialog
-          open={deleteDialog.open}
-          employee={deleteDialog.employee}
-          onClose={() => setDeleteDialog({ open: false, employee: null })}
-          onSuccess={() => { setDeleteDialog({ open: false, employee: null }); showSnack("Employee deleted successfully."); }}
-        />
+        {canModifyEmployees && (
+          <DeleteDialog
+            open={deleteDialog.open}
+            employee={deleteDialog.employee}
+            onClose={() => setDeleteDialog({ open: false, employee: null })}
+            onSuccess={() => { setDeleteDialog({ open: false, employee: null }); showSnack("Employee deleted successfully."); }}
+          />
+        )}
 
         <Snackbar open={snack.open} autoHideDuration={3500}
           onClose={() => setSnack(s => ({ ...s, open: false }))}
@@ -277,7 +294,7 @@ export default function EmployeeApp() {
 // ══════════════════════════════════════════════════════════════════════════════
 // MOBILE EMPLOYEE CARD (replaces table rows on small screens)
 // ══════════════════════════════════════════════════════════════════════════════
-function EmployeeMobileCard({ emp, onView, onEdit, onQR, onDelete }) {
+function EmployeeMobileCard({ emp, onView, onEdit, onQR, onDelete, canModifyEmployees }) {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const co = COMPANY_OPTIONS.find(c => c.value === emp.company) || COMPANY_OPTIONS[0];
   const isActive = emp.status === "Active";
@@ -344,18 +361,22 @@ function EmployeeMobileCard({ emp, onView, onEdit, onQR, onDelete }) {
           sx={{ fontSize: 13, gap: 1.25, color: "#0EA5E9" }}>
           <VisibilityIcon fontSize="small" /> View Profile
         </MenuItem>
-        <MenuItem onClick={() => { setMenuAnchor(null); onEdit(emp); }}
-          sx={{ fontSize: 13, gap: 1.25, color: "#d97706" }}>
-          <EditIcon fontSize="small" /> Edit
-        </MenuItem>
+        {canModifyEmployees && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onEdit(emp); }}
+            sx={{ fontSize: 13, gap: 1.25, color: "#d97706" }}>
+            <EditIcon fontSize="small" /> Edit
+          </MenuItem>
+        )}
         <MenuItem onClick={() => { setMenuAnchor(null); onQR(emp); }}
           sx={{ fontSize: 13, gap: 1.25, color: "#0EA5E9" }}>
           <QrCodeIcon fontSize="small" /> QR Code
         </MenuItem>
-        <MenuItem onClick={() => { setMenuAnchor(null); onDelete(emp); }}
-          sx={{ fontSize: 13, gap: 1.25, color: "#dc2626" }}>
-          <DeleteIcon fontSize="small" /> Delete
-        </MenuItem>
+        {canModifyEmployees && (
+          <MenuItem onClick={() => { setMenuAnchor(null); onDelete(emp); }}
+            sx={{ fontSize: 13, gap: 1.25, color: "#dc2626" }}>
+            <DeleteIcon fontSize="small" /> Delete
+          </MenuItem>
+        )}
       </Menu>
     </Paper>
   );
@@ -364,7 +385,7 @@ function EmployeeMobileCard({ emp, onView, onEdit, onQR, onDelete }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TABLE
 // ══════════════════════════════════════════════════════════════════════════════
-function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete, onSnack }) {
+function EmployeeTable({ employees, onCreate, onEdit, onView, onQR, onDelete, onSnack, canModifyEmployees }) {
   const [search, setSearch] = useState("");
   const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   const isMobile = useMediaQuery("(max-width:640px)");
@@ -496,20 +517,30 @@ const exportToPDF = () => {
     // ===== TABLE SECTION =====
     const tableColumn = ["S.No", "Emp ID", "Name", "Email", "Department", "Designation", "Status", "Company", "Mobile", "Experience"];
     const tableRows = [];
+    const formatPdfCell = (value) => {
+      if (value === null || value === undefined) return '-';
+
+      const normalizedValue = String(value)
+        .replace(/[\u0000-\u001F\u007F-\u009F]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      return normalizedValue || '-';
+    };
 
     exportData.forEach((emp, index) => {
       const co = COMPANY_OPTIONS.find(c => c.value === emp.company) || COMPANY_OPTIONS[0];
       tableRows.push([
-        (index + 1).toString(),
-        emp.employeeId || '-',
-        emp.fullName || '-',
-        emp.email || '-',
-        emp.department || '-',
-        emp.designation || '-',
-        emp.status || 'Active',
-        co.label,
-        emp.contactNumber || '-',
-        calcExperience(emp.joiningDate) || '-'
+        formatPdfCell(index + 1),
+        formatPdfCell(emp.employeeId),
+        formatPdfCell(emp.fullName),
+        formatPdfCell(emp.email),
+        formatPdfCell(emp.department),
+        formatPdfCell(emp.designation),
+        formatPdfCell(emp.status || 'Active'),
+        formatPdfCell(co.label),
+        formatPdfCell(emp.contactNumber),
+        formatPdfCell(calcExperience(emp.joiningDate))
       ]);
     });
 
@@ -554,7 +585,9 @@ const exportToPDF = () => {
         cellPadding: 2,
         lineColor: COLORS.border,
         lineWidth: 0.1,
-        valign: 'middle'
+        valign: 'middle',
+        overflow: 'linebreak',
+        minCellHeight: 7
       },
 
       // Alternating row colors
@@ -564,7 +597,9 @@ const exportToPDF = () => {
         cellPadding: 2,
         lineColor: COLORS.border,
         lineWidth: 0.1,
-        valign: 'middle'
+        valign: 'middle',
+        overflow: 'linebreak',
+        minCellHeight: 7
       },
 
       // Dynamic status coloring - CASE INSENSITIVE
@@ -850,6 +885,7 @@ const exportToPDF = () => {
             <EmployeeMobileCard
               key={emp.id} emp={emp}
               onView={onView} onEdit={onEdit} onQR={onQR} onDelete={onDelete}
+              canModifyEmployees={canModifyEmployees}
             />
           ))}
           <Box sx={{ pt: 1, pb: 2 }}>
@@ -958,24 +994,28 @@ const exportToPDF = () => {
                               <VisibilityIcon sx={{ fontSize: isTablet ? 15 : 18 }} />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Edit" arrow>
-                            <IconButton size="small" onClick={() => onEdit(emp)}
-                              sx={{ background: alpha("#f59e0b", 0.08), color: "#d97706", borderRadius: "8px", p: isTablet ? 0.5 : 0.75, "&:hover": { background: alpha("#f59e0b", 0.16) } }}>
-                              <EditIcon sx={{ fontSize: isTablet ? 15 : 18 }} />
-                            </IconButton>
-                          </Tooltip>
+                          {canModifyEmployees && (
+                            <Tooltip title="Edit" arrow>
+                              <IconButton size="small" onClick={() => onEdit(emp)}
+                                sx={{ background: alpha("#f59e0b", 0.08), color: "#d97706", borderRadius: "8px", p: isTablet ? 0.5 : 0.75, "&:hover": { background: alpha("#f59e0b", 0.16) } }}>
+                                <EditIcon sx={{ fontSize: isTablet ? 15 : 18 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                           <Tooltip title="QR Code" arrow>
                             <IconButton size="small" onClick={() => onQR(emp)}
                               sx={{ background: alpha("#0EA5E9", 0.08), color: "#0EA5E9", borderRadius: "8px", p: isTablet ? 0.5 : 0.75, "&:hover": { background: alpha("#8b5cf6", 0.16) } }}>
                               <QrCodeIcon sx={{ fontSize: isTablet ? 15 : 18 }} />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Delete" arrow>
-                            <IconButton size="small" onClick={() => onDelete(emp)}
-                              sx={{ background: alpha("#ef4444", 0.08), color: "#dc2626", borderRadius: "8px", p: isTablet ? 0.5 : 0.75, "&:hover": { background: alpha("#ef4444", 0.16) } }}>
-                              <DeleteIcon sx={{ fontSize: isTablet ? 15 : 18 }} />
-                            </IconButton>
-                          </Tooltip>
+                          {canModifyEmployees && (
+                            <Tooltip title="Delete" arrow>
+                              <IconButton size="small" onClick={() => onDelete(emp)}
+                                sx={{ background: alpha("#ef4444", 0.08), color: "#dc2626", borderRadius: "8px", p: isTablet ? 0.5 : 0.75, "&:hover": { background: alpha("#ef4444", 0.16) } }}>
+                                <DeleteIcon sx={{ fontSize: isTablet ? 15 : 18 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
                         </Box>
                        </td>
                     </tr>
@@ -1429,7 +1469,7 @@ function EmployeeFormDialog({ open, employee, onClose, onSuccess }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // VIEW PROFILE DIALOG (unchanged)
 // ══════════════════════════════════════════════════════════════════════════════
-function ViewProfileDialog({ open, employee, onClose, onEdit }) {
+function ViewProfileDialog({ open, employee, onClose, onEdit, canModifyEmployees }) {
   const emp = employee;
   const isMobile = useMediaQuery("(max-width:640px)");
 
@@ -1599,9 +1639,11 @@ function ViewProfileDialog({ open, employee, onClose, onEdit }) {
       <DialogActions sx={{ px: { xs: 2, md: 2.5 }, py: { xs: 1.75, md: 2 }, borderTop: "1px solid #F1F5F9", gap: 1 }}>
         <Button variant="outlined" onClick={onClose} size={isMobile ? "small" : "medium"}
           sx={{ borderColor: "#E2E8F0", color: "#475569", fontSize: { xs: 12, md: 14 } }}>Close</Button>
-        <Button variant="contained" startIcon={<EditIcon />} onClick={() => onEdit(emp)}
-          size={isMobile ? "small" : "medium"}
-          sx={{ fontSize: { xs: 12, md: 14 } }}>Edit Employee</Button>
+        {canModifyEmployees && (
+          <Button variant="contained" startIcon={<EditIcon />} onClick={() => onEdit(emp)}
+            size={isMobile ? "small" : "medium"}
+            sx={{ fontSize: { xs: 12, md: 14 } }}>Edit Employee</Button>
+        )}
       </DialogActions>
     </Dialog>
   );

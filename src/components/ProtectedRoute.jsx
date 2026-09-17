@@ -2,7 +2,7 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-const ProtectedRoute = ({ children, requiredRole }) => {
+const ProtectedRoute = ({ children, requiredRole, allowedRoles }) => {
   const { user, role, loading, authInitialized } = useAuth();
 
   // Show loading spinner while auth is initializing
@@ -47,7 +47,10 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   }
 
   // Check role-based access if required
-  if (requiredRole && role !== requiredRole) {
+  const doesNotHaveRequiredRole = requiredRole && role !== requiredRole;
+  const isOutsideAllowedRoles = allowedRoles?.length > 0 && !allowedRoles.includes(role);
+
+  if (doesNotHaveRequiredRole || isOutsideAllowedRoles) {
     // Redirect to appropriate dashboard based on role
     if (["Admin", "SuperAdmin"].includes(role)) {
       return <Navigate to="/admin/users" replace />;

@@ -153,12 +153,10 @@ export default function Sidebar({ mobileOpen, onClose }) {
   const adminMenu = [
     { label: "User Management", path: "/admin/users", icon: <PeopleIcon /> },
     { label: "Timesheet", path: "/admin/timesheet", icon: <TimerIcon /> },
-  ];
-
-  const superAdminMenu = [
-    ...adminMenu,
     { label: "Employee Digital ID", path: "/admin/create-employee", icon: <PersonIcon /> },
   ];
+
+  const superAdminMenu = [...adminMenu];
 
   const employeeMenu = [
     { label: "Daily Timesheet", path: "/employee/daily-timesheet", icon: <TimerIcon /> },

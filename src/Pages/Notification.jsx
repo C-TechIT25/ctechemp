@@ -353,6 +353,42 @@ const NotificationsPage = () => {
     }
   };
 
+  const notifyBadgeChanged = () => {
+    window.dispatchEvent(new Event('notifications:updated'));
+  };
+
+  // Ask the backend to backfill any overdue day-end timesheet notification.
+  // The endpoint is idempotent, so opening/refocusing this page cannot create
+  // duplicate notifications for the same employee and work date.
+  const reconcileMissingTimesheetNotifications = async () => {
+    if (!user?.uid || !empId || ['Admin', 'SuperAdmin'].includes(userRole)) return;
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_BASE_URL}notifications/timesheet/reconcile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          user_id: user.uid,
+          emp_id: empId,
+          timezone: 'Asia/Kolkata',
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.created) notifyBadgeChanged();
+      } else if (response.status !== 404) {
+        console.error('Failed to reconcile missing-timesheet notifications');
+      }
+    } catch (err) {
+      console.error('Timesheet notification reconciliation failed:', err);
+    }
+  };
+
   // Fetch notifications from backend with role-based filtering
   const fetchNotifications = async () => {
     if (!user?.uid || !userInfoLoaded) return;
@@ -457,6 +493,7 @@ const NotificationsPage = () => {
         setNotifications((prev) => prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif)));
         setSelectedNotifications((prev) => prev.filter((id) => id !== notificationId));
         calculateStats(notifications.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n)));
+        notifyBadgeChanged();
         toast.success('Notification marked as read');
       }
     } catch (err) {
@@ -477,6 +514,7 @@ const NotificationsPage = () => {
       if (response.ok) {
         setNotifications((prev) => prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: false } : notif)));
         calculateStats(notifications.map((n) => (n.id === notificationId ? { ...n, is_read: false } : n)));
+        notifyBadgeChanged();
         toast.success('Notification marked as unread');
       }
     } catch (err) {
@@ -499,6 +537,7 @@ const NotificationsPage = () => {
         setSelectedNotifications((prev) => prev.filter((id) => id !== notificationId));
         toast.success('Notification deleted successfully');
         calculateStats(notifications.filter((n) => n.id !== notificationId));
+        notifyBadgeChanged();
       }
     } catch (err) {
       console.error('Error:', err);
@@ -521,6 +560,7 @@ const NotificationsPage = () => {
         setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: true })));
         setSelectedNotifications([]);
         setStats((prev) => ({ ...prev, unread: 0 }));
+        notifyBadgeChanged();
         toast.success('All notifications marked as read');
       }
     } catch (err) {
@@ -741,8 +781,12 @@ const NotificationsPage = () => {
 
     if (['Admin', 'SuperAdmin'].includes(userRole) || empId) {
       console.log('Fetching notifications...');
-      fetchNotifications();
-      fetchPreferences();
+      const loadNotifications = async () => {
+        await reconcileMissingTimesheetNotifications();
+        await Promise.all([fetchNotifications(), fetchPreferences()]);
+      };
+
+      loadNotifications();
       return;
     }
 
@@ -752,15 +796,22 @@ const NotificationsPage = () => {
 
   // Refresh notifications every 5 minutes
   useEffect(() => {
-    const interval = setInterval(() => {
+    const refreshNotifications = async () => {
       if (document.visibilityState === 'visible' && userInfoLoaded && (['Admin', 'SuperAdmin'].includes(userRole) || empId)) {
         console.log('Auto-refreshing notifications...');
-        fetchNotifications();
+        await reconcileMissingTimesheetNotifications();
+        await fetchNotifications();
       }
-    }, 5 * 60 * 1000);
+    };
 
-    return () => clearInterval(interval);
-  }, [userInfoLoaded, userRole, empId]);
+    const interval = setInterval(refreshNotifications, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', refreshNotifications);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshNotifications);
+    };
+  }, [user?.uid, userInfoLoaded, userRole, empId]);
 
   // Handle tab change
   const handleTabChange = (event, newValue) => {

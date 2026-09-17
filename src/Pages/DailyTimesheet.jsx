@@ -90,6 +90,7 @@ import { db } from '../Config';
 import { API_BASE_URL } from '../Config';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { formatIndianTime } from '../utils/dateTime';
 
 // ---------------------------------------------------------------------------
 // Design tokens — shared visual language with the Todo page. If both pages
@@ -346,7 +347,7 @@ const TimesheetPage = () => {
         const userData = snap.data();
         const displayName = userData.name || userData.employee_name || user.displayName || user.email || 'User';
 
-        setEmpId(userData.empId || userData.uid);
+        setEmpId(userData.empId || userData.emp_id || userData.employeeId || userData.uid);
         setEmployeeName(displayName);
         showToast(`Welcome ${displayName}`, 'success');
 
@@ -442,6 +443,35 @@ const TimesheetPage = () => {
     }
   };
 
+  const reconcileMissingTimesheetNotifications = async () => {
+    if (!user?.uid || !empId) return;
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_BASE_URL}notifications/timesheet/reconcile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          user_id: user.uid,
+          emp_id: empId,
+          timezone: 'Asia/Kolkata',
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.created) window.dispatchEvent(new Event('notifications:updated'));
+      } else if (response.status !== 404) {
+        console.error('Failed to reconcile missing-timesheet notifications');
+      }
+    } catch (err) {
+      console.error('Timesheet notification reconciliation failed:', err);
+    }
+  };
+
   const fetchNotifications = async () => {
     if (!user?.uid) return;
 
@@ -486,6 +516,7 @@ const TimesheetPage = () => {
       if (response.ok) {
         setNotifications((prev) => prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif)));
         setUnreadCount((prev) => Math.max(0, prev - 1));
+        window.dispatchEvent(new Event('notifications:updated'));
       }
     } catch (err) {
       console.error('Error marking notification as read:', err);
@@ -501,6 +532,7 @@ const TimesheetPage = () => {
       if (response.ok) {
         setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: true })));
         setUnreadCount(0);
+        window.dispatchEvent(new Event('notifications:updated'));
         showToast('All notifications marked as read', 'success');
       }
     } catch (err) {
@@ -521,6 +553,7 @@ const TimesheetPage = () => {
           setUnreadCount((prev) => Math.max(0, prev - 1));
         }
 
+        window.dispatchEvent(new Event('notifications:updated'));
         showToast('Notification deleted', 'success');
       }
     } catch (err) {
@@ -613,14 +646,32 @@ const TimesheetPage = () => {
   useEffect(() => {
     if (empId) {
       fetchTimesheets();
-      fetchNotifications();
+      const syncNotifications = async () => {
+        await reconcileMissingTimesheetNotifications();
+        await fetchNotifications();
+      };
 
-      const interval = setInterval(() => {
+      syncNotifications();
+
+      const timesheetInterval = setInterval(() => {
         fetchTimesheets();
-        fetchNotifications();
       }, 30 * 60 * 1000);
 
-      return () => clearInterval(interval);
+      const notificationInterval = setInterval(syncNotifications, 5 * 60 * 1000);
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          fetchTimesheets();
+          syncNotifications();
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        clearInterval(timesheetInterval);
+        clearInterval(notificationInterval);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     }
   }, [empId]);
 
@@ -954,8 +1005,7 @@ const TimesheetPage = () => {
   };
 
   const formatTime = (time) => {
-    if (!time) return '--:--';
-    return time.substring(0, 5);
+    return formatIndianTime(time, '--:--');
   };
 
   const calculateStats = () => {

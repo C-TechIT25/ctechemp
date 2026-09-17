@@ -138,6 +138,72 @@ export default function Header({ onMenuClick }) {
     ? `${currentApiStatus.tooltip}. Last checked ${lastApiCheckedAt.toLocaleTimeString()}`
     : currentApiStatus.tooltip;
 
+  const fetchUnreadNotifications = async () => {
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
+    setLoadingNotifications(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${API_BASE_URL}notifications/user/${currentUser.uid}?unread_only=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const unreadNotifications = data.notifications || [];
+      setNotifications(unreadNotifications);
+      setUnreadCount(Number(data.unread_count ?? unreadNotifications.filter((item) => !item.is_read).length));
+    } catch (error) {
+      console.error('Failed to fetch notification count:', error);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  const reconcileMissingTimesheetNotifications = async () => {
+    const currentUser = auth.currentUser;
+    const employeeId = profileData?.emp_id || profileData?.empId || profileData?.employeeId;
+
+    if (!currentUser || !employeeId) return;
+
+    try {
+      const token = await currentUser.getIdToken();
+      const response = await fetch(`${API_BASE_URL}notifications/timesheet/reconcile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          user_id: currentUser.uid,
+          emp_id: employeeId,
+          timezone: 'Asia/Kolkata',
+        }),
+      });
+
+      // A missing endpoint must not break the rest of the header while the
+      // backend scheduler/API is being deployed.
+      if (!response.ok && response.status !== 404) {
+        console.error('Failed to reconcile missing-timesheet notifications');
+      }
+    } catch (error) {
+      console.error('Failed to reconcile timesheet notifications:', error);
+    }
+  };
+
+  const syncNotifications = async () => {
+    await reconcileMissingTimesheetNotifications();
+    await fetchUnreadNotifications();
+  };
+
   // Fetch user profile data
   const fetchProfileData = async () => {
     try {
@@ -208,6 +274,27 @@ export default function Header({ onMenuClick }) {
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    syncNotifications();
+
+    const interval = setInterval(fetchUnreadNotifications, 5 * 60 * 1000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') syncNotifications();
+    };
+    const handleNotificationsUpdated = () => fetchUnreadNotifications();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('notifications:updated', handleNotificationsUpdated);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('notifications:updated', handleNotificationsUpdated);
+    };
+  }, [profileData?.emp_id, profileData?.empId, profileData?.employeeId]);
 
   const handleProfileMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -358,7 +445,13 @@ export default function Header({ onMenuClick }) {
                   },
                 }}
               >
-                {unreadCount > 0 ? <NotificationsActiveIcon /> : <NotificationsIcon />}
+                {loadingNotifications ? (
+                  <CircularProgress size={22} thickness={5} sx={{ color: 'white' }} />
+                ) : unreadCount > 0 ? (
+                  <NotificationsActiveIcon />
+                ) : (
+                  <NotificationsIcon />
+                )}
               </Badge>
             </IconButton>
 

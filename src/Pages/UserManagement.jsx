@@ -73,6 +73,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import autoTable from "jspdf-autotable";
 import * as XLSX from 'xlsx';
+import { useAuth } from "../context/AuthContext";
 
 // ---------------------------------------------------------------------------
 // Shared design tokens — same palette/type used across Todo, Timesheet,
@@ -348,6 +349,8 @@ const getImageUrl = (profileData) => {
 };
 
 export default function UserManagement() {
+  const { role } = useAuth();
+  const canDeleteUsers = role === "SuperAdmin";
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -717,6 +720,11 @@ export default function UserManagement() {
 
   /* ================= DELETE USER ================= */
   const handleDeleteUser = async (user) => {
+    if (!canDeleteUsers) {
+      showToast("Only SuperAdmin can delete users.", "warning");
+      return;
+    }
+
     if (!window.confirm(`Are you sure you want to delete ${user.employee_name}?`)) {
       return;
     }
@@ -802,6 +810,12 @@ export default function UserManagement() {
   };
 
   const handleDeleteFromMenu = () => {
+    if (!canDeleteUsers) {
+      showToast("Only SuperAdmin can delete users.", "warning");
+      handleActionMenuClose();
+      return;
+    }
+
     if (selectedRowForMenu) {
       handleDeleteUser(selectedRowForMenu);
       handleActionMenuClose();
@@ -1494,10 +1508,12 @@ export default function UserManagement() {
             <EditIcon sx={{ mr: 2, color: COLORS.primary }} />
             <Typography>Edit user</Typography>
           </MenuItem>
-          <MenuItem onClick={handleDeleteFromMenu} sx={{ py: 1.5 }}>
-            <DeleteIcon sx={{ mr: 2, color: COLORS.danger }} />
-            <Typography>Delete user</Typography>
-          </MenuItem>
+          {canDeleteUsers && (
+            <MenuItem onClick={handleDeleteFromMenu} sx={{ py: 1.5 }}>
+              <DeleteIcon sx={{ mr: 2, color: COLORS.danger }} />
+              <Typography>Delete user</Typography>
+            </MenuItem>
+          )}
         </Menu>
 
         {/* Create/Edit Dialog */}
