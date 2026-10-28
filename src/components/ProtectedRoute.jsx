@@ -1,44 +1,14 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import PageSkeleton from "./PageSkeleton";
 
 const ProtectedRoute = ({ children, requiredRole, allowedRoles }) => {
   const { user, role, loading, authInitialized } = useAuth();
 
-  // Show loading spinner while auth is initializing
+  // Keep the app shell stable while authentication is restored.
   if (loading || !authInitialized) {
-    return (
-      <div style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        fontFamily: "sans-serif",
-        color: "#64748b",
-        fontSize: 14,
-      }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{
-            width: 40,
-            height: 40,
-            border: `3px solid #e2e8f0`,
-            borderTop: `3px solid #0EA5E9`,
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-            margin: "0 auto 16px",
-          }} />
-          <style>
-            {`
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-            `}
-          </style>
-          Loading...
-        </div>
-      </div>
-    );
+    return <PageSkeleton fullScreen />;
   }
 
   // Not logged in → redirect to login

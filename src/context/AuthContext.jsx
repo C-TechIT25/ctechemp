@@ -3,9 +3,15 @@ import {
   browserLocalPersistence,
   onAuthStateChanged,
   setPersistence,
+  signOut,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../Config";
+import {
+  clearAuthDetails,
+  getStoredAuthDetails,
+  saveAuthDetails,
+} from "../utils/authStorage";
 
 const AuthContext = createContext();
 
@@ -14,6 +20,7 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authInitialized, setAuthInitialized] = useState(false);
+  const [authDetails, setAuthDetails] = useState(() => getStoredAuthDetails());
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -28,22 +35,48 @@ export function AuthProvider({ children }) {
           // Fetch user role from Firestore
           const userRef = doc(db, "users", currentUser.uid);
           const userSnap = await getDoc(userRef);
+          const userData = userSnap.exists() ? userSnap.data() : {};
+          const nextDetails = {
+            role: userData.role || "Employee",
+            status: userData.status || "active",
+          };
 
-          if (userSnap.exists()) {
-            const userData = userSnap.data();
-            setRole(userData.role || "Employee");
-          } else {
-            setRole("Employee"); // Default role if user document doesn't exist
+          if (nextDetails.status === "inactive") {
+            setUser(null);
+            setRole(null);
+            clearAuthDetails();
+            setAuthDetails(null);
+            await signOut(auth);
+            return;
           }
+
+          setRole(nextDetails.role);
+          saveAuthDetails(currentUser, nextDetails);
+          setAuthDetails(getStoredAuthDetails());
         } else {
           // User is signed out
           setUser(null);
           setRole(null);
+          clearAuthDetails();
+          setAuthDetails(null);
         }
       } catch (error) {
         console.error("Error in auth state change:", error);
-        setUser(null);
-        setRole(null);
+
+        // A profile/role lookup failure must not turn a valid Firebase session
+        // into a logged-out session. Default to the least-privileged role.
+        if (currentUser) {
+          const fallbackDetails = { role: "Employee", status: "active" };
+          setUser(currentUser);
+          setRole(fallbackDetails.role);
+          saveAuthDetails(currentUser, fallbackDetails);
+          setAuthDetails(getStoredAuthDetails());
+        } else {
+          setUser(null);
+          setRole(null);
+          clearAuthDetails();
+          setAuthDetails(null);
+        }
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -81,6 +114,7 @@ export function AuthProvider({ children }) {
     role,
     loading,
     authInitialized,
+    authDetails,
     // Helper to check if user is authenticated
     isAuthenticated: !!user,
     // Helper to check if user has admin role

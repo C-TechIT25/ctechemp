@@ -12,7 +12,7 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  CircularProgress,
+  Skeleton,
   Alert,
   Menu,
   MenuItem,
@@ -26,7 +26,6 @@ import {
   DialogContent,
   DialogActions,
   Tooltip,
-  Fade,
   alpha,
   styled,
   GlobalStyles,
@@ -62,6 +61,8 @@ import { db } from '../Config';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { API_BASE_URL } from '../Config';
+import { fetchWithFirebaseAuth } from '../utils/authenticatedFetch';
+import PageSkeleton from '../components/PageSkeleton';
 
 // ---------------------------------------------------------------------------
 // Shared design tokens — same palette/type used across Todo, Timesheet,
@@ -364,12 +365,10 @@ const NotificationsPage = () => {
     if (!user?.uid || !empId || ['Admin', 'SuperAdmin'].includes(userRole)) return;
 
     try {
-      const token = await user.getIdToken();
-      const response = await fetch(`${API_BASE_URL}notifications/timesheet/reconcile`, {
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/timesheet/reconcile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           user_id: user.uid,
@@ -417,7 +416,7 @@ const NotificationsPage = () => {
         console.log(`Fetching notifications for employee ${empId}`);
       }
 
-      const response = await fetch(requestUrl);
+      const response = await fetchWithFirebaseAuth(user, requestUrl, { cache: 'no-store' });
 
       if (response.ok) {
         const data = await response.json();
@@ -450,7 +449,7 @@ const NotificationsPage = () => {
     if (!user?.uid) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/preferences/${user.uid}`);
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/preferences/${user.uid}`);
       if (response.ok) {
         const data = await response.json();
         setPreferences(data.preferences || preferences);
@@ -483,7 +482,7 @@ const NotificationsPage = () => {
   // Mark notification as read
   const markAsRead = async (notificationId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}/read`, {
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ empId, userRole }),
@@ -505,7 +504,7 @@ const NotificationsPage = () => {
   // Mark notification as unread
   const markAsUnread = async (notificationId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}/unread`, {
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/${notificationId}/unread`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ empId, userRole }),
@@ -526,7 +525,7 @@ const NotificationsPage = () => {
   // Delete notification
   const deleteNotification = async (notificationId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}`, {
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/${notificationId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ empId, userRole }),
@@ -550,7 +549,7 @@ const NotificationsPage = () => {
     if (!user?.uid) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`, {
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ empId, userRole }),
@@ -741,7 +740,7 @@ const NotificationsPage = () => {
     setPreferences(updatedPrefs);
 
     try {
-      await fetch(`${API_BASE_URL}notifications/preferences`, {
+      await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/preferences`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.uid, preferences: updatedPrefs }),
@@ -805,11 +804,9 @@ const NotificationsPage = () => {
     };
 
     const interval = setInterval(refreshNotifications, 5 * 60 * 1000);
-    document.addEventListener('visibilitychange', refreshNotifications);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', refreshNotifications);
     };
   }, [user?.uid, userInfoLoaded, userRole, empId]);
 
@@ -842,20 +839,7 @@ const NotificationsPage = () => {
     return (
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <GlobalStyles styles={fontImport} />
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh" sx={{ bgcolor: COLORS.bg }}>
-          <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="colored" />
-          <Fade in={loading} style={{ transitionDelay: '200ms' }}>
-            <Box textAlign="center">
-              <CircularProgress size={56} thickness={4} sx={{ color: COLORS.primary, mb: 2 }} />
-              <Typography sx={{ fontWeight: 600, color: COLORS.ink }}>
-                <Display>Loading notifications…</Display>
-              </Typography>
-              <Typography variant="body2" sx={{ color: COLORS.muted, mt: 1 }}>
-                {['Admin', 'SuperAdmin'].includes(userRole) ? 'Fetching all notifications' : `Fetching your notifications (${empId})`}
-              </Typography>
-            </Box>
-          </Fade>
-        </Box>
+        <PageSkeleton />
       </LocalizationProvider>
     );
   }
@@ -1004,9 +988,17 @@ const NotificationsPage = () => {
         {/* Notifications List */}
         <Surface sx={{ overflow: 'hidden' }}>
           {refreshing ? (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <CircularProgress size={32} sx={{ color: COLORS.primary }} />
-            </Box>
+            <Stack spacing={1.5} sx={{ p: 2 }}>
+              {Array.from({ length: 5 }, (_, index) => (
+                <Box key={index} sx={{ display: 'flex', gap: 2, alignItems: 'center', p: 1.5 }}>
+                  <Skeleton animation="wave" variant="circular" width={40} height={40} />
+                  <Box sx={{ flex: 1 }}>
+                    <Skeleton animation="wave" width={`${72 - index * 4}%`} height={22} />
+                    <Skeleton animation="wave" width={`${48 + index * 3}%`} height={18} />
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
           ) : filteredNotifications.length > 0 ? (
             <List sx={{ p: 1.5 }}>
               {filteredNotifications.map((notification) => {

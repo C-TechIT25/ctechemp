@@ -5,7 +5,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 
 import {
   Box, Typography, Avatar, Chip, Paper, Grid,
-  CircularProgress, Container, Badge, Button, Modal, IconButton,
+  Container, Badge, Button, Modal, IconButton,
 } from "@mui/material";
 import { createTheme, alpha, ThemeProvider } from "@mui/material/styles";
 
@@ -21,7 +21,6 @@ import FavoriteIcon      from "@mui/icons-material/Favorite";
 import PersonIcon        from "@mui/icons-material/Person";
 import BusinessIcon      from "@mui/icons-material/Business";
 import SearchOffIcon     from "@mui/icons-material/SearchOff";
-import EngineeringIcon   from "@mui/icons-material/Engineering";
 import HomeIcon          from "@mui/icons-material/Home";
 import CakeIcon          from "@mui/icons-material/Cake";
 import WcIcon            from "@mui/icons-material/Wc";
@@ -36,6 +35,7 @@ import GroupIcon         from "@mui/icons-material/Group";
 
 import ctechLogo  from "../assets/ctech-logo.png";
 import preconLogo from "../assets/precon-logo.jpg";
+import PageSkeleton from "../components/PageSkeleton";
 
 // ── Injected global styles ────────────────────────────────────────────────────
 const GLOBAL_STYLES = `
@@ -787,26 +787,7 @@ import NoteAltIcon from "@mui/icons-material/NoteAlt";
 // LOADER
 // ══════════════════════════════════════════════════════════════════════════════
 function LoaderScreen() {
-  return (
-    <Box sx={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:3, px:3 }}>
-      <Box sx={{
-        width:80, height:80, borderRadius:"22px",
-        background:"linear-gradient(135deg,#1A56DB,#0E3AA8)",
-        display:"flex", alignItems:"center", justifyContent:"center",
-        boxShadow:"0 12px 36px rgba(26,86,219,.4)",
-        animation:"pulse2 2.2s ease-in-out infinite",
-      }}>
-        <EngineeringIcon sx={{ color:"#fff", fontSize:38 }} />
-      </Box>
-      <CircularProgress size={28} thickness={4} sx={{ color:"#1A56DB" }} />
-      <Box sx={{ textAlign:"center" }}>
-        <Typography sx={{ fontSize:17, fontWeight:800, color:"#0A0F1E", mb:.5, fontFamily:"'Poppins',sans-serif" }}>
-          Loading Profile
-        </Typography>
-        <Typography sx={{ fontSize:13, color:"#94a3b8" }}>Please wait a moment…</Typography>
-      </Box>
-    </Box>
-  );
+  return <PageSkeleton variant="profile" fullScreen />;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -27,7 +27,6 @@ import {
   Paper,
   IconButton,
   Chip,
-  CircularProgress,
   TableContainer,
   Tooltip,
   Grid,
@@ -43,6 +42,7 @@ import {
   Collapse,
   GlobalStyles,
   Divider,
+  Skeleton,
 } from "@mui/material";
 import {
   Edit as EditIcon,
@@ -74,6 +74,7 @@ import 'jspdf-autotable';
 import autoTable from "jspdf-autotable";
 import * as XLSX from 'xlsx';
 import { useAuth } from "../context/AuthContext";
+import PageSkeleton from "../components/PageSkeleton";
 
 // ---------------------------------------------------------------------------
 // Shared design tokens — same palette/type used across Todo, Timesheet,
@@ -356,7 +357,7 @@ export default function UserManagement() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [profileImagePreview, setProfileImagePreview] = useState("");
 
@@ -534,6 +535,7 @@ export default function UserManagement() {
           "Accept": "application/json"
         },
         body: JSON.stringify({
+          firebase_uid: uid,
           emp_id: form.empId,
           employee_name: form.name,
           gender: form.gender,
@@ -1168,6 +1170,10 @@ export default function UserManagement() {
     }
   };
 
+  if (fetching && users.length === 0) {
+    return <PageSkeleton />;
+  }
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <GlobalStyles styles={fontImport} />
@@ -1395,12 +1401,20 @@ export default function UserManagement() {
 
               <TableBody>
                 {fetching ? (
-                  <TableRow>
-                    <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
-                      <CircularProgress sx={{ color: COLORS.primary }} />
-                      <Typography sx={{ mt: 2, color: COLORS.muted }}>Loading users…</Typography>
-                    </TableCell>
-                  </TableRow>
+                  Array.from({ length: 6 }, (_, rowIndex) => (
+                    <TableRow key={`user-skeleton-${rowIndex}`}>
+                      {Array.from({ length: 10 }, (_, cellIndex) => (
+                        <TableCell key={cellIndex}>
+                          <Skeleton
+                            animation="wave"
+                            variant={cellIndex === 1 ? 'circular' : 'rounded'}
+                            width={cellIndex === 1 ? 40 : '80%'}
+                            height={cellIndex === 1 ? 40 : 20}
+                          />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
                 ) : filteredUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} align="center" sx={{ py: 8 }}>

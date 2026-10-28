@@ -55,6 +55,7 @@ import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { API_BASE_URL } from '../Config';
+import PageSkeleton from '../components/PageSkeleton';
 
 // ---------------------------------------------------------------------------
 // Shared design tokens — same palette/type used across Todo, Timesheet,
@@ -793,18 +794,7 @@ export default function Profile() {
   );
 }
 
-// Loading state kept as a small separate component so the font import and
-// background still apply before `profile` has loaded.
+// Keep the profile-specific skeleton in one place for the initial request.
 function LocalizedLoading() {
-  return (
-    <>
-      <GlobalStyles styles={fontImport} />
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', flexDirection: 'column', gap: 2, bgcolor: COLORS.bg }}>
-        <CircularProgress size={56} thickness={4} sx={{ color: COLORS.primary }} />
-        <Typography variant="body1" sx={{ color: COLORS.muted, fontWeight: 500 }}>
-          Loading your profile…
-        </Typography>
-      </Box>
-    </>
-  );
+  return <PageSkeleton variant="profile" />;
 }

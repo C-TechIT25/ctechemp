@@ -65,6 +65,7 @@ import GroupIcon          from "@mui/icons-material/Group";
 import PictureAsPdfIcon   from "@mui/icons-material/PictureAsPdf";
 import TableChartIcon     from "@mui/icons-material/TableChart";
 import { useAuth } from "../context/AuthContext";
+import PageSkeleton from "../components/PageSkeleton";
 
 // ── Shared font import (same Outfit/Inter pairing used across the app) ────────
 const fontImport = `
@@ -207,6 +208,7 @@ export default function EmployeeApp() {
   const { role } = useAuth();
   const canModifyEmployees = role === "SuperAdmin";
   const [employees, setEmployees] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
   const [formDialog,   setFormDialog]   = useState({ open: false, employee: null });
   const [viewDialog,   setViewDialog]   = useState({ open: false, employee: null });
   const [qrDialog, setQrDialog] = useState({ open: false, employee: null });
@@ -214,14 +216,30 @@ export default function EmployeeApp() {
   const [snack, setSnack] = useState({ open: false, message: "", severity: "success" });
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "employees"), (snap) => {
-      setEmployees(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    });
+    const unsub = onSnapshot(
+      collection(db, "employees"),
+      (snap) => {
+        setEmployees(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setEmployeesLoading(false);
+      },
+      (error) => {
+        console.error('Failed to load employees:', error);
+        setEmployeesLoading(false);
+      },
+    );
     return unsub;
   }, []);
 
   const showSnack = (message, severity = "success") =>
     setSnack({ open: true, message, severity });
+
+  if (employeesLoading) {
+    return (
+      <ThemeProvider theme={theme}>
+        <PageSkeleton />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>

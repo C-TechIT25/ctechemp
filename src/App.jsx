@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./layout/DashboardLayout";
 import EmployeeApp from "./Pages/CreateEmployee.jsx";
+import PageSkeleton from "./components/PageSkeleton";
 import Employeepublicprofile from './Pages/Employeepublicprofile.jsx' // 👈 public page
 
 // 🔹 Lazy loaded pages
@@ -20,7 +21,7 @@ function AuthRedirect() {
   const { user, role, loading, authInitialized } = useAuth();
 
   if (loading || !authInitialized) {
-    return <div style={{ padding: 20 }}>Loading...</div>;
+    return <PageSkeleton fullScreen />;
   }
 
   if (!user) {
@@ -37,7 +38,7 @@ function AuthRedirect() {
 export default function App() {
   return (
     <AuthProvider>
-      <Suspense fallback={<div style={{ padding: 20 }}>Loading...</div>}>
+      <Suspense fallback={<PageSkeleton fullScreen />}>
         <Routes>
 
           {/* ROOT REDIRECT */}

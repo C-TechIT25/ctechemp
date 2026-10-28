@@ -78,6 +78,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatIndianTime } from '../utils/dateTime';
+import PageSkeleton from '../components/PageSkeleton';
 
 // ---------------------------------------------------------------------------
 // Shared design tokens — same palette/type used across Todo, Timesheet,
@@ -1641,9 +1642,7 @@ export default function Timesheet() {
 
         {/* Loading Indicator */}
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", my: 8 }}>
-            <CircularProgress size={56} sx={{ color: COLORS.primary }} />
-          </Box>
+          <PageSkeleton compact />
         ) : (
           <Surface sx={{ overflow: 'hidden' }}>
             {/* Selection Toolbar */}

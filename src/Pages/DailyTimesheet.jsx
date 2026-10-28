@@ -26,7 +26,6 @@ import {
   styled,
   Divider,
   Avatar,
-  Fade,
   Stack,
   InputAdornment,
   Collapse,
@@ -43,6 +42,7 @@ import {
   Tab,
   Alert as MuiAlert,
   Snackbar,
+  Skeleton,
   GlobalStyles,
   useMediaQuery,
   useTheme,
@@ -91,6 +91,8 @@ import { API_BASE_URL } from '../Config';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { formatIndianTime } from '../utils/dateTime';
+import { fetchWithFirebaseAuth } from '../utils/authenticatedFetch';
+import PageSkeleton from '../components/PageSkeleton';
 
 // ---------------------------------------------------------------------------
 // Design tokens — shared visual language with the Todo page. If both pages
@@ -261,6 +263,35 @@ const StatTile = ({ label, value, color, icon }) => (
   </Box>
 );
 
+const FormattedDescription = ({ text, sx = {} }) => (
+  <Typography
+    component="div"
+    variant="body2"
+    sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', lineHeight: 1.65, ...sx }}
+  >
+    {String(text ?? '').split(/\r?\n/).map((line, index) => (
+      <Box component="span" key={`${index}-${line}`} sx={{ display: 'block', minHeight: '1.65em' }}>
+        {line || '\u00A0'}
+      </Box>
+    ))}
+  </Typography>
+);
+
+const createEmptyTimesheetForm = () => ({
+  date: new Date(),
+  activity_category: '',
+  work_mode: '',
+  description: '',
+  check_in: '',
+  check_out: '',
+  lunch_in: '',
+  lunch_out: '',
+  permission_hours: '',
+  overtime_hours: '',
+});
+
+const DRAFT_STORAGE_PREFIX = 'ctechemp:daily-timesheet-draft:v1';
+
 const TimesheetPage = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -273,6 +304,8 @@ const TimesheetPage = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogMode, setDialogMode] = useState('add'); // 'add' or 'edit'
   const [editingTimesheet, setEditingTimesheet] = useState(null);
+  const [timesheetToDelete, setTimesheetToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [empId, setEmpId] = useState('');
   const [employeeName, setEmployeeName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -296,6 +329,8 @@ const TimesheetPage = () => {
   const [todayTimesheetStatus, setTodayTimesheetStatus] = useState(null);
   const [showTodayAlert, setShowTodayAlert] = useState(false);
   const [criticalAlertVisible, setCriticalAlertVisible] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
+  const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const [notificationPreferences, setNotificationPreferences] = useState({
     email_notifications: true,
     in_app_notifications: true,
@@ -447,12 +482,10 @@ const TimesheetPage = () => {
     if (!user?.uid || !empId) return;
 
     try {
-      const token = await user.getIdToken();
-      const response = await fetch(`${API_BASE_URL}notifications/timesheet/reconcile`, {
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/timesheet/reconcile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           user_id: user.uid,
@@ -477,7 +510,11 @@ const TimesheetPage = () => {
 
     setNotificationLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/user/${user.uid}?unread_only=true`);
+      const response = await fetchWithFirebaseAuth(
+        user,
+        `${API_BASE_URL}notifications/user/${user.uid}?unread_only=true`,
+        { cache: 'no-store' },
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -497,7 +534,9 @@ const TimesheetPage = () => {
     if (!user?.uid) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/user/${user.uid}`);
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/user/${user.uid}`, {
+        cache: 'no-store',
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -511,7 +550,9 @@ const TimesheetPage = () => {
 
   const markNotificationAsRead = async (notificationId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}/read`, { method: 'PUT' });
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/${notificationId}/read`, {
+        method: 'PUT',
+      });
 
       if (response.ok) {
         setNotifications((prev) => prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif)));
@@ -527,7 +568,9 @@ const TimesheetPage = () => {
     if (!user?.uid) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`, { method: 'PUT' });
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/user/${user.uid}/mark-all-read`, {
+        method: 'PUT',
+      });
 
       if (response.ok) {
         setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: true })));
@@ -543,7 +586,9 @@ const TimesheetPage = () => {
 
   const deleteNotification = async (notificationId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}notifications/${notificationId}`, { method: 'DELETE' });
+      const response = await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/${notificationId}`, {
+        method: 'DELETE',
+      });
 
       if (response.ok) {
         setNotifications((prev) => prev.filter((notif) => notif.id !== notificationId));
@@ -628,7 +673,7 @@ const TimesheetPage = () => {
     setNotificationPreferences(updatedPrefs);
 
     try {
-      await fetch(`${API_BASE_URL}notifications/preferences`, {
+      await fetchWithFirebaseAuth(user, `${API_BASE_URL}notifications/preferences`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.uid, preferences: updatedPrefs }),
@@ -658,35 +703,128 @@ const TimesheetPage = () => {
       }, 30 * 60 * 1000);
 
       const notificationInterval = setInterval(syncNotifications, 5 * 60 * 1000);
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-          fetchTimesheets();
-          syncNotifications();
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
 
       return () => {
         clearInterval(timesheetInterval);
         clearInterval(notificationInterval);
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
     }
   }, [empId]);
 
-  const [formData, setFormData] = useState({
-    date: new Date(),
-    activity_category: '',
-    work_mode: '',
-    description: '',
-    check_in: '',
-    check_out: '',
-    lunch_in: '',
-    lunch_out: '',
-    permission_hours: '',
-    overtime_hours: '',
-  });
+  const [formData, setFormData] = useState(createEmptyTimesheetForm);
+
+  const getDraftStorageKey = () => {
+    const employeeKey = empId || user?.uid;
+    return employeeKey ? `${DRAFT_STORAGE_PREFIX}:${employeeKey}` : null;
+  };
+
+  const hasMeaningfulDraftData = (data) => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const selectedDate = data.date instanceof Date && !Number.isNaN(data.date.getTime())
+      ? format(data.date, 'yyyy-MM-dd')
+      : today;
+
+    return (
+      selectedDate !== today ||
+      [
+        data.activity_category,
+        data.work_mode,
+        data.description,
+        data.check_in,
+        data.check_out,
+        data.lunch_in,
+        data.lunch_out,
+        data.permission_hours,
+        data.overtime_hours,
+      ].some((value) => String(value ?? '').trim() !== '')
+    );
+  };
+
+  const clearSavedDraft = () => {
+    const storageKey = getDraftStorageKey();
+    try {
+      if (storageKey) localStorage.removeItem(storageKey);
+    } catch (draftError) {
+      console.error('Failed to clear timesheet draft:', draftError);
+    }
+    setHasSavedDraft(false);
+    setDraftSavedAt(null);
+  };
+
+  const restoreSavedDraft = () => {
+    const storageKey = getDraftStorageKey();
+    if (!storageKey) return false;
+
+    try {
+      const savedDraft = JSON.parse(localStorage.getItem(storageKey));
+      if (!savedDraft?.formData) {
+        setHasSavedDraft(false);
+        setDraftSavedAt(null);
+        return false;
+      }
+
+      const emptyForm = createEmptyTimesheetForm();
+      const savedDate = savedDraft.formData.date ? parseISO(savedDraft.formData.date) : emptyForm.date;
+      setFormData({
+        ...emptyForm,
+        ...Object.fromEntries(
+          Object.keys(emptyForm)
+            .filter((field) => field !== 'date')
+            .map((field) => [field, savedDraft.formData[field] ?? emptyForm[field]])
+        ),
+        date: Number.isNaN(savedDate.getTime()) ? emptyForm.date : savedDate,
+      });
+      setHasSavedDraft(true);
+      setDraftSavedAt(savedDraft.savedAt ? new Date(savedDraft.savedAt) : new Date());
+      return true;
+    } catch (draftError) {
+      console.error('Failed to restore timesheet draft:', draftError);
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {
+        // The storage error was already reported above.
+      }
+      setHasSavedDraft(false);
+      setDraftSavedAt(null);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    if (!openDialog || dialogMode !== 'add') return;
+
+    const storageKey = getDraftStorageKey();
+    if (!storageKey) return;
+
+    if (!hasMeaningfulDraftData(formData)) {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (draftError) {
+        console.error('Failed to clear empty timesheet draft:', draftError);
+      }
+      setHasSavedDraft(false);
+      setDraftSavedAt(null);
+      return;
+    }
+
+    try {
+      const savedAt = new Date();
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          formData: {
+            ...formData,
+            date: format(formData.date, 'yyyy-MM-dd'),
+          },
+          savedAt: savedAt.toISOString(),
+        })
+      );
+      setHasSavedDraft(true);
+      setDraftSavedAt(savedAt);
+    } catch (draftError) {
+      console.error('Failed to save timesheet draft:', draftError);
+    }
+  }, [formData, openDialog, dialogMode, empId, user?.uid]);
 
   const requiresTimeTracking = (activity) =>
     activity === 'Productive Effort' || activity === 'Idle - System Issue' || activity === 'Idle - Power Issue';
@@ -704,20 +842,12 @@ const TimesheetPage = () => {
 
     return mode || (isMinimalActivity(activity) ? activity : 'N/A');
   };
+  const getDisplayDescription = (timesheet) =>
+    timesheet.description ||
+    (timesheet.activity_category === 'Sunday / Holiday' ? 'Sunday / Holiday' : 'No description provided');
 
   const resetForm = () => {
-    setFormData({
-      date: new Date(),
-      activity_category: '',
-      work_mode: '',
-      description: '',
-      check_in: '',
-      check_out: '',
-      lunch_in: '',
-      lunch_out: '',
-      permission_hours: '',
-      overtime_hours: '',
-    });
+    setFormData(createEmptyTimesheetForm());
     setEditingTimesheet(null);
   };
 
@@ -747,7 +877,14 @@ const TimesheetPage = () => {
   const handleOpenAddDialog = () => {
     setDialogMode('add');
     resetForm();
+    restoreSavedDraft();
     setOpenDialog(true);
+  };
+
+  const handleDiscardDraft = () => {
+    clearSavedDraft();
+    resetForm();
+    showToast('Timesheet draft discarded', 'info');
   };
 
   const handleOpenEditDialog = (timesheet) => {
@@ -784,8 +921,8 @@ const TimesheetPage = () => {
     return selectedDate <= today;
   };
 
-  // Calculate working hours (total hours from check-in/out minus lunch and permission)
-  const calculateWorkingHours = (checkIn, checkOut, lunchIn, lunchOut, permissionHours) => {
+  // Permission hours are recorded separately and do not reduce working hours.
+  const calculateWorkingHours = (checkIn, checkOut, lunchIn, lunchOut) => {
     if (!checkIn || !checkOut) return 0;
     
     try {
@@ -799,11 +936,6 @@ const TimesheetPage = () => {
         const [lOutHour, lOutMin] = lunchOut.split(':').map(Number);
         const lunchMinutes = lOutHour * 60 + lOutMin - (lInHour * 60 + lInMin);
         totalMinutes -= lunchMinutes;
-      }
-      
-      // Subtract permission hours (convert to minutes)
-      if (permissionHours) {
-        totalMinutes -= parseFloat(permissionHours) * 60;
       }
       
       // Return hours as a number (rounded to 2 decimal places)
@@ -853,8 +985,7 @@ const TimesheetPage = () => {
         formData.check_in,
         formData.check_out,
         formData.lunch_in,
-        formData.lunch_out,
-        formData.permission_hours
+        formData.lunch_out
       );
 
       // Parse overtime hours
@@ -892,6 +1023,7 @@ const TimesheetPage = () => {
       if (response.ok) {
         const data = await response.json();
         showToast(dialogMode === 'edit' ? 'Timesheet updated successfully!' : 'Timesheet added successfully!', 'success');
+        if (dialogMode === 'add') clearSavedDraft();
         handleCloseDialog();
         fetchTimesheets();
 
@@ -913,14 +1045,16 @@ const TimesheetPage = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this timesheet?')) return;
+  const handleDelete = async () => {
+    if (!timesheetToDelete) return;
 
+    setDeleting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}timesheets/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}timesheets/${timesheetToDelete.id}`, { method: 'DELETE' });
 
       if (response.ok) {
         showToast('Timesheet deleted successfully!', 'success');
+        setTimesheetToDelete(null);
         fetchTimesheets();
       } else {
         const errorData = await response.json();
@@ -930,6 +1064,8 @@ const TimesheetPage = () => {
     } catch (err) {
       showToast('Failed to delete timesheet', 'error');
       setError('Failed to delete timesheet');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -1047,17 +1183,7 @@ const TimesheetPage = () => {
     return (
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <GlobalStyles styles={fontImport} />
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh" sx={{ bgcolor: COLORS.bg }}>
-          <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="colored" />
-          <Fade in={loading} style={{ transitionDelay: '200ms' }}>
-            <Box textAlign="center">
-              <CircularProgress size={56} thickness={4} sx={{ mb: 2, color: COLORS.primary }} />
-              <Typography sx={{ fontWeight: 600, color: COLORS.ink }}>
-                <Display>Loading your timesheets…</Display>
-              </Typography>
-            </Box>
-          </Fade>
-        </Box>
+        <PageSkeleton />
       </LocalizationProvider>
     );
   }
@@ -1222,7 +1348,7 @@ const TimesheetPage = () => {
                 <Display>{stats.productiveDays} productive days logged</Display>
               </Typography>
               <Typography variant="body2" sx={{ color: COLORS.muted }}>
-                Employee ID: {empId || 'loading…'}
+                Employee ID: {empId || <Skeleton component="span" width={84} height={18} sx={{ display: 'inline-block', verticalAlign: 'middle' }} />}
               </Typography>
             </Box>
 
@@ -1444,18 +1570,18 @@ const TimesheetPage = () => {
         )}
 
         {/* Timesheets table */}
-        <Surface sx={{ overflow: 'hidden' }}>
-          <TableContainer sx={{ maxHeight: 'calc(100vh - 480px)', minHeight: 320 }}>
-            <Table stickyHeader size="medium">
+        <Surface sx={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+          <TableContainer sx={{ width: '100%', maxHeight: 'calc(100vh - 480px)', minHeight: 320, overflowX: 'auto' }}>
+            <Table stickyHeader size="medium" sx={{ tableLayout: 'fixed', minWidth: 1180 }}>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, width: 48, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }} />
-                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Date / Day</TableCell>
-                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Activity</TableCell>
-                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Work mode</TableCell>
-                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Description</TableCell>
-                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Hours</TableCell>
-                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}`, width: 150 }}>Actions</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, width: 150, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Date / Day</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, width: 190, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Activity</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, width: 170, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Work mode</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, width: 430, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Description</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, width: 90, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Hours</TableCell>
+                  <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}`, width: 102 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
 
@@ -1464,6 +1590,7 @@ const TimesheetPage = () => {
                   filteredTimesheets.map((row) => {
                     const expanded = expandedRows.includes(row.id);
                     const displayWorkMode = getDisplayWorkMode(row);
+                    const displayDescription = getDisplayDescription(row);
                     // Calculate working hours (total_hours - ot_hours)
                     const workingHours = (parseFloat(row.total_hours) || 0) - (parseFloat(row.ot_hours) || 0);
                     const otHours = parseFloat(row.ot_hours) || 0;
@@ -1498,21 +1625,40 @@ const TimesheetPage = () => {
                             <WorkModeChip label={displayWorkMode} size="small" mode={displayWorkMode} />
                           </TableCell>
 
-                          <TableCell sx={{ maxWidth: 220 }}>
-                            <Tooltip title={row.description || 'No description'} arrow>
-                              <Typography
-                                variant="body2"
+                          <TableCell sx={{ width: 430, maxWidth: 430, verticalAlign: 'middle', overflow: 'hidden' }}>
+                            <Tooltip title={<Box sx={{ whiteSpace: 'pre-wrap' }}>{displayDescription}</Box>} arrow>
+                              <Box
                                 sx={{
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 1,
-                                  WebkitBoxOrient: 'vertical',
-                                  overflow: 'hidden',
-                                  color: row.description ? COLORS.ink : COLORS.faint,
-                                  fontStyle: row.description ? 'normal' : 'italic',
+                                  width: '100%',
+                                  maxWidth: '100%',
+                                  maxHeight: 108,
+                                  overflowY: 'auto',
+                                  overflowX: 'hidden',
+                                  boxSizing: 'border-box',
+                                  p: 1.25,
+                                  pr: 1,
+                                  borderRadius: 2,
+                                  bgcolor: alpha(COLORS.primary, 0.035),
+                                  borderLeft: `3px solid ${alpha(COLORS.primary, 0.35)}`,
+                                  scrollbarWidth: 'thin',
+                                  scrollbarColor: `${alpha(COLORS.primary, 0.35)} transparent`,
+                                  '&::-webkit-scrollbar': { width: 5 },
+                                  '&::-webkit-scrollbar-thumb': {
+                                    bgcolor: alpha(COLORS.primary, 0.3),
+                                    borderRadius: 999,
+                                  },
                                 }}
                               >
-                                {row.description || 'No description provided'}
-                              </Typography>
+                                <FormattedDescription
+                                  text={displayDescription}
+                                  sx={{
+                                    width: '100%',
+                                    maxWidth: '100%',
+                                    color: row.description || row.activity_category === 'Sunday / Holiday' ? COLORS.ink : COLORS.faint,
+                                    fontStyle: row.description || row.activity_category === 'Sunday / Holiday' ? 'normal' : 'italic',
+                                  }}
+                                />
+                              </Box>
                             </Tooltip>
                           </TableCell>
 
@@ -1533,7 +1679,7 @@ const TimesheetPage = () => {
                                 </IconButton>
                               </Tooltip>
                               <Tooltip title="Delete">
-                                <IconButton size="small" onClick={() => handleDelete(row.id)} sx={{ bgcolor: alpha(COLORS.danger, 0.08), color: COLORS.danger, '&:hover': { bgcolor: COLORS.danger, color: 'white' } }}>
+                                <IconButton size="small" onClick={() => setTimesheetToDelete(row)} sx={{ bgcolor: alpha(COLORS.danger, 0.08), color: COLORS.danger, '&:hover': { bgcolor: COLORS.danger, color: 'white' } }}>
                                   <DeleteIcon fontSize="small" />
                                 </IconButton>
                               </Tooltip>
@@ -1594,9 +1740,7 @@ const TimesheetPage = () => {
                                       <Typography variant="body2" sx={{ fontWeight: 600, color: COLORS.warning, mb: 0.5 }}>
                                         Description
                                       </Typography>
-                                      <Typography variant="body2" sx={{ color: COLORS.ink }}>
-                                        {row.description || 'No description provided'}
-                                      </Typography>
+                                      <FormattedDescription text={displayDescription} sx={{ color: COLORS.ink }} />
                                     </Box>
 
                                     <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -1642,12 +1786,12 @@ const TimesheetPage = () => {
                                     </Grid>
 
                                     {row.permission_hours > 0 && (
-                                      <Box sx={{ p: 1.75, mb: 2, bgcolor: alpha(COLORS.danger, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.danger, 0.2)}` }}>
-                                        <Typography variant="body2" sx={{ fontWeight: 600, color: COLORS.danger, mb: 0.5 }}>
+                                      <Box sx={{ p: 1.75, mb: 2, bgcolor: alpha(COLORS.violet, 0.07), borderRadius: 2.5, border: `1px solid ${alpha(COLORS.violet, 0.2)}` }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, color: COLORS.violet, mb: 0.5 }}>
                                           Permission Hours
                                         </Typography>
                                         <Typography variant="body2" sx={{ color: COLORS.ink }}>
-                                          {row.permission_hours}h (subtracted from working hours)
+                                          {row.permission_hours}h (recorded separately; not deducted)
                                         </Typography>
                                       </Box>
                                     )}
@@ -1728,6 +1872,25 @@ const TimesheetPage = () => {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
             <DialogContent sx={{ p: { xs: 2, sm: 3, md: 4 }, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              {dialogMode === 'add' && hasSavedDraft && (
+                <Alert
+                  severity="info"
+                  icon={<SaveIcon />}
+                  action={
+                    <Button color="inherit" size="small" onClick={handleDiscardDraft} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                      Discard draft
+                    </Button>
+                  }
+                  sx={{ mb: 2.5, borderRadius: 2.5 }}
+                >
+                  Draft saved automatically on this device
+                  {draftSavedAt && !Number.isNaN(draftSavedAt.getTime())
+                    ? ` at ${draftSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : ''}
+                  .
+                </Alert>
+              )}
+
               <Typography variant="caption" sx={{ fontWeight: 700, color: COLORS.faint, letterSpacing: 1 }}>
                 DATE & ACTIVITY
               </Typography>
@@ -1846,7 +2009,7 @@ const TimesheetPage = () => {
                             onChange={handleInputChange}
                             sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
                             InputProps={{ inputProps: { min: 0, max: 8, step: 0.5 }, endAdornment: <Typography variant="body2" sx={{ color: COLORS.muted }}>hours</Typography> }}
-                            helperText="Subtracted from working hours"
+                            helperText="Stored separately; not deducted from working hours"
                           />
                         </Grid>
                         <Grid item xs={12} sm={4} width={'100%'}>
@@ -1873,8 +2036,7 @@ const TimesheetPage = () => {
                                   formData.check_in,
                                   formData.check_out,
                                   formData.lunch_in,
-                                  formData.lunch_out,
-                                  formData.permission_hours
+                                  formData.lunch_out
                                 ) + (parseFloat(formData.overtime_hours) || 0)
                               ).toFixed(1)}h
                             </Typography>
@@ -1923,6 +2085,51 @@ const TimesheetPage = () => {
               </DialogActions>
             </Box>
           </form>
+        </Dialog>
+
+        {/* Delete confirmation dialog */}
+        <Dialog
+          open={Boolean(timesheetToDelete)}
+          onClose={() => !deleting && setTimesheetToDelete(null)}
+          maxWidth="xs"
+          fullWidth
+          PaperProps={{ sx: { borderRadius: '18px', p: 1 } }}
+        >
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700, color: COLORS.ink }}>
+            <Box sx={{ display: 'flex', p: 1, borderRadius: '50%', bgcolor: alpha(COLORS.danger, 0.1), color: COLORS.danger }}>
+              <WarningIcon />
+            </Box>
+            Delete timesheet?
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" sx={{ color: COLORS.muted }}>
+              Are you sure you want to delete the timesheet for{' '}
+              <Box component="span" sx={{ fontWeight: 700, color: COLORS.ink }}>
+                {timesheetToDelete?.date ? format(parseISO(timesheetToDelete.date), 'dd/MM/yyyy') : ''}
+              </Box>
+              {timesheetToDelete?.activity_category ? ` (${timesheetToDelete.activity_category})` : ''}? This action cannot be undone.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={() => setTimesheetToDelete(null)}
+              disabled={deleting}
+              variant="outlined"
+              sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 600, borderColor: COLORS.border, color: COLORS.muted }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={deleting}
+              variant="contained"
+              color="error"
+              startIcon={deleting ? <CircularProgress size={18} color="inherit" /> : <DeleteIcon />}
+              sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700, minWidth: 110 }}
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogActions>
         </Dialog>
       </Shell>
     </LocalizationProvider>

@@ -90,6 +90,7 @@ import { useAuth } from '../context/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../Config';
 import { API_BASE_URL } from '../Config';
+import PageSkeleton from '../components/PageSkeleton';
 
 const localizer = momentLocalizer(moment);
 
@@ -996,7 +997,7 @@ const Todo = () => {
                   <Box textAlign="center">
                     <EventBusy sx={{ fontSize: 56, color: alpha(COLORS.muted, 0.3), mb: 2 }} />
                     <Typography variant="h6" sx={{ color: COLORS.ink, fontWeight: 700 }}>
-                      {loading ? 'Loading your tasks…' : 'Nothing here yet'}
+                      Nothing here yet
                     </Typography>
                     <Typography variant="body2" sx={{ color: COLORS.muted }}>
                       {searchTerm || filterPriority.length > 0 || filterCategory.length > 0
@@ -1130,18 +1131,7 @@ const Todo = () => {
   );
 
   if (loading && todos.length === 0) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh" sx={{ bgcolor: COLORS.bg }}>
-        <Fade in={loading} style={{ transitionDelay: '200ms' }}>
-          <Box textAlign="center">
-            <CircularProgress size={56} thickness={4} sx={{ color: COLORS.primary, mb: 2 }} />
-            <Typography sx={{ fontWeight: 600, color: COLORS.ink }}>
-              <Display>Loading your tasks…</Display>
-            </Typography>
-          </Box>
-        </Fade>
-      </Box>
-    );
+    return <PageSkeleton />;
   }
 
   return (

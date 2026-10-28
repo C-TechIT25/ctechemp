@@ -33,6 +33,8 @@ import { doc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { styled } from "@mui/material/styles";
+import PageSkeleton from "../components/PageSkeleton";
+import { saveAuthDetails } from "../utils/authStorage";
 
 // Import your PNG logo
 import LogoImage from "../assets/Ctechsheet.png";
@@ -252,6 +254,10 @@ export default function Login() {
         return;
       }
 
+      // Cache safe display/profile data. Firebase itself securely persists the
+      // real authenticated session; never store the password or ID token here.
+      saveAuthDetails(user, userData);
+
       setLoading(false);
 
       // Redirect based on role
@@ -281,6 +287,10 @@ export default function Login() {
   const handleMouseDownPassword = (event) => {
     event.preventDefault();
   };
+
+  if (authLoading || !authInitialized) {
+    return <PageSkeleton fullScreen />;
+  }
 
   return (
     <>
