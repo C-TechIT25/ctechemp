@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { apiFetch as fetch } from '../utils/apiClient';
+import { useState, useEffect, useRef } from "react";
 import {
   AppBar,
   Toolbar,
@@ -90,30 +91,37 @@ export default function Header({ onMenuClick }) {
   const notificationOpen = Boolean(notificationAnchorEl);
   const isAdmin = ["Admin", "SuperAdmin"].includes(role);
 
-  const checkApiStatus = async () => {
+  const statusCheck = useRef(null);
+  const statusFailures = useRef(0);
+  const lastHealthyAt = useRef(0);
+  const checkApiStatus = () => {
+    if (statusCheck.current) return statusCheck.current;
+    const startedAt = Date.now();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-    try {
-      setApiStatus("checking");
-      const currentEmail = auth.currentUser?.email;
-      const statusUrl = currentEmail
-        ? `${API_BASE_URL}profile/${encodeURIComponent(currentEmail)}`
-        : API_BASE_URL;
-
-      const response = await fetch(statusUrl, {
-        method: "GET",
-        cache: "no-store",
-        signal: controller.signal,
-      });
-
-      setApiStatus(response.status >= 500 ? "offline" : "online");
-    } catch (error) {
-      setApiStatus("offline");
-    } finally {
-      clearTimeout(timeoutId);
-      setLastApiCheckedAt(new Date());
-    }
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    statusCheck.current = (async () => {
+      try {
+        const email = auth.currentUser?.email;
+        const response = await fetch(email
+          ? `${API_BASE_URL}profile/${encodeURIComponent(email)}` : API_BASE_URL,
+          { signal: controller.signal, cache: 'no-store' });
+        if (response.status >= 500) throw new Error('API unavailable');
+        statusFailures.current = 0;
+        lastHealthyAt.current = Date.now();
+        setApiStatus('online');
+      } catch {
+        // A newer successful application request outweighs an older failed probe.
+        if (lastHealthyAt.current <= startedAt) {
+          statusFailures.current += 1;
+          setApiStatus(statusFailures.current >= 2 ? 'offline' : 'checking');
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        setLastApiCheckedAt(new Date());
+        statusCheck.current = null;
+      }
+    })();
+    return statusCheck.current;
   };
 
   const apiStatusConfig = {
@@ -255,10 +263,6 @@ export default function Header({ onMenuClick }) {
       setNow(new Date());
     }, 1000);
 
-    // Fetch profile data when component mounts
-    if (auth.currentUser) {
-      fetchProfileData();
-    }
 
     return () => clearInterval(interval);
   }, []);
@@ -268,7 +272,7 @@ export default function Header({ onMenuClick }) {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         fetchProfileData();
-        checkApiStatus();
+
       } else {
         setProfileImage(null);
         setProfileData(null);
@@ -282,8 +286,28 @@ export default function Header({ onMenuClick }) {
   useEffect(() => {
     checkApiStatus();
     const interval = setInterval(checkApiStatus, 30000);
-
-    return () => clearInterval(interval);
+    const onResponse = (event) => {
+      if (event.detail.status < 500) {
+        lastHealthyAt.current = Date.now();
+        statusFailures.current = 0;
+        setApiStatus('online');
+        setLastApiCheckedAt(new Date());
+      }
+    };
+    const onOffline = () => setApiStatus('offline');
+    window.addEventListener('api:response', onResponse);
+    window.addEventListener('api:failure', checkApiStatus);
+    window.addEventListener('online', checkApiStatus);
+    window.addEventListener('focus', checkApiStatus);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('api:response', onResponse);
+      window.removeEventListener('api:failure', checkApiStatus);
+      window.removeEventListener('online', checkApiStatus);
+      window.removeEventListener('focus', checkApiStatus);
+      window.removeEventListener('offline', onOffline);
+    };
   }, []);
 
   useEffect(() => {

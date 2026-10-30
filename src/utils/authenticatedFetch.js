@@ -1,3 +1,4 @@
+import { apiFetch as fetch } from './apiClient';
 /**
  * Fetch an API resource with the signed-in user's Firebase ID token.
  *

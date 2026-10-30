@@ -1,3 +1,6 @@
+import { drawReportHeader, drawReportStats } from '../utils/pdfReportLayout';
+import { apiFetch as fetch } from '../utils/apiClient';
+import { useSessionState, useRefreshOnReturn } from '../context/useSessionState';
 import { useEffect, useState } from "react";
 import {
   collection,
@@ -161,12 +164,12 @@ const RadialProgress = ({ value = 0, size = 108, stroke = 11, color = COLORS.pri
 };
 
 const StatTile = ({ label, value, color, icon }) => (
-  <Box sx={{ p: 1.75, borderRadius: '14px', bgcolor: alpha(color, 0.06), borderLeft: `3px solid ${color}`, minWidth: 130, flex: 1 }}>
+  <Box sx={{ p: 2.25, borderRadius: '16px', background: `linear-gradient(135deg, #fff, ${alpha(color, 0.05)})`, border: `1px solid ${COLORS.border}`, minWidth: 0, minHeight: 112, boxSizing: 'border-box' }}>
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Typography sx={{ fontWeight: 800, fontSize: '1.4rem', color }}>
+      <Typography sx={{ fontWeight: 800, fontSize: '1.9rem', color: COLORS.ink, fontVariantNumeric: 'tabular-nums' }}>
         <Display>{value}</Display>
       </Typography>
-      <Box sx={{ color, opacity: 0.85, display: 'flex' }}>{icon}</Box>
+      <Box sx={{ color, bgcolor: alpha(color, 0.10), borderRadius: '12px', width: 40, height: 40, alignItems: 'center', justifyContent: 'center', display: 'flex' }}>{icon}</Box>
     </Box>
     <Typography variant="caption" sx={{ color: COLORS.muted, fontWeight: 500 }}>
       {label}
@@ -175,13 +178,13 @@ const StatTile = ({ label, value, color, icon }) => (
 );
 
 // Status / role / work-mode color maps — drive chip colors consistently.
-const STATUS_COLOR = { 
-  active: COLORS.success, 
+const STATUS_COLOR = {
+  active: COLORS.success,
   Active: COLORS.success,
-  inactive: COLORS.muted, 
-  Inactive: COLORS.muted, 
-  "on hold": COLORS.warning, 
-  "On Hold": COLORS.warning 
+  inactive: COLORS.muted,
+  Inactive: COLORS.muted,
+  "on hold": COLORS.warning,
+  "On Hold": COLORS.warning
 };
 const ROLE_COLOR = { SuperAdmin: COLORS.danger, Admin: COLORS.danger, TeamLead: COLORS.warning, Employee: COLORS.primary };
 
@@ -352,7 +355,7 @@ const getImageUrl = (profileData) => {
 export default function UserManagement() {
   const { role } = useAuth();
   const canDeleteUsers = role === "SuperAdmin";
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useSessionState('UserManagement:users', []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(initialForm);
@@ -363,7 +366,7 @@ export default function UserManagement() {
 
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
-  const [departments, setDepartments] = useState([]);
+  const [departments, setDepartments] = useSessionState('UserManagement:departments', []);
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [selectedRole, setSelectedRole] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
@@ -452,12 +455,12 @@ export default function UserManagement() {
     try {
       console.log('📤 Fetching users from:', `${API_BASE_URL}employees`);
 
-      const response = await fetch(`${API_BASE_URL}employees`, {
+      const [response, fbSnap] = await Promise.all([fetch(`${API_BASE_URL}employees`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
         }
-      });
+      }), getDocs(collection(db, "users"))]);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -467,11 +470,11 @@ export default function UserManagement() {
       const pgData = await response.json();
       console.log('📥 Received employees data:', pgData);
 
-      const fbSnap = await getDocs(collection(db, "users"));
       const fbData = fbSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
+      const usersByEmail = new Map(fbData.map(user => [user.email, user]));
       const combinedUsers = pgData.map((pgUser) => {
-        const fbUser = fbData.find((fb) => fb.email === pgUser.email);
+        const fbUser = usersByEmail.get(pgUser.email);
         return {
           ...pgUser,
           uid: fbUser?.uid,
@@ -498,6 +501,8 @@ export default function UserManagement() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  useRefreshOnReturn(fetchUsers);
 
   /* ================= FORM CHANGE ================= */
   const handleChange = (e) => {
@@ -847,7 +852,7 @@ export default function UserManagement() {
 
       // ===== COLOR PALETTE (matches the app's indigo theme) =====
       const PDF_COLORS = {
-        primary: [79, 70, 229],         // Indigo #4F46E5
+        primary: [14, 165, 233],        // App theme #0EA5E9
         text: [30, 27, 46],             // Ink
         lightText: [107, 114, 128],     // Muted gray
         border: [229, 231, 235],        // Light gray
@@ -860,28 +865,10 @@ export default function UserManagement() {
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const MARGIN = { top: 12, right: 12, bottom: 15, left: 12 };
-      const CONTENT_WIDTH = pageWidth - MARGIN.left - MARGIN.right;
+      const MARGIN = { top: 12, right: 12, bottom: 24, left: 12 };
 
-      let currentY = MARGIN.top;
 
-      doc.setFontSize(18);
-      doc.setTextColor(...PDF_COLORS.text);
-      doc.setFont('helvetica', 'bold');
-      doc.text('User Management Report', MARGIN.left, currentY);
-
-      doc.setFontSize(10);
-      doc.setTextColor(...PDF_COLORS.lightText);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Employee Directory and Access Control', MARGIN.left, currentY + 5);
-
-      doc.setFontSize(9);
-      doc.setTextColor(...PDF_COLORS.lightText);
-      const currentDate = new Date().toLocaleString();
-      doc.text(`Generated: ${currentDate}`, pageWidth - MARGIN.right, currentY, { align: 'right' });
-      doc.text(`Total Records: ${exportData.length}`, pageWidth - MARGIN.right, currentY + 5, { align: 'right' });
-
-      currentY += 14;
+      let currentY = drawReportHeader(doc, { title: 'User Management Report', subtitle: 'Employee directory and access control', count: exportData.length, margin: MARGIN });
 
       // Calculate stats using normalized status
       const activeCount = exportData.filter(u => normalizeStatus(u.status) === 'active').length;
@@ -895,34 +882,7 @@ export default function UserManagement() {
         { label: 'Total Users', value: exportData.length.toString(), borderColor: PDF_COLORS.primary },
       ];
 
-      const statBoxWidth = CONTENT_WIDTH / 4 - 1.5;
-      const statBoxHeight = 16;
-      const statBoxY = currentY;
-
-      stats.forEach((stat, index) => {
-        const boxX = MARGIN.left + (index * (statBoxWidth + 2));
-
-        doc.setFillColor(...PDF_COLORS.white);
-        doc.setDrawColor(...PDF_COLORS.border);
-        doc.setLineWidth(0.3);
-        doc.rect(boxX, statBoxY, statBoxWidth, statBoxHeight, 'FD');
-
-        doc.setDrawColor(...stat.borderColor);
-        doc.setLineWidth(0.8);
-        doc.line(boxX, statBoxY, boxX, statBoxY + statBoxHeight);
-
-        doc.setFontSize(7);
-        doc.setTextColor(...PDF_COLORS.lightText);
-        doc.setFont('helvetica', 'normal');
-        doc.text(stat.label, boxX + 3, statBoxY + 3.5);
-
-        doc.setFontSize(12);
-        doc.setTextColor(...stat.borderColor);
-        doc.setFont('helvetica', 'bold');
-        doc.text(stat.value, boxX + 3, statBoxY + 11);
-      });
-
-      currentY = statBoxY + statBoxHeight + 7;
+      currentY = drawReportStats(doc, { stats, count: exportData.length, y: currentY, margin: MARGIN });
 
       const tableColumn = ["S.No", "Emp ID", "Name", "Email", "Department", "Designation", "Status", "Role", "Work Mode", "Hours"];
       const tableRows = [];
@@ -992,19 +952,19 @@ export default function UserManagement() {
         },
 
         didParseCell: function (data) {
-          if (data.column.index === 6) {
+          if (data.section === 'body' && data.column.index === 6) {
             const cellText = data.cell.text[0] || '';
             const statusLower = cellText.toLowerCase().trim();
 
             if (statusLower === 'on hold') {
-              data.cell.textColor = PDF_COLORS.onHold;
-              data.cell.fontStyle = 'normal';
+              data.cell.styles.textColor = PDF_COLORS.onHold;
+              data.cell.styles.fontStyle = 'normal';
             } else if (statusLower === 'inactive') {
-              data.cell.textColor = PDF_COLORS.inactive;
-              data.cell.fontStyle = 'normal';
+              data.cell.styles.textColor = PDF_COLORS.inactive;
+              data.cell.styles.fontStyle = 'normal';
             } else if (statusLower === 'active') {
-              data.cell.textColor = PDF_COLORS.text;
-              data.cell.fontStyle = 'normal';
+              data.cell.styles.textColor = PDF_COLORS.text;
+              data.cell.styles.fontStyle = 'normal';
             }
           }
         },
@@ -1012,32 +972,23 @@ export default function UserManagement() {
         margin: MARGIN,
         rowPageBreak: 'avoid',
 
-        didDrawPage: function (data) {
-          const pageCount = doc.internal.getNumberOfPages();
+      showHead: 'everyPage',
+    });
 
-          doc.setDrawColor(...PDF_COLORS.primary);
-          doc.setLineWidth(0.5);
-          doc.line(MARGIN.left, pageHeight - MARGIN.bottom - 5, pageWidth - MARGIN.right, pageHeight - MARGIN.bottom - 5);
+    // Draw footers only after pagination is complete; keep them below the table.
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let page = 1; page <= pageCount; page += 1) {
+      doc.setPage(page);
+      doc.setDrawColor(...PDF_COLORS.primary);
+      doc.setLineWidth(0.4);
+      doc.line(MARGIN.left, pageHeight - 17, pageWidth - MARGIN.right, pageHeight - 17);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(...PDF_COLORS.lightText);
+      doc.text('C-Tech Engineering - Confidential', MARGIN.left, pageHeight - 10);
+      doc.text(`Page ${page} of ${pageCount}`, pageWidth - MARGIN.right, pageHeight - 10, { align: 'right' });
+    }
 
-          doc.setFontSize(7);
-          doc.setTextColor(...PDF_COLORS.lightText);
-          doc.setFont('helvetica', 'normal');
-
-          doc.text(
-            `Page ${data.pageNumber} of ${pageCount}`,
-            pageWidth / 2,
-            pageHeight - MARGIN.bottom + 3,
-            { align: 'center' }
-          );
-
-          doc.setFontSize(6);
-          doc.text(
-            '© User Management System - Confidential',
-            MARGIN.left,
-            pageHeight - MARGIN.bottom + 3
-          );
-        }
-      });
 
       const fileName = `User_Management_Report_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
@@ -1139,7 +1090,7 @@ export default function UserManagement() {
 
     const matchesDepartment = selectedDepartment === "all" || user.department === selectedDepartment;
     const matchesRole = selectedRole === "all" || user.role === selectedRole;
-    
+
     // Normalize status for comparison
     const userStatusNormalized = normalizeStatus(user.status);
     const filterStatusNormalized = selectedStatus === "all" ? "all" : normalizeStatus(selectedStatus);
@@ -1277,9 +1228,9 @@ export default function UserManagement() {
           </Menu>
 
           {/* Overview */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3.5, flexWrap: 'wrap', mb: 3 }}>
-            <RadialProgress value={activeRate} color={COLORS.primary} />
-            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flex: 1, minWidth: 280 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '120px minmax(0, 1fr)' }, alignItems: 'center', gap: 2, mb: 3 }}>
+            <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}><RadialProgress value={activeRate} color={COLORS.primary} /></Box>
+            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(5, minmax(0, 1fr))' }, minWidth: 0 }}>
               <StatTile label="Total users" value={totalUsers} color={COLORS.primary} icon={<Groups fontSize="small" />} />
               <StatTile label="Active" value={activeUsers} color={COLORS.success} icon={<ChecklistRtl fontSize="small" />} />
               <StatTile label="On hold" value={onHoldUsers} color={COLORS.warning} icon={<BlockCircle fontSize="small" />} />
@@ -1400,7 +1351,7 @@ export default function UserManagement() {
               </TableHead>
 
               <TableBody>
-                {fetching ? (
+                {fetching && users.length === 0 ? (
                   Array.from({ length: 6 }, (_, rowIndex) => (
                     <TableRow key={`user-skeleton-${rowIndex}`}>
                       {Array.from({ length: 10 }, (_, cellIndex) => (

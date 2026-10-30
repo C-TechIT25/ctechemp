@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { Suspense } from 'react';
+import PageSkeleton from '../components/PageSkeleton';
 import { Outlet } from 'react-router-dom';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
@@ -10,7 +11,7 @@ const DashboardLayout = () => {
       <Sidebar />
       <Header />
       <Box component="main" sx={{ flexGrow: 1, p: 0 ,mt: 8, ml: -5}}>
-        <Outlet />
+        <Suspense fallback={<PageSkeleton />}><Outlet /></Suspense>
       </Box>
     </Box>
   );

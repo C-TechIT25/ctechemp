@@ -1,4 +1,8 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import WindowedTableRecord from '../components/WindowedTableRecord';
+import { drawReportHeader, drawReportMetrics } from '../utils/pdfReportLayout';
+import { apiFetch as fetch } from '../utils/apiClient';
+import { useSessionState, useRefreshOnReturn } from '../context/useSessionState';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   Box,
   Paper,
@@ -36,7 +40,6 @@ import {
   Checkbox,
   FormControlLabel,
   Divider,
-  Pagination,
   GlobalStyles,
 } from "@mui/material";
 import {
@@ -320,7 +323,7 @@ const getRemarkFirstWord = (remark) => {
 // ==================== MAIN COMPONENT ====================
 
 export default function Timesheet() {
-  const [timesheets, setTimesheets] = useState([]);
+  const [timesheets, setTimesheets] = useSessionState('Timesheet:timesheets', []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -332,11 +335,11 @@ export default function Timesheet() {
   const [updatingRemark, setUpdatingRemark] = useState(false);
 
   // Filter states
-  const [departments, setDepartments] = useState([]);
-  const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [departments, setDepartments] = useSessionState('Timesheet:departments', []);
+  const [selectedDepartment, setSelectedDepartment] = useSessionState('Timesheet:selectedDepartment', "all");
   const [selectedStatus, setSelectedStatus] = useState("all");
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const [startDate, setStartDate] = useSessionState('Timesheet:startDate', null);
+  const [endDate, setEndDate] = useSessionState('Timesheet:endDate', null);
   const [showFilters, setShowFilters] = useState(false);
 
   // Selection states
@@ -344,9 +347,6 @@ export default function Timesheet() {
   const [selectAll, setSelectAll] = useState(false);
   const [bulkUpdateLoading, setBulkUpdateLoading] = useState(false);
 
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Export menu state
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
@@ -418,19 +418,12 @@ export default function Timesheet() {
 
   const approvedRate = timesheets.length > 0 ? (stats.approvedTimesheets / timesheets.length) * 100 : 0;
 
-  const paginatedData = useMemo(() => {
-    const start = (page - 1) * rowsPerPage;
-    const end = start + rowsPerPage;
-    return filteredTimesheets.slice(start, end);
-  }, [filteredTimesheets, page, rowsPerPage]);
-
-  const totalPages = useMemo(() => {
-    return Math.ceil(filteredTimesheets.length / rowsPerPage);
-  }, [filteredTimesheets.length, rowsPerPage]);
-
   // ==================== API CALLS ====================
 
+  const requestVersion = useRef(0);
+  useEffect(() => () => { requestVersion.current += 1; }, []);
   const fetchTimesheets = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
@@ -454,6 +447,7 @@ export default function Timesheet() {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
+      if (version !== requestVersion.current) return;
       
       // Process data to include calculated hours
       const processedData = data.map(row => {
@@ -479,14 +473,14 @@ export default function Timesheet() {
       setTimesheets(processedData);
       setSelectedRows(new Set());
       setSelectAll(false);
-      setPage(1);
       toast.success(`Loaded ${processedData.length} timesheets successfully!`);
     } catch (error) {
+      if (version !== requestVersion.current) return;
       console.error("Fetch error:", error);
       setError("Failed to load timesheets. Please try again.");
       toast.error("Failed to load timesheets. Please try again.");
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [selectedDepartment, startDate, endDate]);
 
@@ -506,6 +500,8 @@ export default function Timesheet() {
     fetchDepartments();
   }, [fetchTimesheets, fetchDepartments]);
 
+  useRefreshOnReturn(fetchTimesheets);
+
   // ==================== FILTER FUNCTIONS ====================
 
   const handleApplyFilters = useCallback(() => {
@@ -519,8 +515,6 @@ export default function Timesheet() {
     setStartDate(null);
     setEndDate(null);
     setSearchTerm("");
-    setPage(1);
-    fetchTimesheets();
     toast.info("Filters cleared!");
   }, [fetchTimesheets]);
 
@@ -607,11 +601,11 @@ export default function Timesheet() {
     if (selectAll) {
       setSelectedRows(new Set());
     } else {
-      const allIds = paginatedData.map(row => row.id);
+      const allIds = filteredTimesheets.map(row => row.id);
       setSelectedRows(new Set(allIds));
     }
     setSelectAll(!selectAll);
-  }, [selectAll, paginatedData]);
+  }, [selectAll, filteredTimesheets]);
 
   const handleBulkApprove = useCallback(async () => {
     if (selectedRows.size === 0) {
@@ -737,12 +731,12 @@ export default function Timesheet() {
         }
       };
 
-      const doc = new jsPDF('p', 'mm', 'a4');
+      const doc = new jsPDF('portrait', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
       const PDF_COLORS = {
-        primary: [79, 70, 229],
+        primary: [14, 165, 233],
         text: [30, 27, 46],
         lightText: [107, 114, 128],
         border: [229, 231, 235],
@@ -758,75 +752,10 @@ export default function Timesheet() {
 
       const MARGIN = { top: 12, right: 12, bottom: 20, left: 12 };
       const CONTENT_WIDTH = pageWidth - MARGIN.left - MARGIN.right;
-      const PANEL_GAP = 2;
-      const PANEL_WIDTH = (CONTENT_WIDTH - (PANEL_GAP * 2)) / 3;
 
       let currentY = MARGIN.top;
 
-      const drawDetailsPanel = ({ x, y, title, height, rows, descriptionLines }) => {
-        doc.setFillColor(...PDF_COLORS.white);
-        doc.setDrawColor(...PDF_COLORS.panelBorder);
-        doc.setLineWidth(0.35);
-        doc.rect(x, y, PANEL_WIDTH, height, 'FD');
-
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...PDF_COLORS.text);
-        doc.text(title, x + 3, y + 5.5);
-
-        doc.setDrawColor(...PDF_COLORS.panelBorder);
-        doc.setLineWidth(0.25);
-        doc.line(x, y + 8.5, x + PANEL_WIDTH, y + 8.5);
-
-        if (descriptionLines) {
-          doc.setFillColor(...PDF_COLORS.rowAlt);
-          doc.setDrawColor(...PDF_COLORS.panelBorder);
-          doc.rect(x + 2.5, y + 11, PANEL_WIDTH - 5, height - 13.5, 'FD');
-
-          doc.setFontSize(5.8);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...PDF_COLORS.text);
-          doc.text(descriptionLines, x + 4, y + 15, { lineHeightFactor: 1.15 });
-          return;
-        }
-
-        rows.forEach(([label, value], rowIndex) => {
-          const rowY = y + 13 + (rowIndex * 4.2);
-
-          doc.setFontSize(5.8);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(...PDF_COLORS.lightText);
-          doc.text(label, x + 3, rowY);
-
-          doc.setTextColor(...PDF_COLORS.text);
-          doc.text(String(value), x + 22, rowY);
-        });
-      };
-
-      // ===== HEADER =====
-      doc.setFontSize(20);
-      doc.setTextColor(...PDF_COLORS.primary);
-      doc.setFont('helvetica', 'bold');
-      doc.text('C-Tech Engineering', MARGIN.left, currentY);
-
-      currentY += 6;
-      doc.setFontSize(11);
-      doc.setTextColor(...PDF_COLORS.text);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Employee Timesheet - Detailed Report', MARGIN.left, currentY);
-
-      doc.setFontSize(8);
-      doc.setTextColor(...PDF_COLORS.lightText);
-      const reportDate = format(new Date(), 'dd MMM yyyy, HH:mm');
-      doc.text(`Generated: ${reportDate}`, pageWidth - MARGIN.right, currentY - 6, { align: 'right' });
-      doc.text(`Total Records: ${selectedData.length}`, pageWidth - MARGIN.right, currentY, { align: 'right' });
-
-      currentY += 8;
-
-      doc.setDrawColor(...PDF_COLORS.primary);
-      doc.setLineWidth(0.5);
-      doc.line(MARGIN.left, currentY, pageWidth - MARGIN.right, currentY);
-      currentY += 6;
+      currentY = drawReportHeader(doc, { title: 'Timesheet Details', subtitle: 'Employee work records and time tracking', count: selectedData.length, margin: MARGIN });
 
       // ===== SUMMARY STATISTICS =====
       const totalWorkingHoursSel = selectedData.reduce((sum, row) => sum + (parseFloat(row.working_hours) || 0), 0);
@@ -845,171 +774,51 @@ export default function Timesheet() {
         { label: 'Approved', value: approvedCount.toString(), color: PDF_COLORS.success },
       ];
 
-      const statBoxWidth = (pageWidth - MARGIN.left - MARGIN.right - 10) / 6;
-      const statBoxHeight = 14;
-      const statBoxY = currentY;
+      currentY = drawReportMetrics(doc, { stats: summaryStats, y: currentY, margin: MARGIN });
 
-      summaryStats.forEach((stat, index) => {
-        const boxX = MARGIN.left + (index * (statBoxWidth + 2));
-
-        doc.setFillColor(...PDF_COLORS.white);
-        doc.setDrawColor(...PDF_COLORS.border);
-        doc.setLineWidth(0.3);
-        doc.rect(boxX, statBoxY, statBoxWidth, statBoxHeight, 'FD');
-
-        doc.setDrawColor(...stat.color);
-        doc.setLineWidth(0.8);
-        doc.line(boxX, statBoxY, boxX, statBoxY + statBoxHeight);
-
-        doc.setFontSize(6);
-        doc.setTextColor(...PDF_COLORS.lightText);
-        doc.setFont('helvetica', 'normal');
-        doc.text(stat.label, boxX + 2, statBoxY + 3.5);
-
-        doc.setFontSize(9);
-        doc.setTextColor(...stat.color);
-        doc.setFont('helvetica', 'bold');
-        doc.text(stat.value, boxX + 2, statBoxY + 9.5);
-      });
-
-      currentY = statBoxY + statBoxHeight + 10;
-
-      // ===== PROCESS EACH TIMESHEET =====
+      // AutoTable wraps long fields and descriptions safely across physical pages.
       selectedData.forEach((timesheet, index) => {
-        const descriptionLines = doc.splitTextToSize(
-          timesheet.description?.trim() || 'N/A',
-          PANEL_WIDTH - 10
-        );
-        const descriptionHeight = ((descriptionLines.length - 1) * 2.35) + 18;
-        const detailsPanelHeight = Math.max(38, descriptionHeight);
-
-        // Keep the three detail panels and the time section together where possible.
-        if (currentY + detailsPanelHeight + 22 > pageHeight - MARGIN.bottom) {
-          doc.addPage();
-          currentY = MARGIN.top;
-        }
-
-        doc.setFontSize(10);
-        doc.setTextColor(...PDF_COLORS.primary);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Record ${index + 1} of ${selectedData.length}`, MARGIN.left, currentY);
-        currentY += 3;
-
-        doc.setDrawColor(...PDF_COLORS.primary);
-        doc.setLineWidth(0.3);
-        doc.line(MARGIN.left, currentY, pageWidth - MARGIN.right, currentY);
-        currentY += 4;
-
-        const employeeFields = [
-          ['Name:', timesheet.employee_name || 'N/A'],
-          ['ID:', timesheet.emp_id || 'N/A'],
-          ['Designation:', timesheet.designation || 'N/A'],
-          ['Department:', timesheet.department || 'N/A'],
-          ['Date:', formatDateLocal(timesheet.date)],
-          ['Work Mode:', timesheet.work_mode || 'N/A'],
-        ];
-
-        const workFields = [
-          ['Day:', timesheet.day || 'N/A'],
-          ['Activity:', timesheet.activity_category || 'N/A'],
-          ['Working Hours:', `${(timesheet.working_hours || 0).toFixed(1)}h`],
-          ['OT Hours:', `${(timesheet.ot_hours || 0).toFixed(1)}h`],
-          ['Total Hours:', `${(timesheet.total_hours_calculated || 0).toFixed(1)}h`],
-          ['Permission Hours:', `${timesheet.permission_hours || '0.0'}h`],
-        ];
-
-        const panelY = currentY;
-        drawDetailsPanel({
-          x: MARGIN.left,
-          y: panelY,
-          title: 'Employee Information',
-          height: detailsPanelHeight,
-          rows: employeeFields,
+        const hours = value => `${(Number(value) || 0).toFixed(1)}h`;
+        const employee = [
+          `Name: ${timesheet.employee_name || 'N/A'}`,
+          `ID: ${timesheet.emp_id || 'N/A'}`,
+          `Designation: ${timesheet.designation || 'N/A'}`,
+          `Department: ${timesheet.department || 'N/A'}`,
+          `Date: ${formatDateLocal(timesheet.date)}`,
+          `Work mode: ${timesheet.work_mode || 'N/A'}`,
+        ].join('\n');
+        const work = [
+          `Day: ${timesheet.day || 'N/A'}`,
+          `Activity: ${timesheet.activity_category || 'N/A'}`,
+          `Working hours: ${hours(timesheet.working_hours)}`,
+          `OT hours: ${hours(timesheet.ot_hours)}`,
+          `Total hours: ${hours(timesheet.total_hours_calculated)}`,
+          `Permission: ${hours(timesheet.permission_hours)}`,
+        ].join('\n');
+        const tracking = `Check in: ${formatTimeLocal(timesheet.check_in)}    |    Check out: ${formatTimeLocal(timesheet.check_out)}    |    Lunch in: ${formatTimeLocal(timesheet.lunch_in)}    |    Lunch out: ${formatTimeLocal(timesheet.lunch_out)}`;
+        autoTable(doc, {
+          startY: currentY,
+          margin: MARGIN,
+          theme: 'grid',
+          head: [
+            [{ content: `Record ${index + 1} - ${timesheet.employee_name || 'Employee'} - ${formatDateLocal(timesheet.date)}`, colSpan: 2 }],
+            ['Employee information', 'Work information'],
+          ],
+          body: [
+            [employee, work],
+            [{ content: `Description\n${timesheet.description?.trim() || 'N/A'}`, colSpan: 2 }],
+            [{ content: tracking, colSpan: 2, styles: { fillColor: [240, 249, 255] } }],
+            [{ content: `Work duration: ${calculateWorkDurationLocal(timesheet.check_in, timesheet.check_out)}    |    Status: ${timesheet.remark || 'Pending Review'}`, colSpan: 2 }],
+          ],
+          styles: { fontSize: 8, cellPadding: 2.5, overflow: 'linebreak', valign: 'top', lineColor: PDF_COLORS.border, lineWidth: 0.2, textColor: PDF_COLORS.text },
+          headStyles: { fillColor: PDF_COLORS.primary, textColor: [255, 255, 255], fontStyle: 'bold' },
+          columnStyles: { 0: { cellWidth: CONTENT_WIDTH / 2 }, 1: { cellWidth: CONTENT_WIDTH / 2 } },
+          // Measure the entire record before drawing its heading.
+          pageBreak: 'avoid',
+          rowPageBreak: 'avoid',
+          showHead: 'everyPage',
         });
-        drawDetailsPanel({
-          x: MARGIN.left + PANEL_WIDTH + PANEL_GAP,
-          y: panelY,
-          title: 'Work Information',
-          height: detailsPanelHeight,
-          rows: workFields,
-        });
-        drawDetailsPanel({
-          x: MARGIN.left + ((PANEL_WIDTH + PANEL_GAP) * 2),
-          y: panelY,
-          title: 'Description',
-          height: detailsPanelHeight,
-          descriptionLines,
-        });
-
-        currentY = panelY + detailsPanelHeight + 2;
-
-        doc.setFontSize(7);
-        doc.setTextColor(...PDF_COLORS.text);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Time Tracking', MARGIN.left, currentY);
-        currentY += 3;
-
-        doc.setFontSize(5.8);
-        doc.setFont('helvetica', 'normal');
-
-        const timeFields = [
-          { label: 'Check In:', value: formatTimeLocal(timesheet.check_in), color: PDF_COLORS.success },
-          { label: 'Check Out:', value: formatTimeLocal(timesheet.check_out), color: PDF_COLORS.error },
-          { label: 'Lunch In:', value: formatTimeLocal(timesheet.lunch_in), color: PDF_COLORS.warning },
-          { label: 'Lunch Out:', value: formatTimeLocal(timesheet.lunch_out), color: PDF_COLORS.violet },
-        ];
-
-        const timeFieldWidth = CONTENT_WIDTH / 4;
-        timeFields.forEach(({ label, value, color }, idx) => {
-          const x = MARGIN.left + (idx * timeFieldWidth);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...PDF_COLORS.lightText);
-          doc.text(label, x, currentY);
-
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(...color);
-          doc.text(value, x + 14, currentY);
-        });
-
-        currentY += 3.5;
-
-        const workDuration = calculateWorkDurationLocal(timesheet.check_in, timesheet.check_out);
-
-        doc.setFontSize(6);
-        doc.setTextColor(...PDF_COLORS.text);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Work Duration:', MARGIN.left, currentY);
-
-        doc.setFontSize(6.5);
-        doc.setTextColor(...PDF_COLORS.primary);
-        doc.setFont('helvetica', 'bold');
-        doc.text(workDuration, MARGIN.left + 23, currentY);
-
-        const remark = timesheet.remark || 'Pending Review';
-        const statusColor = remark.toLowerCase().includes('approved') ? PDF_COLORS.success :
-                           remark.toLowerCase().includes('rejected') ? PDF_COLORS.error :
-                           PDF_COLORS.warning;
-
-        doc.setFontSize(6);
-        doc.setTextColor(...PDF_COLORS.text);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Status:', MARGIN.left + (CONTENT_WIDTH / 2), currentY);
-
-        doc.setFontSize(6.5);
-        doc.setTextColor(...statusColor);
-        doc.setFont('helvetica', 'bold');
-        doc.text(remark, MARGIN.left + (CONTENT_WIDTH / 2) + 12, currentY);
-
-        currentY += 3.5;
-
-        if (index < selectedData.length - 1) {
-          doc.setDrawColor(...PDF_COLORS.border);
-          doc.setLineWidth(0.2);
-          doc.setLineDashPattern([2, 2]);
-          doc.line(MARGIN.left, currentY, pageWidth - MARGIN.right, currentY);
-          doc.setLineDashPattern([]);
-          currentY += 3;
-        }
+        currentY = doc.lastAutoTable.finalY + 6;
       });
 
       // ===== FOOTER =====
@@ -1025,13 +834,6 @@ export default function Timesheet() {
           pageHeight - MARGIN.bottom + 2,
           pageWidth - MARGIN.right,
           pageHeight - MARGIN.bottom + 2
-        );
-
-        doc.text(
-          `Page ${i} of ${pageCount}`,
-          pageWidth / 2,
-          pageHeight - MARGIN.bottom + 6,
-          { align: 'center' }
         );
 
         doc.text(
@@ -1114,14 +916,14 @@ export default function Timesheet() {
     handleExportMenuClose();
 
     try {
-      if (paginatedData.length === 0) {
-        toast.warning('No records are visible on this page to export.');
+      if (filteredTimesheets.length === 0) {
+        toast.warning('No matching records to export.');
         return;
       }
 
       toast.info('Generating PDF report...');
 
-      const exportRows = paginatedData;
+      const exportRows = filteredTimesheets;
       const totalWorkingHoursAll = exportRows.reduce((sum, row) => sum + (parseFloat(row.working_hours) || 0), 0);
       const totalOTHoursAll = exportRows.reduce((sum, row) => sum + (parseFloat(row.ot_hours) || 0), 0);
       const totalHoursAll = exportRows.reduce((sum, row) => sum + (parseFloat(row.total_hours_calculated) || 0), 0);
@@ -1129,7 +931,7 @@ export default function Timesheet() {
       const pendingApprovalsAll = exportRows.filter(row => !row.remark || row.remark === "").length;
       const approvedTimesheetsAll = exportRows.filter(row => row.remark?.toLowerCase().includes("approved")).length;
 
-      const doc = new jsPDF('p', 'mm', 'a4');
+      const doc = new jsPDF('portrait', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
@@ -1137,7 +939,7 @@ export default function Timesheet() {
       const CONTENT_WIDTH = pageWidth - MARGIN.left - MARGIN.right;
 
       const PDF_COLORS = {
-        primary: [79, 70, 229],
+        primary: [14, 165, 233],
         text: [30, 27, 46],
         lightText: [107, 114, 128],
         border: [229, 231, 235],
@@ -1148,25 +950,7 @@ export default function Timesheet() {
         orange: [249, 115, 22],
       };
 
-      let currentY = MARGIN.top;
-
-      doc.setFontSize(20);
-      doc.setTextColor(...PDF_COLORS.text);
-      doc.setFont('helvetica', 'bold');
-      doc.text('C-Tech Employee Time Sheet Report', MARGIN.left, currentY);
-
-      doc.setFontSize(10);
-      doc.setTextColor(...PDF_COLORS.lightText);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Comprehensive payroll and attendance analysis', MARGIN.left, currentY + 6);
-
-      doc.setFontSize(9);
-      doc.setTextColor(...PDF_COLORS.lightText);
-      const reportDate = format(new Date(), 'dd MMM yyyy, HH:mm');
-      doc.text(`Generated: ${reportDate}`, pageWidth - MARGIN.right, currentY, { align: 'right' });
-      doc.text(`Records on page: ${exportRows.length}`, pageWidth - MARGIN.right, currentY + 6, { align: 'right' });
-
-      currentY += 15;
+      let currentY = drawReportHeader(doc, { title: 'Timesheet Report', subtitle: 'Attendance, working hours and approval overview', count: exportRows.length, margin: MARGIN });
 
       const summaryStats = [
         { label: 'Employees', value: uniqueEmployeesAll.toString(), borderColor: PDF_COLORS.primary },
@@ -1177,34 +961,7 @@ export default function Timesheet() {
         { label: 'Approved', value: approvedTimesheetsAll.toString(), borderColor: PDF_COLORS.approved },
       ];
 
-      const statBoxWidth = CONTENT_WIDTH / 6 - 1.5;
-      const statBoxHeight = 18;
-      const statBoxY = currentY;
-
-      summaryStats.forEach((stat, index) => {
-        const boxX = MARGIN.left + (index * (statBoxWidth + 2));
-
-        doc.setFillColor(...PDF_COLORS.white);
-        doc.setDrawColor(...PDF_COLORS.border);
-        doc.setLineWidth(0.3);
-        doc.rect(boxX, statBoxY, statBoxWidth, statBoxHeight, 'FD');
-
-        doc.setDrawColor(...stat.borderColor);
-        doc.setLineWidth(0.8);
-        doc.line(boxX, statBoxY, boxX, statBoxY + statBoxHeight);
-
-        doc.setFontSize(7);
-        doc.setTextColor(...PDF_COLORS.lightText);
-        doc.setFont('helvetica', 'normal');
-        doc.text(stat.label, boxX + 2, statBoxY + 4);
-
-        doc.setFontSize(11);
-        doc.setTextColor(...stat.borderColor);
-        doc.setFont('helvetica', 'bold');
-        doc.text(stat.value, boxX + 2, statBoxY + 12);
-      });
-
-      currentY = statBoxY + statBoxHeight + 8;
+      currentY = drawReportMetrics(doc, { stats: summaryStats, y: currentY, margin: MARGIN });
 
       const tableData = exportRows.map(row => [
         formatDate(row.date),
@@ -1271,19 +1028,20 @@ export default function Timesheet() {
         },
 
         didParseCell: function (data) {
-          if (data.column.index === 8) {
+          if (data.section === 'body' && data.column.index === 8) {
             const cellText = data.cell.text[0];
             if (cellText === 'Pending') {
-              data.cell.textColor = PDF_COLORS.pending;
-              data.cell.fontStyle = 'normal';
+              data.cell.styles.textColor = PDF_COLORS.pending;
+              data.cell.styles.fontStyle = 'normal';
             } else if (cellText.toLowerCase().includes('approved')) {
-              data.cell.textColor = PDF_COLORS.approved;
-              data.cell.fontStyle = 'bold';
+              data.cell.styles.textColor = PDF_COLORS.approved;
+              data.cell.styles.fontStyle = 'bold';
             }
           }
         },
 
         margin: {
+          top: MARGIN.top,
           left: MARGIN.left,
           right: MARGIN.right,
           bottom: MARGIN.bottom
@@ -1291,47 +1049,19 @@ export default function Timesheet() {
 
         rowPageBreak: 'avoid',
 
-        didDrawPage: function (data) {
-          const pageCount = doc.internal.getNumberOfPages();
-          doc.setFontSize(8);
-          doc.setTextColor(...PDF_COLORS.lightText);
-          doc.setFont('helvetica', 'normal');
-
-          doc.text(
-            `Page ${data.pageNumber} of ${pageCount}`,
-            pageWidth / 2,
-            pageHeight - MARGIN.bottom + 4,
-            { align: 'center' }
-          );
-        }
+        showHead: 'everyPage',
       });
 
       const fileName = `C-Tech_Timesheet_${format(new Date(), 'yyyy-MM-dd_HH-mm-ss')}.pdf`;
       doc.save(fileName);
 
-      toast.success(`PDF report generated with ${exportRows.length} visible records!`);
+      toast.success(`PDF report generated with ${exportRows.length} matching records!`);
 
     } catch (error) {
       console.error("PDF export error:", error);
       toast.error("Failed to generate PDF report. Please try again.");
     }
-  }, [paginatedData, handleExportMenuClose]);
-
-  // ==================== PAGINATION ====================
-
-  const handlePageChange = useCallback((event, value) => {
-    setPage(value);
-    setExpandedRows([]);
-    const tableContainer = document.querySelector('.MuiTableContainer-root');
-    if (tableContainer) {
-      tableContainer.scrollTop = 0;
-    }
-  }, []);
-
-  const handleRowsPerPageChange = useCallback((event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(1);
-  }, []);
+  }, [filteredTimesheets, handleExportMenuClose]);
 
   // ==================== RENDER ====================
 
@@ -1543,7 +1273,6 @@ export default function Timesheet() {
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
-              setPage(1);
             }}
             size="small"
             InputProps={{
@@ -1641,7 +1370,7 @@ export default function Timesheet() {
         )}
 
         {/* Loading Indicator */}
-        {loading ? (
+        {loading && timesheets.length === 0 ? (
           <PageSkeleton compact />
         ) : (
           <Surface sx={{ overflow: 'hidden' }}>
@@ -1654,7 +1383,7 @@ export default function Timesheet() {
                       <Checkbox
                         checked={selectAll}
                         onChange={handleSelectAll}
-                        indeterminate={selectedRows.size > 0 && selectedRows.size < paginatedData.length}
+                        indeterminate={selectedRows.size > 0 && selectedRows.size < filteredTimesheets.length}
                         sx={{ color: COLORS.faint, '&.Mui-checked': { color: COLORS.primary }, '&.MuiCheckbox-indeterminate': { color: COLORS.primary } }}
                       />
                     }
@@ -1698,7 +1427,7 @@ export default function Timesheet() {
 
             {/* Table */}
             <TableContainer sx={{ overflowX: "auto" }}>
-              <Table size="medium">
+              <Table size="medium" sx={{ tableLayout: "fixed", minWidth: 1300 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ bgcolor: COLORS.bg, fontWeight: 700, color: COLORS.ink, width: 60, borderBottom: `2px solid ${alpha(COLORS.primary, 0.25)}` }}>Select</TableCell>
@@ -1716,16 +1445,16 @@ export default function Timesheet() {
                   </TableRow>
                 </TableHead>
 
-                <TableBody>
-                  {paginatedData.length > 0 ? (
-                    paginatedData.map((row) => {
+                <React.Fragment>
+                  {filteredTimesheets.length > 0 ? (
+                    filteredTimesheets.map((row, rowIndex) => {
                       const expanded = expandedRows.includes(row.id);
                       const workingHours = row.working_hours || 0;
                       const otHours = row.ot_hours || 0;
                       const totalHours = row.total_hours_calculated || 0;
                       
                       return (
-                        <React.Fragment key={row.id}>
+                        <WindowedTableRecord key={row.id} initialVisible={rowIndex < 8}>{() => <React.Fragment>
                           <TableRow
                             hover
                             sx={{
@@ -1972,11 +1701,11 @@ export default function Timesheet() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </React.Fragment>
+                        </React.Fragment>}</WindowedTableRecord>
                       );
                     })
                   ) : (
-                    <TableRow>
+                    <TableBody><TableRow>
                       <TableCell colSpan={12} align="center" sx={{ py: 8 }}>
                         <Box sx={{ textAlign: "center" }}>
                           <SearchIcon sx={{ fontSize: 56, color: alpha(COLORS.muted, 0.3), mb: 2 }} />
@@ -1988,44 +1717,11 @@ export default function Timesheet() {
                           </Typography>
                         </Box>
                       </TableCell>
-                    </TableRow>
+                    </TableRow></TableBody>
                   )}
-                </TableBody>
+                </React.Fragment>
               </Table>
             </TableContainer>
-
-            {/* Pagination */}
-            {filteredTimesheets.length > 0 && (
-              <Box sx={{ p: 2, bgcolor: COLORS.bg, display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${COLORS.border}`, flexWrap: "wrap", gap: 2 }}>
-                <Typography variant="body2" sx={{ color: COLORS.muted, fontWeight: 500 }}>
-                  Showing {((page - 1) * rowsPerPage) + 1} - {Math.min(page * rowsPerPage, filteredTimesheets.length)} of {filteredTimesheets.length} records
-                </Typography>
-
-                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                  <FormControl size="small" sx={{ minWidth: 80 }}>
-                    <Select
-                      value={rowsPerPage}
-                      onChange={handleRowsPerPageChange}
-                      sx={{ borderRadius: "8px", bgcolor: COLORS.surface, '& .MuiSelect-select': { py: 0.5 } }}
-                    >
-                      {[5, 10, 25, 50, 100].map((option) => (
-                        <MenuItem key={option} value={option}>{option}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  <Pagination
-                    count={totalPages}
-                    page={page}
-                    onChange={handlePageChange}
-                    size="medium"
-                    showFirstButton
-                    showLastButton
-                    sx={{ '& .Mui-selected': { bgcolor: `${COLORS.primary} !important`, color: 'white' } }}
-                  />
-                </Box>
-              </Box>
-            )}
 
             {/* Footer */}
             {filteredTimesheets.length > 0 && (

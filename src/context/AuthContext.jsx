@@ -1,3 +1,5 @@
+import { resetApiRequests } from '../utils/apiClient';
+import { clearSessionState } from './useSessionState';
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   browserLocalPersistence,
@@ -26,7 +28,13 @@ export function AuthProvider({ children }) {
     let unsubscribe = () => {};
     let isMounted = true;
 
+    let previousUid;
     const handleAuthState = async (currentUser) => {
+      if (previousUid !== currentUser?.uid) {
+        clearSessionState();
+        resetApiRequests();
+      }
+      previousUid = currentUser?.uid;
       try {
         if (currentUser) {
           // User is signed in

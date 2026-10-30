@@ -1,3 +1,5 @@
+import { apiFetch as fetch } from '../utils/apiClient';
+import { useSessionState, useRefreshOnReturn } from '../context/useSessionState';
 import React, { useState, useEffect } from 'react';
 import {
   Paper,
@@ -300,14 +302,14 @@ const TimesheetPage = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [timesheets, setTimesheets] = useState([]);
+  const [timesheets, setTimesheets] = useSessionState('DailyTimesheet:timesheets', []);
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogMode, setDialogMode] = useState('add'); // 'add' or 'edit'
   const [editingTimesheet, setEditingTimesheet] = useState(null);
   const [timesheetToDelete, setTimesheetToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [empId, setEmpId] = useState('');
-  const [employeeName, setEmployeeName] = useState('');
+  const [empId, setEmpId] = useSessionState('DailyTimesheet:empId', '');
+  const [employeeName, setEmployeeName] = useSessionState('DailyTimesheet:employeeName', '');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState('all');
@@ -434,6 +436,8 @@ const TimesheetPage = () => {
       setLoading(false);
     }
   };
+
+  useRefreshOnReturn(fetchTimesheets);
 
   const checkTodayTimesheetStatus = (timesheetData) => {
     const today = format(new Date(), 'yyyy-MM-dd');
@@ -1179,7 +1183,7 @@ const TimesheetPage = () => {
     }
   };
 
-  if (loading) {
+  if (loading && timesheets.length === 0) {
     return (
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <GlobalStyles styles={fontImport} />

@@ -1,3 +1,5 @@
+import { apiFetch as fetch } from '../utils/apiClient';
+import { useSessionState, useRefreshOnReturn } from '../context/useSessionState';
 import React, { useState, useEffect } from 'react';
 import {
   Paper,
@@ -319,8 +321,8 @@ const Todo = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [todos, setTodos] = useState([]);
-  const [stats, setStats] = useState({
+  const [todos, setTodos] = useSessionState('Todo:todos', []);
+  const [stats, setStats] = useSessionState('Todo:stats', {
     total: 0,
     completed: 0,
     pending: 0,
@@ -331,7 +333,7 @@ const Todo = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogMode, setDialogMode] = useState('add');
   const [editingTodo, setEditingTodo] = useState(null);
-  const [empId, setEmpId] = useState('');
+  const [empId, setEmpId] = useSessionState('Todo:empId', '');
   const [activeTab, setActiveTab] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPriority, setFilterPriority] = useState([]);
@@ -423,7 +425,7 @@ const Todo = () => {
           if (response.ok) {
             const data = await response.json();
             setEmpId(data.id);
-          } else {
+          } else if (response.status === 404) {
             const createResponse = await fetch(`${API_BASE_URL}todos/create-employee`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -439,19 +441,21 @@ const Todo = () => {
               const newEmployee = await createResponse.json();
               setEmpId(newEmployee.id);
             } else {
-              setEmpId(1);
+              setError('Unable to resolve your employee account. Please try again.');
             }
+          } else {
+            setError('Unable to resolve your employee account. Please try again.');
           }
         } catch (err) {
           console.error('Error in employee lookup:', err);
-          setEmpId(1);
+          setError('Unable to resolve your employee account. Please try again.');
         }
       } else {
-        setEmpId(1);
+        setError('Unable to resolve your employee account. Please try again.');
       }
     } catch (err) {
       console.error('Failed to fetch from Firestore:', err);
-      setEmpId(1);
+      setError('Unable to resolve your employee account. Please try again.');
     }
   };
 
@@ -466,7 +470,7 @@ const Todo = () => {
       if (response.ok) {
         const data = await response.json();
         setTodos(data);
-        fetchStats();
+        fetchStats(data);
       } else {
         const errorText = await response.text();
         console.error('Failed to fetch todos:', errorText);
@@ -481,7 +485,7 @@ const Todo = () => {
   };
 
   // Fetch statistics
-  const fetchStats = async () => {
+  const fetchStats = async (currentTodos = todos) => {
     if (!empId || empId === '') return;
 
     try {
@@ -491,15 +495,15 @@ const Todo = () => {
         const data = await response.json();
         setStats(data);
       } else {
-        setStats(calculateLocalStats());
+        setStats(calculateLocalStats(currentTodos));
       }
     } catch (err) {
       console.error('Failed to fetch stats:', err);
-      setStats(calculateLocalStats());
+      setStats(calculateLocalStats(currentTodos));
     }
   };
 
-  const calculateLocalStats = () => {
+  const calculateLocalStats = (todos) => {
     const total = todos.length;
     const completed = todos.filter((t) => t.status === 'completed').length;
     const pending = todos.filter((t) => t.status === 'pending').length;
@@ -525,6 +529,8 @@ const Todo = () => {
   useEffect(() => {
     if (empId && empId !== '') fetchTodos();
   }, [empId]);
+
+  useRefreshOnReturn(fetchTodos);
 
   const resetForm = () => {
     setFormData({

@@ -1,3 +1,5 @@
+import { drawReportHeader, drawReportStats } from '../utils/pdfReportLayout';
+import { useSessionState } from '../context/useSessionState';
 import React, { useState, useRef, useEffect } from "react";
 import { db, storage } from "../Config";
 import {
@@ -207,7 +209,7 @@ const SlideUp = React.forwardRef(function Transition(props, ref) {
 export default function EmployeeApp() {
   const { role } = useAuth();
   const canModifyEmployees = role === "SuperAdmin";
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useSessionState('CreateEmployee:employees', []);
   const [employeesLoading, setEmployeesLoading] = useState(true);
   const [formDialog,   setFormDialog]   = useState({ open: false, employee: null });
   const [viewDialog,   setViewDialog]   = useState({ open: false, employee: null });
@@ -233,7 +235,7 @@ export default function EmployeeApp() {
   const showSnack = (message, severity = "success") =>
     setSnack({ open: true, message, severity });
 
-  if (employeesLoading) {
+  if (employeesLoading && employees.length === 0) {
     return (
       <ThemeProvider theme={theme}>
         <PageSkeleton />
@@ -438,7 +440,7 @@ const exportToPDF = () => {
     
     // ===== COLOR PALETTE =====
     const COLORS = {
-      primary: [37, 99, 235],         // Bright blue #2563EB
+      primary: [14, 165, 233],        // App theme #0EA5E9
       text: [45, 45, 45],             // Dark gray
       lightText: [107, 114, 128],     // Medium gray
       border: [229, 231, 235],        // Light gray
@@ -450,32 +452,11 @@ const exportToPDF = () => {
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const MARGIN = { top: 12, right: 12, bottom: 15, left: 12 };
-    const CONTENT_WIDTH = pageWidth - MARGIN.left - MARGIN.right;
+    const MARGIN = { top: 12, right: 12, bottom: 24, left: 12 };
+
 
     // ===== HEADER SECTION =====
-    let currentY = MARGIN.top;
-
-    // Main title
-    doc.setFontSize(18);
-    doc.setTextColor(...COLORS.text);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Employee Management Report', MARGIN.left, currentY);
-
-    // Subtitle
-    doc.setFontSize(10);
-    doc.setTextColor(...COLORS.lightText);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Employee Directory and Active Status Overview', MARGIN.left, currentY + 5);
-
-    // Header metadata (right aligned)
-    doc.setFontSize(9);
-    doc.setTextColor(...COLORS.lightText);
-    const currentDate = new Date().toLocaleString();
-    doc.text(`Generated: ${currentDate}`, pageWidth - MARGIN.right, currentY, { align: 'right' });
-    doc.text(`Total Records: ${exportData.length}`, pageWidth - MARGIN.right, currentY + 5, { align: 'right' });
-
-    currentY += 14;
+    let currentY = drawReportHeader(doc, { title: 'Employee Management Report', subtitle: 'Employee directory and workforce overview', count: exportData.length, margin: MARGIN });
 
     // ===== SUMMARY STATISTICS =====
     const activeCount = exportData.filter(e => e.status && e.status.toLowerCase() === 'active').length;
@@ -499,38 +480,7 @@ const exportToPDF = () => {
       },
     ];
 
-    const statBoxWidth = (CONTENT_WIDTH / 3) - 1.5;
-    const statBoxHeight = 16;
-    const statBoxY = currentY;
-
-    stats.forEach((stat, index) => {
-      const boxX = MARGIN.left + (index * (statBoxWidth + 2));
-
-      // White background with border
-      doc.setFillColor(...COLORS.white);
-      doc.setDrawColor(...COLORS.border);
-      doc.setLineWidth(0.3);
-      doc.rect(boxX, statBoxY, statBoxWidth, statBoxHeight, 'FD');
-
-      // Left colored border (thick)
-      doc.setDrawColor(...stat.borderColor);
-      doc.setLineWidth(0.8);
-      doc.line(boxX, statBoxY, boxX, statBoxY + statBoxHeight);
-
-      // Label
-      doc.setFontSize(7);
-      doc.setTextColor(...COLORS.lightText);
-      doc.setFont('helvetica', 'normal');
-      doc.text(stat.label, boxX + 3, statBoxY + 3.5);
-
-      // Value
-      doc.setFontSize(12);
-      doc.setTextColor(...stat.borderColor);
-      doc.setFont('helvetica', 'bold');
-      doc.text(stat.value, boxX + 3, statBoxY + 11);
-    });
-
-    currentY = statBoxY + statBoxHeight + 7;
+    currentY = drawReportStats(doc, { stats, count: exportData.length, y: currentY, margin: MARGIN });
 
     // ===== TABLE SECTION =====
     const tableColumn = ["S.No", "Emp ID", "Name", "Email", "Department", "Designation", "Status", "Company", "Mobile", "Experience"];
@@ -623,18 +573,18 @@ const exportToPDF = () => {
       // Dynamic status coloring - CASE INSENSITIVE
       didParseCell: function (data) {
         // Color the Status column (index 6)
-        if (data.column.index === 6) {
+        if (data.section === 'body' && data.column.index === 6) {
           const cellText = data.cell.text[0] || '';
           const statusLower = cellText.toLowerCase().trim();
           
           if (statusLower === 'inactive') {
             // Inactive - Red highlight
-            data.cell.textColor = COLORS.inactive;
-            data.cell.fontStyle = 'normal';
+            data.cell.styles.textColor = COLORS.inactive;
+            data.cell.styles.fontStyle = 'normal';
           } else if (statusLower === 'active') {
             // Active status - use normal text color, no highlighting
-            data.cell.textColor = COLORS.text;
-            data.cell.fontStyle = 'normal';
+            data.cell.styles.textColor = COLORS.text;
+            data.cell.styles.fontStyle = 'normal';
           }
         }
       },
@@ -644,35 +594,23 @@ const exportToPDF = () => {
       rowPageBreak: 'avoid',
 
       // Footer with page numbers
-      didDrawPage: function (data) {
-        const pageCount = doc.internal.getNumberOfPages();
-        
-        // Bottom border
-        doc.setDrawColor(...COLORS.primary);
-        doc.setLineWidth(0.5);
-        doc.line(MARGIN.left, pageHeight - MARGIN.bottom - 5, pageWidth - MARGIN.right, pageHeight - MARGIN.bottom - 5);
-
-        // Page number and footer
-        doc.setFontSize(7);
-        doc.setTextColor(...COLORS.lightText);
-        doc.setFont('helvetica', 'normal');
-
-        doc.text(
-          `Page ${data.pageNumber} of ${pageCount}`,
-          pageWidth / 2,
-          pageHeight - MARGIN.bottom + 3,
-          { align: 'center' }
-        );
-
-        // Footer text
-        doc.setFontSize(6);
-        doc.text(
-          '© C-Tech Engineering - Confidential',
-          MARGIN.left,
-          pageHeight - MARGIN.bottom + 3
-        );
-      }
+      showHead: 'everyPage',
     });
+
+    // Draw footers only after pagination is complete; keep them below the table.
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let page = 1; page <= pageCount; page += 1) {
+      doc.setPage(page);
+      doc.setDrawColor(...COLORS.primary);
+      doc.setLineWidth(0.4);
+      doc.line(MARGIN.left, pageHeight - 17, pageWidth - MARGIN.right, pageHeight - 17);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(...COLORS.lightText);
+      doc.text('C-Tech Engineering - Confidential', MARGIN.left, pageHeight - 10);
+      doc.text(`Page ${page} of ${pageCount}`, pageWidth - MARGIN.right, pageHeight - 10, { align: 'right' });
+    }
+
 
     // ===== SAVE DOCUMENT =====
     const fileName = `Employee_Management_Report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -845,35 +783,35 @@ const exportToPDF = () => {
       </Box>
 
       {/* Stat Cards */}
-      <Grid container spacing={{ xs: 1, sm: 1.5, md: 2 }} sx={{ mb: { xs: 2, md: 3 } }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, gap: 2, mb: 3 }}>
         {stats.map((s) => (
-          <Grid item xs={4} key={s.label} minWidth={'250px'}>
+          <Box key={s.label} sx={{ minWidth: 0 }}>
             <Paper elevation={0} sx={{
-              borderRadius: { xs: 2, md: 1 },
+              borderRadius: 3,
               border: "1px solid #E2E8F0",
               p: { xs: "12px 14px", sm: "14px 18px", md: "18px 22px" },
-              borderTop: `4px solid ${s.border}`, background: "#fff",
+              minHeight: 112, boxSizing: "border-box", background: `linear-gradient(135deg, #fff, ${alpha(s.color, 0.05)})`,
               transition: "box-shadow .2s, transform .2s",
               "&:hover": { boxShadow: `0 8px 28px ${alpha(s.color, 0.15)}`, transform: "translateY(-2px)" },
             }}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <Box>
-                  <Typography sx={{ fontWeight: 800, color: s.color, lineHeight: 1, fontSize: { xs: 22, sm: 28, md: 34 } }}>{s.value}</Typography>
-                  <Typography sx={{ color: "#64748b", fontWeight: 500, mt: 0.5, fontSize: { xs: 9.5, sm: 11, md: 13 } }}>{s.label}</Typography>
+                  <Typography sx={{ fontWeight: 800, color: "#0F172A", fontVariantNumeric: "tabular-nums", lineHeight: 1, fontSize: { xs: 22, sm: 28, md: 34 } }}>{s.value}</Typography>
+                  <Typography sx={{ color: "#64748b", fontWeight: 500, mt: 0.5, fontSize: 13 }}>{s.label}</Typography>
                 </Box>
                 <Box sx={{
                   width: { xs: 32, md: 46 }, height: { xs: 32, md: 46 },
                   borderRadius: { xs: 1.5, md: 2.5 },
                   background: alpha(s.color, 0.08),
-                  display: { xs: "none", sm: "flex" }, alignItems: "center", justifyContent: "center",
+                  display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
                   {React.cloneElement(s.icon, { sx: { color: s.color, fontSize: { xs: 16, md: 22 } } })}
                 </Box>
               </Box>
             </Paper>
-          </Grid>
+          </Box>
         ))}
-      </Grid>
+      </Box>
 
       {/* Search */}
       <TextField
